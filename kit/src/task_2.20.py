@@ -27,8 +27,8 @@ alice_secret = alice.generate_shared_secret(bob.public_key)
 bob_secret = bob.generate_shared_secret(alice.public_key)
 
 print("Общие секреты:")
-print(f"Алиса вычислила: {alice_secret}")
-print(f"Боб вычислил: {bob_secret}")
+print(f"Алиса вычислила: {alice_secret}")  # 9317
+print(f"Боб вычислил: {bob_secret}")       # 9317
 print()
 
 # Проверка совпадения секретов

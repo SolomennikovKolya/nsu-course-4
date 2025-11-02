@@ -2,11 +2,11 @@ from diffie_hellman import DiffieHellman
 
 
 data = [
-    {"p": 23, "g": 5, "priv_A": 5, "priv_B": 7},
-    {"p": 19, "g": 2, "priv_A": 5, "priv_B": 7},
-    {"p": 23, "g": 7, "priv_A": 3, "priv_B": 4},
-    {"p": 17, "g": 3, "priv_A": 10, "priv_B": 5},
-    {"p": 19, "g": 10, "priv_A": 4, "priv_B": 8}
+    {"p": 23, "g": 5, "priv_A": 5, "priv_B": 7},   # 21
+    {"p": 19, "g": 2, "priv_A": 5, "priv_B": 7},   # 10
+    {"p": 23, "g": 7, "priv_A": 3, "priv_B": 4},   # 16
+    {"p": 17, "g": 3, "priv_A": 10, "priv_B": 5},  # 9
+    {"p": 19, "g": 10, "priv_A": 4, "priv_B": 8}   # 16
 ]
 
 for sample in data:

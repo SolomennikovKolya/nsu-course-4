@@ -80,18 +80,22 @@ def generate_prime(bits: int = 1024) -> int:
             return p
 
 
-def prime_factors(n: int) -> set[int]:
+def prime_factors(n: int, allow_duplicates: bool = False) -> list[int]:
     """Возвращает множество простых делителей числа n."""
-    factors = set()
+    factors = list()
     d = 2
     while d * d <= n:
         while n % d == 0:
-            factors.add(d)
+            factors.append(d)
             n //= d
         d += 1
     if n > 1:
-        factors.add(n)
-    return factors
+        factors.append(n)
+
+    if allow_duplicates:
+        return factors
+    else:
+        return list(set(factors))
 
 
 def find_all_primitive_roots(p: int) -> list[int]:
@@ -199,3 +203,35 @@ def mod_inverse(a: int, m: int) -> int | None:
     if t < 0:
         t += m
     return t
+
+
+def phi(n: int) -> int:
+    """Вычисляет функцию Эйлера (количество чисел от 1 до n, которые взаимно просты с n)."""
+    result = n
+    i = 2
+    while i * i <= n:
+        if n % i == 0:
+            while n % i == 0:
+                n //= i
+            result -= result // i
+        i += 1
+    if n > 1:
+        result -= result // n
+    return result
+
+
+if __name__ == "__main__":
+    p = 19
+    ca = 5
+    cb = 7
+    m = 4
+    da = mod_inverse(ca, p - 1)
+    db = mod_inverse(cb, p - 1)
+    print(da, db)
+
+    x1 = pow(m, ca, p)
+    x2 = pow(x1, cb, p)
+    x3 = pow(x2, da, p)
+    x4 = pow(x3, db, p)
+
+    print(x1, x2, x3, x4)
