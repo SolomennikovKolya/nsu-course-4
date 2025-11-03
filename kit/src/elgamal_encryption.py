@@ -77,8 +77,6 @@ if __name__ == "__main__":
     demo()
 
 """
-Пример вывода:
-
 === El-Gamal cipher DEMO ===
 
 p = 30803, g = 2

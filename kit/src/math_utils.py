@@ -108,7 +108,7 @@ def find_all_primitive_roots(p: int) -> list[int]:
     В функции используется долгий, но детерминированный алгоритм. 
     """
     if not is_prime(p):
-        raise ValueError("p должно быть простым")
+        raise ValueError("p должно быть простым.")
 
     phi = p - 1  # порядок мультипликативной группы
     factors = prime_factors(phi)
@@ -223,5 +223,6 @@ def phi(n: int) -> int:
 
 
 if __name__ == "__main__":
-    # print(mod_inverse(5, 22))
-    print(pow(17, 9, 23))
+    # print(generate_prime(100))
+    # print(mod_inverse(27, 40))
+    print(pow(5, 11, 23))

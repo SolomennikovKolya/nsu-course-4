@@ -69,8 +69,6 @@ if __name__ == "__main__":
     demo()
 
 """
-Пример вывода:
-
 === Shamir's encryption DEMO ===
 
 p = 30803

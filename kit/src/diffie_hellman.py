@@ -67,8 +67,6 @@ if __name__ == "__main__":
     demo()
 
 """
-Пример вывода:
-
 === Diffie-Hellman algorithm DEMO ===
 
 p = 30803, g = 2
