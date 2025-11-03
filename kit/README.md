@@ -18,7 +18,7 @@
 - [2.21](src/shamirs_encryption.py) - Шифр Шамира
 - [2.22](src/elgamal_encryption.py) - Шифр Эль-Гамаля
 - [2.23](src/rsa_encryption.py) - Шифр RSA
-- [5.3](src/rsa_encryption.py) - Ментальный покер
+- [5.3](src/mental_poker.py) - Ментальный покер
 
 #### ДЗ-3
 - [4.7](src/rsa_signature.py) - Электронная подпись RSA
