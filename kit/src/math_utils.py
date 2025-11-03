@@ -54,7 +54,7 @@ def miller_rabin(n: int, k: int = 5) -> bool:
     return True
 
 
-def is_probably_prime(n, k=5):
+def is_probably_prime(n: int, k: int = 5) -> bool:
     """
     Быстрая проверка делимости на малые простые + вероятностный тест простоты Миллера–Рабина.
     Работает не в 100% случаях, зато очень быстро. n — проверяемое число; 
@@ -76,7 +76,9 @@ def generate_prime(bits: int = 1024) -> int:
         p = random.getrandbits(bits)  # Генерируем случайный набор битов
         p |= (1 << bits - 1) | 1      # Устанавливаем старший бит и младший бит в 1
 
-        if is_probably_prime(p):
+        # В зависимости от желаемого размера простого числа, применяем разные алгоритмы
+        # потому что при bits >= 50 детерминированный алгоритм проверки на простоту работает долго
+        if bits < 50 and is_prime(p) or bits >= 50 and is_probably_prime(p):
             return p
 
 
@@ -142,7 +144,7 @@ def print_powers_table(p: int) -> None:
 def generate_safe_prime(bits: int = 1024) -> int:
     """
     Генерирует безопасное простое число p = 2q + 1. q - тоже простое.
-    Алгоритм снован на вероятностях. Применяется, когда p должно быть очень большим.
+    Алгоритм основан на вероятностях. Применяется, когда p должно быть очень большим.
     """
     while True:
         q = random.getrandbits(bits - 1)
@@ -188,7 +190,7 @@ def gcd(a: int, b: int) -> int:
 def mod_inverse(a: int, m: int) -> int | None:
     """
     Вычисляет x = a^(-1) mod m, если обратный элемент существует.
-    В противном случае возвращает None (обратного нет когда gcd(a, m) != 1).
+    В противном случае возвращает None (обратного нет, когда gcd(a, m) != 1).
     """
     t, new_t = 0, 1
     r, new_r = m, a
@@ -221,17 +223,4 @@ def phi(n: int) -> int:
 
 
 if __name__ == "__main__":
-    p = 19
-    ca = 5
-    cb = 7
-    m = 4
-    da = mod_inverse(ca, p - 1)
-    db = mod_inverse(cb, p - 1)
-    print(da, db)
-
-    x1 = pow(m, ca, p)
-    x2 = pow(x1, cb, p)
-    x3 = pow(x2, da, p)
-    x4 = pow(x3, db, p)
-
-    print(x1, x2, x3, x4)
+    print(generate_prime(1000))

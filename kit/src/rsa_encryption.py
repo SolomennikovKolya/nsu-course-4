@@ -1,76 +1,72 @@
+from math_utils import gcd, mod_inverse, generate_prime
 import random
 from tabulate import tabulate
-from math_utils import gcd, mod_inverse, is_prime
-
-
-def generate_prime(start=1000, end=5000) -> int:
-    """Генерация случайного простого числа"""
-    while True:
-        n = random.randint(start, end)
-        if is_prime(n):
-            return n
 
 
 class RSAParticipant:
     """Участник шифра RSA."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, p: int = None, q: int = None, d: int = None):
+        # Общая информация:
         self.name = name
-        self.p = generate_prime()
-        self.q = generate_prime()
-        while self.q == self.p:
-            self.q = generate_prime()
-        self.n = self.p * self.q
-        self.phi = (self.p - 1) * (self.q - 1)
-        self.e, self.d = self._generate_key_pair()
-        print(f"{self.name}: p={self.p}, q={self.q}, e={self.e}, d={self.d}, n={self.n}")
 
-    def _generate_key_pair(self) -> tuple[int, int]:
-        """Выбирает e, d такие, что e*d ≡ 1 (mod phi)"""
+        # Секретные ключи:
+        if p != None and q != None:
+            self.p = p
+            self.q = q
+        else:
+            self.p = generate_prime(20)
+            self.q = generate_prime(20)
+            while self.q == self.p:
+                self.q = generate_prime(20)
+        self.phi = (self.p - 1) * (self.q - 1)
+        d = d if d != None else self._generate_d()
+        self.c = mod_inverse(d, self.phi)
+
+        # Открытые ключи:
+        self.n = self.p * self.q
+        self.d = d
+
+    def _generate_d(self) -> int:
+        """Выбирает d такой, что gcd(d, phi) = 1."""
         while True:
-            e = random.randint(2, self.phi - 1)
-            if gcd(e, self.phi) == 1:
-                d = mod_inverse(e, self.phi)
-                if d is not None:
-                    return e, d
+            d = random.randint(2, self.phi - 1)
+            if gcd(d, self.phi) == 1:
+                return d
 
     def public_key(self) -> tuple[int, int]:
-        """Публичный ключ (e, n)"""
-        return self.e, self.n
+        """Публичный ключ (n, d)."""
+        return self.n, self.d
 
     def encrypt(self, msg: int, recipient_public: tuple[int, int]) -> int:
         """Шифрование сообщения msg для получателя."""
-        e, n = recipient_public
-        c = pow(msg, e, n)
-        print(f"{self.name} шифрует сообщение {msg} → {c}")
-        return c
+        n, d = recipient_public
+        return pow(msg, d, n)
 
     def decrypt(self, cipher: int) -> int:
         """Расшифровка шифртекста."""
-        m = pow(cipher, self.d, self.n)
-        print(f"{self.name} расшифровывает {cipher} → {m}")
-        return m
+        return pow(cipher, self.c, self.n)
 
 
 def demo():
     print("\n=== RSA DEMO ===\n")
 
     # Создаём участников
-    alice = RSAParticipant("Алиса")
-    bob = RSAParticipant("Боб")
+    alice = RSAParticipant("Алиса", 131, 227, 3)
+    bob = RSAParticipant("Боб", 113, 281, 3)
 
-    # Исходное сообщение
+    headers = ["Участник", "Секретные ключи", "Публичные ключи"]
+    table = [["Алиса", f"p = {alice.p}, q = {alice.q}, c = {alice.c}", f"n = {alice.n}, d = {alice.d}"],
+             ["Боб", f"p = {bob.p}, q = {bob.q}, c = {bob.c}", f"n = {bob.n}, d = {bob.d}"]]
+    print(tabulate(table, headers=headers, tablefmt="minimal") + "\n")
+
+    # Протокол обмена
     m = random.randint(2, min(alice.n, bob.n) - 1)
+    cipher = alice.encrypt(m, bob.public_key())  # Алиса шифрует сообщение для Боба
+    decrypted = bob.decrypt(cipher)              # Боб расшифровывает
 
-    # Алиса шифрует сообщение для Боба
-    cipher = alice.encrypt(m, bob.public_key())
-
-    # Боб расшифровывает
-    decrypted = bob.decrypt(cipher)
-
-    # Табличный вывод
-    table = [[m, cipher, decrypted]]
     headers = ["m", "cipher", "decrypted"]
+    table = [[m, cipher, decrypted]]
     print("\n" + tabulate(table, headers=headers, tablefmt="minimal"), end="\n\n")
 
     if decrypted == m:
@@ -81,3 +77,21 @@ def demo():
 
 if __name__ == "__main__":
     demo()
+
+"""
+Пример вывода:
+
+=== RSA DEMO ===
+
+Участник    Секретные ключи              Публичные ключи
+----------  ---------------------------  -----------------
+Алиса       p = 131, q = 227, c = 19587  n = 29737, d = 3
+Боб         p = 113, q = 281, c = 20907  n = 31753, d = 3
+
+
+    m    cipher    decrypted
+-----  --------  -----------
+21832     31038        21832
+
+Сообщение успешно расшифровано!
+"""

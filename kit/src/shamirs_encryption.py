@@ -1,16 +1,18 @@
+from math_utils import gcd, mod_inverse, generate_prime
 import random
-import math
 from tabulate import tabulate
-from math_utils import gcd, mod_inverse
 
 
 class ShamirParticipant:
     """Участник шифра Шамира."""
 
-    def __init__(self, name: str, p: int):
+    def __init__(self, name: str, p: int = None):
+        # Общая информация:
         self.name = name
-        self.p = p
-        self.phi = p - 1
+        self.p = p if p != None else generate_prime(20)
+        self.phi = self.p - 1
+
+        # Секретные ключи:
         self.c, self.d = self._generate_key_pair()
 
     def _generate_key_pair(self) -> tuple[int, int]:
@@ -32,24 +34,27 @@ class ShamirParticipant:
 
 
 def demo():
-    p = 30803
-    print(f"\np = {p}\n")
+    print("\n=== Shamir's encryption DEMO ===\n")
 
     # Создаём участников
-    alice = ShamirParticipant("Алиса", p)
-    bob = ShamirParticipant("Боб", p)
+    alice = ShamirParticipant("Алиса", 30803)
+    bob = ShamirParticipant("Боб", alice.p)
 
-    # Исходное сообщение
-    m = random.randint(2, p - 2)
+    print(f"p = {alice.p}\n")
+    headers = ["Участник", "Секретные ключи"]
+    table = [["Алиса", f"c = {alice.c}, d = {alice.d}"],
+             ["Боб", f"c = {bob.c}, d = {bob.d}"]]
+    print(tabulate(table, headers=headers, tablefmt="minimal") + "\n")
 
     # Протокол обмена
+    m = random.randint(2, alice.p - 2)
     x1 = alice.encrypt(m)   # Алиса шифрует
     x2 = bob.encrypt(x1)    # Боб шифрует
     x3 = alice.decrypt(x2)  # Алиса снимает своё шифрование
     x4 = bob.decrypt(x3)    # Боб расшифровывает окончательно
 
-    table = [[m, x1, x2, x3, x4]]
     headers = ["m", "x1", "x2", "x3", "x4"]
+    table = [[m, x1, x2, x3, x4]]
     print(tabulate(table, headers=headers, tablefmt="minimal"), end="\n\n")
 
     if x4 == m:
@@ -60,3 +65,22 @@ def demo():
 
 if __name__ == "__main__":
     demo()
+
+"""
+Пример вывода:
+
+=== Shamir's encryption DEMO ===
+
+p = 30803
+
+Участник    Секретные ключи
+----------  -------------------
+Алиса       c = 21715, d = 2627
+Боб         c = 24915, d = 5881
+
+    m     x1     x2    x3     x4
+-----  -----  -----  ----  -----
+16181  26172  26463  1982  16181
+
+Сообщение успешно восстановлено!
+"""
