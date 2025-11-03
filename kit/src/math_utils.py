@@ -223,4 +223,5 @@ def phi(n: int) -> int:
 
 
 if __name__ == "__main__":
-    print(generate_prime(1000))
+    # print(mod_inverse(5, 22))
+    print(pow(17, 9, 23))

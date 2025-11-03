@@ -56,8 +56,10 @@ def demo():
     bob = RSAParticipant("Боб", 113, 281, 3)
 
     headers = ["Участник", "Секретные ключи", "Публичные ключи"]
-    table = [["Алиса", f"p = {alice.p}, q = {alice.q}, c = {alice.c}", f"n = {alice.n}, d = {alice.d}"],
-             ["Боб", f"p = {bob.p}, q = {bob.q}, c = {bob.c}", f"n = {bob.n}, d = {bob.d}"]]
+    table = [
+        ["Алиса", f"p = {alice.p}, q = {alice.q}, c = {alice.c}", f"n = {alice.n}, d = {alice.d}"],
+        ["Боб", f"p = {bob.p}, q = {bob.q}, c = {bob.c}", f"n = {bob.n}, d = {bob.d}"]
+    ]
     print(tabulate(table, headers=headers, tablefmt="minimal") + "\n")
 
     # Протокол обмена

@@ -52,8 +52,10 @@ def demo():
 
     print(f"p = {alice.p}, g = {alice.g}\n")
     headers = ["Участник", "Секретные ключи", "Публичные ключи"]
-    table = [["Алиса", f"c = {alice.c}", f"d = {alice.d}"],
-             ["Боб", f"c = {bob.c}", f"d = {bob.d}"]]
+    table = [
+        ["Алиса", f"c = {alice.c}", f"d = {alice.d}"],
+        ["Боб", f"c = {bob.c}", f"d = {bob.d}"]
+    ]
     print(tabulate(table, headers=headers, tablefmt="minimal") + "\n")
 
     # Протокол обмена

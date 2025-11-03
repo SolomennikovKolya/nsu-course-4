@@ -43,8 +43,10 @@ def demo():
 
     print(f"p = {alice.p}, g = {alice.g}\n")
     headers = ["Участник", "Секретные ключи", "Публичные ключи"]
-    table = [["Алиса", f"x = {alice.x}", f"y = {alice.y}"],
-             ["Боб", f"x = {bob.x}", f"y = {bob.y}"]]
+    table = [
+        ["Алиса", f"x = {alice.x}", f"y = {alice.y}"],
+        ["Боб", f"x = {bob.x}", f"y = {bob.y}"]
+    ]
     print(tabulate(table, headers=headers, tablefmt="minimal") + "\n")
 
     # Обмен публичными ключами и вычисление общего секрета
