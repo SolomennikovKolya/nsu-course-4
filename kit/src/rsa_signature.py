@@ -1,5 +1,6 @@
 from math_utils import gcd, mod_inverse, generate_prime, prime_factors
 import random
+import math
 from tabulate import tabulate
 
 
@@ -41,14 +42,14 @@ class RSASigner:
         self.phi = (self.p - 1) * (self.q - 1)
 
         if d is not None:
-            if gcd(d, self.phi) != 1:
+            if math.gcd(d, self.phi) != 1:
                 raise ValueError("Экспонента d должна быть взаимно проста с phi(n).")
             self.d = d
         else:
             while True:
-                d = random.randint(2, self.phi - 1)
-                if gcd(d, self.phi) == 1:
-                    self.d = d
+                self.d = random.randint(2, self.phi - 1)
+                if math.gcd(self.d, self.phi) == 1:
+                    break
         self.c = mod_inverse(self.d, self.phi)
 
     def public_key(self) -> tuple[int, int]:
@@ -59,14 +60,14 @@ class RSASigner:
         """Подпись сообщения m (предполагается, что m = h(m) - хэш)"""
         return pow(m, self.c, self.n)
 
-    def verify(self, m: int, x: int, public: tuple[int, int]) -> bool:
+    @staticmethod
+    def verify(m: int, x: int, public: tuple[int, int]) -> bool:
         """Проверка подписи. 
         m - сообщение; 
         x - подпись; 
         public = (n, d) - публичные ключи"""
         n, d = public
         m2 = pow(x, d, n)
-        print(m2)
         return m2 == m
 
 
@@ -83,17 +84,17 @@ def demo():
     # Проверка подлинного сообщения с реальной подписью
     m_real = 500
     x_real = user.sign(m_real)
-    ok = user.verify(m_real, x_real, user.public_key())
+    ok = RSASigner.verify(m_real, x_real, user.public_key())
     print(f"Проверка реальной подписки (m={m_real}, x={x_real}) ->", "VALID" if ok else "INVALID")
 
     # Демонстрация того, что изменение подписи ломает проверку
     x_fake = x_real + 1
-    ok = user.verify(m_real, x_fake, user.public_key())
+    ok = RSASigner.verify(m_real, x_fake, user.public_key())
     print(f"Проверка с поддельной подписью (m={m_real}, x={x_fake}) ->", "VALID" if ok else "INVALID")
 
     # Демонстрация того, что изменение сообщения ломает проверку
     m_fake = m_real + 1
-    ok = user.verify(m_fake, x_real, user.public_key())
+    ok = RSASigner.verify(m_fake, x_real, user.public_key())
     print(f"Проверка с изменённым сообщением (m={m_fake}, x={x_real}) ->", "VALID" if ok else "INVALID")
 
 

@@ -1,5 +1,6 @@
 import random
 from tabulate import tabulate
+import hashlib
 
 
 SMALL_PRIMES = [
@@ -220,6 +221,12 @@ def phi(n: int) -> int:
     if n > 1:
         result -= result // n
     return result
+
+
+def int_hash(x: int) -> int:
+    """Хеш числа через SHA-256 → целое."""
+    h = hashlib.sha256(str(x).encode()).digest()
+    return int.from_bytes(h, 'big')
 
 
 if __name__ == "__main__":
