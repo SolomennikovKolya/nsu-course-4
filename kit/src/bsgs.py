@@ -1,6 +1,5 @@
 import math
-import random
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict
 
 
 def bsgs(a: int, y: int, p: int) -> Optional[int]:
