@@ -1,0 +1,39 @@
+<xs:schema
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    targetNamespace="https://example.org/ldml/1.0"
+    xmlns="https://example.org/ldml/1.0"
+    elementFormDefault="qualified">
+    <xs:element name="body" type="BodyType"/>
+    <xs:complexType name="BodyType">
+        <xs:sequence>
+            <xs:choice maxOccurs="unbounded">
+                <xs:element name="text" type="TextType"/>
+                <xs:element name="table" type="TableType"/>
+            </xs:choice>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="TextType">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="role" type="xs:string" use="optional"/>
+                <xs:attribute name="level" type="xs:integer" use="optional"/>
+                <xs:attribute name="source" type="xs:string" use="optional"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+    <xs:complexType name="TableType">
+        <xs:sequence>
+            <xs:element name="row" type="RowType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="RowType">
+        <xs:sequence>
+            <xs:element name="cell" type="CellType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="CellType">
+        <xs:sequence>
+            <xs:element name="text" type="TextType" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>

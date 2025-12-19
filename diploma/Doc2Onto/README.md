@@ -1,11 +1,11 @@
 
 ### Инструкция по запуску
-1. `python -m venv .env` - создание окружения для python
-2. `.env\bin\activate` - активация окружения
-3. `pip install -r requirements.txt` - установка всех необходимых библиотек
-4. Установка сторонних зависимостей:
-    - [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/)
-5. `python app.py` - запуск
+1. `py -3.11 -m venv .env` - создание окружения для python (необходима версия 3.11)
+2. `.env\Scripts\activate` - активация окружения
+3. `python -m pip install --upgrade pip setuptools wheel` - обновление инструментов python
+4. `pip install -r requirements.txt` - установка всех необходимых библиотек
+5. `python app.py` - запуск всего приложения
+6. `python -m tests.test_converter` - запуск теста
 
 ### Структура проекта
 ```
@@ -62,5 +62,7 @@ Doc2Onto/
     └── test_classifier.py (будущее)
 ```
 
-### Для себя
+### Дополнительно
 - `python.analysis.typeCheckingMode` - настройка vs code для подсветки синтаксиса
+- `Ctrl + Shift + P` → `Python: Select Interpreter` - выбор нужного интерпретатора для корректной подсветки в vs code
+- `Ctrl + Shift + P` → `Restart Language Server` - перезапустите Python Language Server

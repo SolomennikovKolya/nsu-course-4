@@ -1,37 +1,30 @@
-import pathlib
-from core.base_module import BaseModule
-from modules.converter.converters.docx_to_pdf import DocxToPdfConverter
-from modules.converter.converters.image_to_pdf import ImageToPdfConverter
-from modules.converter.converters.pdf_normalizer import PdfNormalizer
+from modules.base_module import BaseModule
+from modules.converter.docx_to_ldml import DocxToLdmlConverter
+
+from lxml import etree  # type: ignore
+from pathlib import Path
 
 
 class Converter(BaseModule):
     """
-    Высокоуровневый фасад для всего процесса приведения документов к PDF.
+    Общий конвертер документов.
+
+    Назначение:
+    - Преобразует входной документ в единый внутренний формат LDML
+
+    Реализация:
+    - Определяет формат входного файла (DOC, DOCX, PDF и др.)
+    - Делегирует обработку соответствующему специализированному конвертеру
     """
 
     def __init__(self):
-        self.docx_converter = DocxToPdfConverter()
-        self.image_converter = ImageToPdfConverter()
-        self.pdf_normalizer = PdfNormalizer()
+        self.docx_to_ldml = DocxToLdmlConverter()
 
-    def process(self, input_path: str) -> str:
-        """
-        Преобразует входной документ в нормализованный PDF.
-        Возвращает путь к нормализованному PDF.
-        """
-
-        input_path = pathlib.Path(input_path)
+    def process(self, input_path: str | Path) -> etree._ElementTree:
+        input_path = Path(input_path)
         suffix = input_path.suffix.lower()
 
-        if suffix in (".doc", ".docx", ".odt"):
-            pdf_path = self.docx_converter.convert(input_path)
-        elif suffix in (".png", ".jpg", ".jpeg", ".tiff"):
-            pdf_path = self.image_converter.convert(input_path)
-        elif suffix == ".pdf":
-            pdf_path = input_path
+        if suffix == ".docx":
+            return self.docx_to_ldml.convert(input_path)
         else:
             raise ValueError(f"Unsupported format: {suffix}")
-
-        normalized_pdf = self.pdf_normalizer.normalize(pdf_path)
-        return str(normalized_pdf)
