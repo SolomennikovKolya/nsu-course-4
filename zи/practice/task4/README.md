@@ -1,5 +1,5 @@
 
-## OSINT и основы социальной инженерии
+## OSINT, фишинг и пентест
 
 [Папка со всеми материалами](https://disk.yandex.ru/d/zO56Xgx4xyTZeQ)
 [Дистрибутив Kali Linux](https://www.kali.org/get-kali/#kali-platforms)
