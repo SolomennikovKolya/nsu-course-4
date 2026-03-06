@@ -1,18 +1,17 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout
-from ui.widgets.converter_widget import ConverterWidget
+from ui.tabs.documents.documents_tab import DocumentsTab
+from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 
 class MainWindow(QMainWindow):
+    """Главное окно приложения, содержащее вкладки для управления документами и шаблонами."""
 
     def __init__(self):
         super().__init__()
+        self.setWindowTitle("Doc2Onto")
+        self.resize(900, 600)
 
-        self.setWindowTitle("Knowledge Extraction System")
+        tabs = QTabWidget()                       # Виджет - контейнер для вкладок
+        tabs.addTab(DocumentsTab(), "Documents")  # Вкладка для управления документами
+        tabs.addTab(QTabWidget(), "Templates")    # Вкладка для управления шаблонами (пока пустая)
 
-        central = QWidget()
-        layout = QVBoxLayout(central)
-
-        self.converter_widget = ConverterWidget()
-        layout.addWidget(self.converter_widget)
-
-        self.setCentralWidget(central)
+        self.setCentralWidget(tabs)  # Устанавливает созданный виджет с вкладками в качестве основного содержимого окна
