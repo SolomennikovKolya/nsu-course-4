@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from pathlib import Path
 
-from infrastructure.document_manager import DocumentManager
+from infrastructure.storage.document_manager import DocumentManager
 from app.pipeline_engine import PipelineEngine
 
 
