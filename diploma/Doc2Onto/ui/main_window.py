@@ -1,5 +1,6 @@
-from ui.tabs.documents.documents_tab import DocumentsTab
 from PySide6.QtWidgets import QMainWindow, QTabWidget
+
+from ui.tabs.documents.documents_tab import DocumentsTab
 
 
 class MainWindow(QMainWindow):
