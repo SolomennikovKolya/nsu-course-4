@@ -71,6 +71,7 @@ Doc2Onto/
 │
 ├── infrastructure/                   # Работа с ресурсами
 │   ├── "storage/"
+│   │   ├── "base_manager.py"         # Базовый класс для менеджнров
 │   │   ├── "document_manager.py"     # Менеджер для управления документами в системе
 │   │   └── "templates_manager.py"    # Менеджер для управления шаблонами в системе
 │   ├── ontology/

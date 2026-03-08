@@ -42,7 +42,7 @@ class TemplatesTab(QWidget):
     def refresh_templates_list(self):
         """Обновление списка шаблонов."""
         self.list_widget.clear()
-        self.templates = self.manager.list_templates()
+        self.templates = self.manager.list()
         for t in self.templates:
             self.list_widget.addItem(t.name)
 

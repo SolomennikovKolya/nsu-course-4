@@ -49,7 +49,7 @@ class DocumentsTab(QWidget):
     def refresh_documents_list(self):
         """Обновляет список документов."""
         self.list_widget.clear()
-        self.documents = self.document_manager.list_documents()
+        self.documents = self.document_manager.list()
         for doc in self.documents:
             self.list_widget.addItem(doc.name)
 
