@@ -2,8 +2,8 @@ import json
 import shutil
 import hashlib
 from pathlib import Path
-from dataclasses import asdict
 from typing import List, Optional
+from dataclasses import asdict
 
 from core.document.document import Document
 from core.document.status import DocumentStatus
@@ -37,12 +37,10 @@ class DocumentManager:
 
     def _compute_hash(self, path: Path) -> str:
         """Вычисляет SHA256 файла."""
-
         h = hashlib.sha256()
         with path.open("rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
-
         return h.hexdigest()
 
     def _meta_path(self, directory: Path) -> Path:
@@ -52,7 +50,6 @@ class DocumentManager:
         meta_file = self._meta_path(directory)
         if not meta_file.exists():
             return {}
-
         with meta_file.open("r", encoding="utf-8") as f:
             return json.load(f)
 
@@ -85,30 +82,27 @@ class DocumentManager:
 
     def list_documents(self) -> List[Document]:
         """Возвращает список всех документов."""
-
-        docs: List[Document] = []
+        docs = []
         if not self.base_dir.exists():
             return docs
 
         for directory in self.base_dir.iterdir():
-            if directory.is_dir():
-                doc = self._document_from_meta(directory)
-                if doc:
-                    docs.append(doc)
+            if not directory.is_dir():
+                continue
+
+            doc = self._document_from_meta(directory)
+            if doc:
+                docs.append(doc)
+
         return docs
 
     def get(self, name: str) -> Optional[Document]:
         """Возвращает один документ по имени."""
-
         directory = self.base_dir / name
-        if not directory.exists():
-            return None
-
-        return self._document_from_meta(directory)
+        return self._document_from_meta(directory) if directory.exists() else None
 
     def add(self, file_path: Path) -> Document:
         """Добавляет новый документ. Если файл уже есть в системе и совпадает — ничего не делает."""
-
         name = file_path.name
         directory = self.base_dir / name
         directory.mkdir(parents=True, exist_ok=True)
@@ -133,7 +127,6 @@ class DocumentManager:
 
     def save_metadata(self, document: Document):
         """Сохраняет метаданные документа."""
-
         data = asdict(document)
 
         # Path -> str

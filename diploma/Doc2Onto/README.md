@@ -15,9 +15,12 @@ Doc2Onto/
 ├── "main.py"                         # Точка входа в приложение
 │
 ├── core/                             # Ядро логики (бизнес модель системы)
-│   ├── "document/"                   # Документ
+│   ├── "document/"
 │   │   ├── "document.py"             # Модель документа
 │   │   └── "status.py"               # Статус обработки документа
+│   ├── template/
+│   │   ├── "template.py"             # Модель шаблона
+│   │   └── base_template.py
 │   ├── uddm/
 │   │   ├── base.py
 │   │   ├── entity.py
@@ -30,9 +33,6 @@ Doc2Onto/
 │   │   ├── graph.py
 │   │   ├── validator.py
 │   │   └── serializer.py
-│   ├── template/
-│   │   ├── base_template.py
-│   │   └── template_loader.py
 │   └── utils/
 │       ├── text_utils.py
 │       ├── extraction_helpers.py
@@ -69,10 +69,10 @@ Doc2Onto/
 │           ├── templates_tab.py      # Вкладка для работы с шаблонами
 │           └── template_editor.py
 │
-├── infrastructure/                   # Работа с внешними ресурсами
-│   ├── storage/
+├── infrastructure/                   # Работа с ресурсами
+│   ├── "storage/"
 │   │   ├── "document_manager.py"     # Менеджер для управления документами в системе
-│   │   └── templates_manager.py      # Менеджер для управления шаблонами в системе
+│   │   └── "templates_manager.py"    # Менеджер для управления шаблонами в системе
 │   ├── ontology/
 │   │   ├── ontology_repository.py
 │   │   └── rdf_store_adapter.py
