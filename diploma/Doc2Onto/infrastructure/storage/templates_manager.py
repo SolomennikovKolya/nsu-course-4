@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from core.template.template import Template
 from infrastructure.storage.base_manager import BaseManager
@@ -52,6 +52,10 @@ class TemplatesManager(BaseManager[Template, str]):
             classification_rules=Path(meta["classification_rules"]) if meta.get("classification_rules") else None,
         )
 
+    def _doc_class_from_meta(self, directory: Path) -> Optional[str]:
+        meta = self._load_meta(directory)
+        return meta.get("name")
+
     def add(self, name: str) -> Template:
         directory = self.base_dir / name
 
@@ -64,3 +68,19 @@ class TemplatesManager(BaseManager[Template, str]):
         template = Template(name=name, directory=directory)
         self.save_metadata(template)
         return template
+
+    def doc_classes_list(self) -> List[str]:
+        """Возвращает список всех существующих классов документов."""
+        classes = []
+        if not self.base_dir.exists():
+            return classes
+
+        for directory in self.base_dir.iterdir():
+            if not directory.is_dir():
+                continue
+
+            doc_class = self._doc_class_from_meta(directory)
+            if doc_class:
+                classes.append(doc_class)
+
+        return classes

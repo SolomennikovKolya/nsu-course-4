@@ -12,8 +12,20 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Doc2Onto")
         self.resize(900, 600)
 
-        tabs = QTabWidget()                       # Контейнер для вкладок
-        tabs.addTab(DocumentsTab(), "Документы")  # Вкладка для управления документами
-        tabs.addTab(TemplatesTab(), "Шаблоны")    # Вкладка для управления шаблонами
+        # Вкладки
+        self.tabs = QTabWidget()
 
-        self.setCentralWidget(tabs)  # Устанавливает созданный виджет с вкладками в качестве основного содержимого окна
+        self.documents_tab = DocumentsTab()
+        self.tabs.addTab(self.documents_tab, "Документы")
+
+        self.templates_tab = TemplatesTab()
+        self.tabs.addTab(self.templates_tab, "Шаблоны")
+
+        self.setCentralWidget(self.tabs)
+
+        # Сигналы
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
+    def on_tab_changed(self, index):
+        if self.tabs.widget(index) is self.documents_tab:
+            self.documents_tab.refresh_templates()

@@ -72,3 +72,7 @@ class DocumentManager(BaseManager[Document, Path]):
         doc = Document(name=name, directory=directory, original_file=target_file)
         self.save_metadata(doc)
         return doc
+
+    def delete(self, doc: Document):
+        if doc.directory.exists() and doc.directory.is_dir():
+            shutil.rmtree(doc.directory)
