@@ -76,3 +76,13 @@ class DocumentManager(BaseManager[Document, Path]):
     def delete(self, doc: Document):
         if doc.directory.exists() and doc.directory.is_dir():
             shutil.rmtree(doc.directory)
+
+    def is_file_exists(self, file_path: Path) -> bool:
+        """Проверяет, существует ли файл в системе."""
+        name = file_path.name
+        file_dir = self.base_dir / name
+        if not file_dir.exists() or not file_dir.is_dir():
+            return False
+
+        target_file = file_dir / name
+        return target_file.exists() and self._compute_hash(target_file) == self._compute_hash(file_path)

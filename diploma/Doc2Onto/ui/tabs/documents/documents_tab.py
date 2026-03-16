@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton,
     QFileDialog, QHBoxLayout,
-    QTreeWidget, QTreeWidgetItem, QSplitter
+    QTreeWidget, QTreeWidgetItem, QSplitter,
+    QMessageBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -9,9 +10,11 @@ from pathlib import Path
 from typing import Optional
 
 from core.document.document import Document
+from core.document.status import DocumentStatus
 from infrastructure.storage.document_manager import DocumentManager
 from infrastructure.storage.templates_manager import TemplatesManager
-from app.pipeline_engine import PipelineEngine
+from app.pipeline import PipelineEngine, PipelineResult
+from app.modules.converter.registry import ConverterRegistry
 from ui.tabs.documents.document_info_widget import DocumentInfoWidget
 
 
@@ -67,11 +70,37 @@ class DocumentsTab(QWidget):
 
         self.refresh_documents_tree()
 
+    def show_error_dialog(self, message):
+        QMessageBox.critical(self, "Ошибка", message)
+
+    def show_info_dialog(self, message):
+        QMessageBox.information(self, "Информация", message)
+
     def add_document(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Выберите документ")
-        if file_path:
-            self.document_manager.add(Path(file_path))
+        if not file_path:
+            return
+
+        if not ConverterRegistry.is_format_supported(Path(file_path).suffix.lower().replace(".", "")):
+            self.show_error_dialog("Формат документа не поддерживается.")
+            return
+
+        if self.document_manager.is_file_exists(Path(file_path)):
+            self.show_info_dialog("Документ уже существует в системе. Выберите другой файл.")
+            return
+
+        doc = self.document_manager.add(Path(file_path))
+
+        # Пытаемся извлечь UDDM сразу после загрузки
+        res = self.pipeline.run(doc, final_stage=DocumentStatus.UDDM_EXTRACTED)
+        if res == PipelineResult.FAILED:
+            self.document_manager.delete(doc)
             self.refresh_documents_tree()
+            self.show_error_dialog("Не удалось извлечь данные из документа.")
+            return
+
+        self.document_manager.save_metadata(doc)
+        self.refresh_documents_tree()
 
     def on_document_deleted(self):
         self.refresh_documents_tree()
@@ -115,9 +144,9 @@ class DocumentsTab(QWidget):
                 item = QTreeWidgetItem([doc.name])
                 item.setData(0, Qt.ItemDataRole.UserRole, doc)
 
-                if doc.status.name == "UPLOADED":
+                if doc.status == DocumentStatus.UPLOADED or doc.status == DocumentStatus.UDDM_EXTRACTED:
                     color = QColor("white")
-                elif doc.status.name == "ADDED_TO_MODEL":
+                elif doc.status == DocumentStatus.ADDED_TO_MODEL:
                     color = QColor("#4CAF50")
                 else:
                     color = QColor("#FFC107")

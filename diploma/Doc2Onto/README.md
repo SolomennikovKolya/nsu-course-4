@@ -22,6 +22,7 @@ Doc2Onto/
 │   │   ├── "template.py"                      # Модель шаблона
 │   │   └── base_template.py
 │   ├── uddm/
+│   │   ├── "schema.py"                        # Схема, описывающая структуру любого uddm файла
 │   │   ├── base.py
 │   │   ├── entity.py
 │   │   ├── attribute.py
@@ -38,7 +39,7 @@ Doc2Onto/
 │       ├── extraction_helpers.py
 │       └── logging.py
 │
-├── app/                                       # Уровень приложения (контроллеры, пайплайны)
+├── app/                                       # Уровень приложения (контроллеры, пайплайны, модули)
 │   ├── controllers/
 │   │   ├── document_controller.py
 │   │   ├── template_controller.py
@@ -46,13 +47,13 @@ Doc2Onto/
 │   ├── pipeline/
 │   │   ├── base_module.py
 │   │   ├── pipeline_engine.py
-│   │   ├── pipeline_registry.py
-│   │   └── modules/
-│   │       ├── type_classifier.py
-│   │       ├── uddm_builder.py
-│   │       ├── rdf_extractor.py
-│   │       ├── rdf_validator.py
-│   │       └── ontology_commit.py
+│   │   └── pipeline_registry.py
+│   ├── modules/
+│   │   ├── converter
+│   │   ├── uddm_builder.py
+│   │   ├── rdf_extractor.py
+│   │   ├── rdf_validator.py
+│   │   └── ontology_commit.py
 │   └── dto/
 │       └── module_result.py
 │

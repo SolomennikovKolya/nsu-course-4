@@ -10,7 +10,7 @@ from core.document.document import Document
 from core.document.status import DocumentStatus
 from infrastructure.storage.document_manager import DocumentManager
 from infrastructure.storage.templates_manager import TemplatesManager
-from app.pipeline_engine import PipelineEngine
+from app.pipeline import PipelineEngine, PipelineResult
 from ui.tabs.documents.status_progress_widget import StatusProgressWidget
 
 
@@ -127,12 +127,10 @@ class DocumentInfoWidget(QWidget):
             return
 
         doc.doc_class = new_class
-
-        # Сброс статуса
-        if int(doc.status) > int(DocumentStatus.UPLOADED):
+        if new_class is not None:
+            doc.status = DocumentStatus.CLASS_DETERMINED
+        elif int(doc.status) >= int(DocumentStatus.UDDM_EXTRACTED):
             doc.status = DocumentStatus.UDDM_EXTRACTED
-        else:
-            doc.status = DocumentStatus.UPLOADED
 
         self.document_manager.save_metadata(doc)
 
@@ -145,7 +143,7 @@ class DocumentInfoWidget(QWidget):
         if doc is None:
             return
 
-        doc = self.pipeline.run(doc)
+        self.pipeline.run(doc)
         self.document_manager.save_metadata(doc)
 
         self.status_widget.set_status(doc.status)
@@ -190,7 +188,7 @@ class DocumentInfoWidget(QWidget):
 
         self.action_button.setEnabled(True)
 
-        if doc.status == DocumentStatus.UPLOADED:
+        if int(doc.status) <= int(DocumentStatus.CLASS_DETERMINED):
             self.action_button.setText("Запустить обработку")
         elif doc.status == DocumentStatus.VALIDATED:
             self.action_button.setText("Добавить в модель")

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <!-- ========================= -->
+    <!-- Document -->
+    <!-- ========================= -->
+
+    <xs:element name="document">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:group ref="blockGroup" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ========================= -->
+    <!-- Block definition -->
+    <!-- ========================= -->
+
+    <xs:group name="blockGroup">
+        <xs:choice>
+            <xs:element name="text" type="TextType"/>
+            <xs:element name="list" type="ListType"/>
+            <xs:element name="table" type="TableType"/>
+        </xs:choice>
+    </xs:group>
+
+    <!-- ========================= -->
+    <!-- Text -->
+    <!-- ========================= -->
+
+    <xs:complexType name="TextType">
+        <xs:sequence>
+            <xs:element name="p" type="xs:string" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ========================= -->
+    <!-- List -->
+    <!-- ========================= -->
+
+    <xs:complexType name="ListType">
+        <xs:sequence>
+            <xs:element name="item" type="ItemType" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ItemType">
+        <xs:sequence>
+            <xs:group ref="blockGroup" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ========================= -->
+    <!-- Table -->
+    <!-- ========================= -->
+
+    <xs:complexType name="TableType">
+        <xs:sequence>
+            <xs:element name="row" type="RowType" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="RowType">
+        <xs:sequence>
+            <xs:element name="cell" type="CellType" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="CellType">
+        <xs:sequence>
+            <xs:group ref="blockGroup" minOccurs="1" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+</xs:schema>
