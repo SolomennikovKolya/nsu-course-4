@@ -16,149 +16,164 @@ class DocxConverter(BaseInternalConverter):
     def convert(self, file_path: Path) -> UDDM:
         try:
             with ZipFile(file_path) as docx:
-                xml_data = docx.read("word/document.xml")
-
-            root = ET.fromstring(xml_data)
-            body = root.find(f"{W}body")
-            if body is None:
-                raise RuntimeError(f"Cannot find body in DOCX file: {file_path}")
+                body = self._load_document_body(docx)
+                self.styles = self._load_styles(docx)
 
             blocks = self._parse_blocks(body)
             return UDDM(blocks)
 
-        except Exception as e:
+        except Exception:
             return UDDM([])
 
+    def _load_document_body(self, docx: ZipFile) -> ET.Element:
+        """
+        Загружает и парсит основной XML документа, возвращая элемент body.
+        Может выкинуть исключение.
+        """
+        try:
+            xml_data = docx.read("word/document.xml")
+        except KeyError:
+            raise RuntimeError("DOCX document.xml not found")
+
+        root = ET.fromstring(xml_data)
+
+        body = root.find(f"{W}body")
+        if body is None:
+            raise RuntimeError("DOCX body not found")
+
+        return body
+
+    def _load_styles(self, docx: ZipFile) -> dict:
+        """
+        Загружает стили из DOCX и возвращает словарь вида {style_id: style_name}. 
+        Это нужно для определения заголовков.
+        """
+        try:
+            xml_data = docx.read("word/styles.xml")
+        except KeyError:
+            return {}
+
+        root = ET.fromstring(xml_data)
+
+        styles = {}
+
+        for style in root.findall(f"{W}style"):
+            style_id = style.attrib.get(f"{W}styleId")
+            name_el = style.find(f"{W}name")
+
+            if style_id and name_el is not None:
+                name = name_el.attrib.get(f"{W}val", "")
+                styles[style_id] = name
+
+        return styles
+
     def _parse_blocks(self, parent: ET.Element) -> List[Block]:
+        """Рекурсивный парсинг блоков из XML-дерева DOCX. Поддерживает параграфы, списки и таблицы."""
         blocks: List[Block] = []
-        paragraph_buffer: List[str] = []
+        text_buffer: List[str] = []
 
         list_stack: List[Tuple[int, int, ListBlock]] = []
-        current_list: Optional[ListBlock] = None
         current_item: Optional[Item] = None
 
         for child in parent:
-            tag = child.tag
 
-            if tag == f"{W}p":
-                list_info = self._get_list_info(child)
-
+            if child.tag == f"{W}p":
                 text = self._extract_paragraph_text(child).strip()
+                list_info = self._get_list_info(child)
+                is_heading = self._is_heading(child)
+
+                # Пропускаем пустые параграфы
                 if not text and not list_info:
                     continue
 
-                # Парсинг списка
-                if list_info:
-                    if paragraph_buffer:
-                        self._append_text(blocks, paragraph_buffer)
-                        paragraph_buffer = []
+                # === список ===
+                if list_info and not is_heading:
+                    self._flush_text(blocks, text_buffer)
 
-                    list_stack, current_list, current_item = self._handle_list(
+                    list_stack, current_item = self._process_list(
                         blocks,
                         list_stack,
-                        current_list,
                         current_item,
-                        list_info
+                        list_info,
+                        text
                     )
 
-                    current_item = Item([Text([P(text)])])
-                    current_list.items.append(current_item)
-
-                # Парсинг обычного абзаца
+                # === обычный параграф ===
                 else:
                     list_stack = []
-                    current_list = None
                     current_item = None
 
-                    if text:
-                        paragraph_buffer.append(text)
+                    # Заголовок начинает новый блок
+                    if is_heading:
+                        self._flush_text(blocks, text_buffer)
 
-            # Парсинг таблицы
-            elif tag == f"{W}tbl":
-                if paragraph_buffer:
-                    self._append_text(blocks, paragraph_buffer)
-                    paragraph_buffer = []
+                    text_buffer.append(text)
 
+            # === таблица ===
+            elif child.tag == f"{W}tbl":
                 list_stack = []
-                current_list = None
                 current_item = None
 
-                table = self._parse_table(child)
-                blocks.append(table)
+                self._flush_text(blocks, text_buffer)
 
-        if paragraph_buffer:
-            self._append_text(blocks, paragraph_buffer)
+                blocks.append(self._parse_table(child))
+
+        self._flush_text(blocks, text_buffer)
 
         return blocks
 
-    def _append_text(self, blocks: List, paragraphs: List[str]):
-        """Добавляет параграфы к текущим блокам."""
-        if not paragraphs:
+    def _flush_text(self, blocks: List[Block], buffer: List[str]):
+        """Выносит накопленный текст в новый блок и очищает буфер."""
+        if not buffer:
             return
 
-        # Объединяем идущие подряд параграфы в один текстовый блок
-        if blocks and isinstance(blocks[-1], Text):
-            for p in paragraphs:
-                blocks[-1].paragraphs.append(P(p))
+        paragraphs = [P(t) for t in buffer]
+        blocks.append(Text(paragraphs))
+        buffer.clear()
+
+    def _process_list(
+        self,
+        blocks: List[Block],
+        stack: List[Tuple[int, int, ListBlock]],
+        current_item: Optional[Item],
+        list_info: Tuple[int, int],
+        text: str
+    ) -> Tuple[List[Tuple[int, int, ListBlock]], Item]:
+        """
+        Обрабатывает элемент списка. Предполагается, что список может содержать текст и вложенные списки, но не таблицы. 
+        Возвращает обновлённый стек и текущий элемент списка.
+        """
+        num_id, level = list_info
+
+        # Новый список
+        if not stack or stack[-1][0] != num_id:
+            new_list = ListBlock([])
+            blocks.append(new_list)
+
+            stack = [(num_id, level, new_list)]
+
+        # Вложенность
         else:
-            blocks.append(Text([P(p) for p in paragraphs]))
+            while stack and stack[-1][1] > level:
+                stack.pop()
 
-    def _handle_list(self, blocks: List[Block], stack: List[Tuple[int, int, ListBlock]],
-                     current_list: Optional[ListBlock], current_item: Optional[Item],
-                     new_list_info: Tuple[int, int]) -> Tuple[List[Tuple[int, int, ListBlock]], ListBlock, Optional[Item]]:
+            if stack and level > stack[-1][1]:
+                new_list = ListBlock([])
 
-        num_id, level = new_list_info
+                if current_item:
+                    current_item.blocks.append(new_list)
 
-        # Если стек пуст — начинаем новый список
-        if not stack:
-            new_list = ListBlock([])
+                stack.append((num_id, level, new_list))
 
-            blocks.append(new_list)
-            stack = [(num_id, level, new_list)]
+        current_list = stack[-1][2]
 
-            return stack, new_list, None
+        item = Item([Text([P(text)])])
+        current_list.items.append(item)
 
-        top_num, top_level, top_list = stack[-1]
-
-        # Новый список (другой numId)
-        if num_id != top_num:
-            new_list = ListBlock([])
-            blocks.append(new_list)
-
-            stack = [(num_id, level, new_list)]
-
-            return stack, new_list, None
-
-        # deeper level
-        if level > top_level:
-            new_list = ListBlock([])
-
-            if current_item:
-                current_item.blocks.append(new_list)
-
-            stack.append((num_id, level, new_list))
-
-            return stack, new_list, None
-
-        # same level
-        if level == top_level:
-            return stack, top_list, None
-
-        # go up
-        while stack and stack[-1][1] > level:
-            stack.pop()
-
-        if not stack:
-            new_list = ListBlock([])
-            blocks.append(new_list)
-
-            stack = [(num_id, level, new_list)]
-
-            return stack, new_list, None
-
-        return stack, stack[-1][2], None
+        return stack, item
 
     def _parse_table(self, tbl: ET.Element) -> Table:
+        """Парсинг таблицы. Таблица может содержать любые блоки в ячейках."""
         rows = []
 
         for tr in tbl.findall(f"{W}tr"):
@@ -172,6 +187,7 @@ class DocxConverter(BaseInternalConverter):
         return Table(rows)
 
     def _extract_paragraph_text(self, paragraph: ET.Element) -> str:
+        """Достаёт весь текст из параграфа."""
         texts = []
 
         for t in paragraph.findall(f".//{W}t"):
@@ -181,6 +197,7 @@ class DocxConverter(BaseInternalConverter):
         return "".join(texts)
 
     def _get_list_info(self, paragraph: ET.Element) -> Optional[Tuple[int, int]]:
+        """Определяет, является ли параграф элементом списка и возвращает его идентификатор и уровень вложенности."""
         ppr = paragraph.find(f"{W}pPr")
         if ppr is None:
             return None
@@ -195,7 +212,60 @@ class DocxConverter(BaseInternalConverter):
         if num_id is None:
             return None
 
-        int_id = int(num_id.attrib[f"{W}val"])
-        int_lvl = int(ilvl.attrib[f"{W}val"]) if ilvl is not None else 0
+        num_id = int(num_id.attrib[f"{W}val"])
+        level = int(ilvl.attrib[f"{W}val"]) if ilvl is not None else 0
 
-        return int_id, int_lvl
+        return num_id, level
+
+    def _is_heading(self, paragraph: ET.Element) -> bool:
+        """Определяет, является ли параграф заголовком."""
+        ppr = paragraph.find(f"{W}pPr")
+        if ppr is None:
+            return False
+
+        style = ppr.find(f"{W}pStyle")
+        if style is None:
+            return False
+
+        style_id = style.attrib.get(f"{W}val")
+        if not style_id:
+            return False
+
+        if style_id.lower().startswith("heading") or style_id.lower().startswith("заголов"):
+            return True
+
+        style_name = self.styles.get(style_id, "")
+        name = style_name.lower()
+
+        if "heading" in name or "заголов" in name:
+            return True
+
+        return self._is_heading_heuristic(paragraph)
+
+    def _is_heading_heuristic(self, paragraph: ET.Element) -> bool:
+        """
+        Эвристика для определения заголовков, если стиль не распознан. 
+        Предполагает, что заголовки обычно короткие, жирные и/или центрированные.
+        """
+        text = self._extract_paragraph_text(paragraph).strip()
+
+        if not text:
+            return False
+
+        if len(text) > 100:
+            return False
+
+        ppr = paragraph.find(f"{W}pPr")
+        if ppr is None:
+            return False
+
+        rpr = ppr.find(f"{W}rPr")
+        if rpr is None:
+            return False
+
+        is_bold = rpr.find(f"{W}b") is not None
+
+        jc = ppr.find(f"{W}jc")
+        is_center = jc is not None and jc.attrib.get(f"{W}val") == "center"
+
+        return is_bold and is_center

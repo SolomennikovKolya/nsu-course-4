@@ -4,7 +4,8 @@ from PySide6.QtWidgets import (
     QMessageBox, QStackedLayout
 )
 from PySide6.QtCore import Qt, Signal
-from typing import Optional
+from typing import Optional, Callable, Any
+from functools import wraps
 
 from core.document.document import Document
 from core.document.status import DocumentStatus
@@ -12,6 +13,16 @@ from infrastructure.storage.document_manager import DocumentManager
 from infrastructure.storage.templates_manager import TemplatesManager
 from app.pipeline import PipelineEngine, PipelineResult
 from ui.tabs.documents.status_progress_widget import StatusProgressWidget
+
+
+# Декоратор для методов, которые требуют наличия документа. Если документа нет, метод не выполняется.
+def require_document(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self.document is None:
+            return None
+        return method(self, self.document, *args, **kwargs)
+    return wrapper
 
 
 class DocumentInfoWidget(QWidget):
@@ -33,6 +44,7 @@ class DocumentInfoWidget(QWidget):
         self.stack.addWidget(self.build_document_page())
 
     def build_empty_page(self) -> QWidget:
+        """Страница, отображаемая при отсутствии выбранного документа."""
         self.page_empty = QWidget()
         empty_layout = QVBoxLayout(self.page_empty)
 
@@ -45,6 +57,7 @@ class DocumentInfoWidget(QWidget):
         return self.page_empty
 
     def build_document_page(self) -> QWidget:
+        """Страница с информацией о документе и кнопками управления обработкой."""
         # Название
         self.title = QLabel()
         self.title.setWordWrap(True)
@@ -71,6 +84,10 @@ class DocumentInfoWidget(QWidget):
         self.action_button = QPushButton()
         self.action_button.clicked.connect(self.run_action)
 
+        self.restart_button = QPushButton("Обработать заново")
+        self.restart_button.setMaximumWidth(140)
+        self.restart_button.clicked.connect(self.restart_action)
+
         self.delete_button = QPushButton("Удалить документ")
         self.delete_button.setMaximumWidth(140)
         self.delete_button.setStyleSheet("""
@@ -79,11 +96,11 @@ class DocumentInfoWidget(QWidget):
             color: white;
         }
         """)
-
-        self.delete_button.clicked.connect(self.delete_document)
+        self.delete_button.clicked.connect(self.delete_action)
 
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.action_button)
+        buttons_layout.addWidget(self.restart_button)
         buttons_layout.addWidget(self.delete_button)
 
         # Сборка всей страницы
@@ -115,7 +132,7 @@ class DocumentInfoWidget(QWidget):
             self.class_combo.setCurrentIndex(index)
 
         self.status_widget.set_status(document.status)
-        self.update_all_buttons()
+        self.update_buttons()
 
     def change_class(self):
         doc = self.document
@@ -135,26 +152,37 @@ class DocumentInfoWidget(QWidget):
         self.document_manager.save_metadata(doc)
 
         self.status_widget.set_status(doc.status)
-        self.update_action_button()
+        self.update_buttons()
         self.documents_tree_changed.emit()
 
-    def run_action(self):
-        doc = self.document
-        if doc is None:
-            return
-
+    @require_document
+    def run_action(self, doc: Document):
         self.pipeline.run(doc)
         self.document_manager.save_metadata(doc)
 
         self.status_widget.set_status(doc.status)
-        self.update_action_button()
+        self.update_buttons()
         self.documents_tree_changed.emit()
 
-    def delete_document(self):
-        doc = self.document
-        if doc is None:
-            return
+    @require_document
+    def restart_action(self, doc: Document):
+        doc.status = DocumentStatus.UPLOADED
+        if doc.doc_class:
+            self.pipeline.run(doc, DocumentStatus.ADDED_TO_MODEL)
+        else:
+            self.pipeline.run(doc, DocumentStatus.UDDM_EXTRACTED)
 
+        if doc.doc_class and doc.status == DocumentStatus.UDDM_EXTRACTED:
+            doc.status = DocumentStatus.CLASS_DETERMINED
+
+        self.document_manager.save_metadata(doc)
+
+        self.status_widget.set_status(doc.status)
+        self.update_buttons()
+        self.documents_tree_changed.emit()
+
+    @require_document
+    def delete_action(self, doc: Document):
         reply = QMessageBox.question(
             self,
             "Удаление документа",
@@ -169,8 +197,9 @@ class DocumentInfoWidget(QWidget):
         self.set_document(None)
         self.document_deleted.emit()
 
-    def update_all_buttons(self):
+    def update_buttons(self):
         self.update_action_button()
+        self.update_restart_button()
         self.update_delete_button()
 
     def update_action_button(self):
@@ -186,16 +215,26 @@ class DocumentInfoWidget(QWidget):
             self.action_button.setText("Выберите класс документа")
             return
 
+        if doc.status == DocumentStatus.ADDED_TO_MODEL:
+            self.action_button.setEnabled(False)
+            self.action_button.setText("Документ добавлен в модель")
+            return
+
         self.action_button.setEnabled(True)
 
         if int(doc.status) <= int(DocumentStatus.CLASS_DETERMINED):
             self.action_button.setText("Запустить обработку")
         elif doc.status == DocumentStatus.VALIDATED:
             self.action_button.setText("Добавить в модель")
-        elif doc.status == DocumentStatus.ADDED_TO_MODEL:
-            self.action_button.setText("Начать обработку заново")
         else:
             self.action_button.setText("Продолжить обработку")
+
+    def update_restart_button(self):
+        doc = self.document
+        if doc is None or doc.status == DocumentStatus.UPLOADED:
+            self.restart_button.setEnabled(False)
+        else:
+            self.restart_button.setEnabled(True)
 
     def update_delete_button(self):
         doc = self.document
