@@ -70,37 +70,45 @@ class DocumentsTab(QWidget):
 
         self.refresh_documents_tree()
 
-    def show_error_dialog(self, message):
-        QMessageBox.critical(self, "Ошибка", message)
+    def show_error_dialog(self, message: str, title: str = " "):
+        QMessageBox.critical(self, title, message)
 
-    def show_info_dialog(self, message):
-        QMessageBox.information(self, "Информация", message)
+    def show_info_dialog(self, message: str, lable: str = " "):
+        QMessageBox.information(self, lable, message)
 
     def add_document(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Выберите документ")
-        if not file_path:
+        file_paths, _ = QFileDialog.getOpenFileNames(self, "Выберите документы")
+        if not file_paths:
             return
 
-        if not ConverterRegistry.is_format_supported(Path(file_path).suffix.lower().replace(".", "")):
-            self.show_error_dialog("Формат документа не поддерживается.")
-            return
+        added_any = False
 
-        if self.document_manager.is_file_exists(Path(file_path)):
-            self.show_info_dialog("Документ уже существует в системе. Выберите другой файл.")
-            return
+        for file_path_str in file_paths:
+            file_path = Path(file_path_str)
+            file_name = file_path.name
 
-        doc = self.document_manager.add(Path(file_path))
+            if not ConverterRegistry.is_format_supported(file_path.suffix.lower().replace(".", "")):
+                self.show_error_dialog(f'Формат документа "{file_name}" не поддерживается.', "Ошибка загрузки документа")
+                continue
 
-        # Пытаемся извлечь UDDM сразу после загрузки
-        res = self.pipeline.run(doc, final_stage=DocumentStatus.UDDM_EXTRACTED)
-        if res == PipelineResult.FAILED:
-            self.document_manager.delete(doc)
+            if self.document_manager.is_file_exists(file_path):
+                self.show_info_dialog(f'Документ "{file_name}" уже существует в системе.', "Ошибка загрузки документа")
+                continue
+
+            doc = self.document_manager.add(file_path)
+
+            # Пытаемся извлечь UDDM сразу после загрузки
+            res = self.pipeline.run(doc, final_stage=DocumentStatus.UDDM_EXTRACTED)
+            if res == PipelineResult.FAILED:
+                self.document_manager.delete(doc)
+                self.show_error_dialog(f'Не удалось извлечь данные из документа "{file_name}".')
+                continue
+
+            self.document_manager.save_metadata(doc)
+            added_any = True
+
+        if added_any:
             self.refresh_documents_tree()
-            self.show_error_dialog("Не удалось извлечь данные из документа.")
-            return
-
-        self.document_manager.save_metadata(doc)
-        self.refresh_documents_tree()
 
     def on_document_deleted(self):
         self.refresh_documents_tree()
