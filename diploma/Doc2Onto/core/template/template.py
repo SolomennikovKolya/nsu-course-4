@@ -1,22 +1,20 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+
+from core.template.base import BaseTemplateCode
 
 
 @dataclass
 class Template:
-    """Шаблон обработки документов."""
+    """Представляет информацию о шаблоне обработки документов."""
 
     name: str        # Название шаблона / класс документа. Пример: "Заявление на практику бакалавриат КНиС 7 семестр"
-    directory: Path  # Директория шаблона
+    directory: Path  # Директория, где хранятся данные шаблона
 
-    description: Optional[str] = None
+    description: Optional[str] = None  # Комментарий
+    # Код шаблона. Загружается динамически из code.py при загрузке шаблона. Не сохраняется в meta.json
+    code: Optional[BaseTemplateCode] = field(default=None, repr=False)
 
-    # Путь к файлу с типичной UDDM схеомой документа данного класса.
-    # Схема не обязательно должна совпадать для всех документов класса,
-    # но правила извлечения и классификации могут опираться на неё
-    uddm_schema: Optional[Path] = None
-
-    extraction_rules: Optional[Path] = None      # Путь к файлу с извлеченными знаниями в формате RDF
-    validation_rules: Optional[Path] = None      # Путь к файлу с провалидированными знаниями
-    classification_rules: Optional[Path] = None  # Путь к файлу с провалидированными знаниями
+    def code_file_path(self):
+        return self.directory / "code.py"

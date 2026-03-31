@@ -12,77 +12,70 @@ Doc2Onto/
 │
 ├── "README.md"                                # Этот файл
 ├── "requirements.txt"                         # Зависимости
-├── "main.py"                                  # Точка входа в приложение
+├── "main.py"                                  # Точка входа
 │
-├── core/                                      # Ядро логики (бизнес модель системы)
-│   ├── "document/"
-│   │   ├── "document.py"                      # Модель документа
-│   │   └── "status.py"                        # Статус обработки документа
-│   ├── "uddm/"
-│   │   ├── "schema.xsd"                       # Схема, описывающая структуру любого uddm файла
-│   │   └── "uddm.py"                          # Объектная модель документа в формате UDDM
-│   ├── rdf/
-│   │   ├── triple.py
-│   │   ├── graph.py
-│   │   ├── validator.py
-│   │   └── serializer.py
-│   ├── template/
-│   │   ├── "template.py"                      # Модель шаблона
-│   │   └── base_template.py
-│   └── utils/
-│       ├── text_utils.py
-│       ├── extraction_helpers.py
-│       └── logging.py
+├── app/                                       # Уровень приложения
+│   ├── "pipeline.py"                          # Пайплайн - центр управления модулями
+│   ├── "context.py"                           # Контекст приложения
+│   ├── "logger.py"                            # Логгер
+│   └── "utils.py"                             # Утилиты
 │
-├── app/                                       # Уровень приложения (пайплайны, модули)
-│   ├── "pipeline.py"
-│   └── modules/
-│       ├── "base.py"                          # Определение абстрактного BaseModule
-│       ├── "converter/"                       
-│       │   ├── "converter.py"                 # Модуль - конвертер
-│       │   ├── "registry.py"                  # Регистр всех поддерживаемых форматов
-│       │   ├── "internal/"                    # Внутренние конвертеры
-│       │   ├── external/                      # Внешние конвертеры
-│       │   ├── nornalizers/                   # Lossless нормализаторы форматов
-│       │   └── "reverse/"                     # Конвертеры из UDDM в текстовые форматы
-│       ├── classifier/                        # Модуль - классификатор
-│       ├── extractor/                         # Модуль - экстрактор знаний
-│       ├── validator/                         # Модуль - валидатор
-│       └── connector/                         # Модуль - коннектор
+├── core/                                      # Ядро логики
+│   ├── "document.py"                          # Модель документа
+│   ├── "uddm.py"                              # Объектная модель документа в формате UDDM
+│   ├── "schema.xsd"                           # Схема, описывающая структуру любого UDDM файла
+│   └── "template/"
+│       ├── "template.py"                      # Модель шаблона
+│       ├── "base.py"                          # Контракт кода шаблона
+│       ├── "field_selector.py"                # DSL описания выбора текста
+│       ├── "field_extractor.py"               # DSL описания извлечения термов
+│       ├── "field_validator.py"               # DSL описания валидации термов
+│       └── "example.py"                       # Пример кода шаблона
+│
+├── modules/                                   # Модули
+│   ├── "base.py"                              # Определение абстрактного BaseModule
+│   ├── "converter/"                       
+│   │   ├── "converter.py"                     # Конвертер
+│   │   ├── "registry.py"                      # Регистр всех поддерживаемых форматов
+│   │   ├── "internal/"                        # Внутренние конвертеры
+│   │   ├── "external/"                        # Внешние конвертеры
+│   │   ├── "nornalizers/"                     # Lossless нормализаторы форматов
+│   │   └── "reverse/"                         # Конвертеры из UDDM в текстовые форматы
+│   ├── "classifier.py"                        # Классификатор
+│   ├── extractor.py                           # Экстрактор знаний
+│   ├── validator.py                           # Валидатор
+│   ├── triple_builder.py                      # Сборщик триплетов
+│   └── connector.py                           # Коннектор
 │
 ├── ui/                                        # GUI (PySide6)
 │   ├── "main_window.py"                       # Главное окно
-│   ├── common_widgets/                        # Виджеты, используемые в нескольких вкладках
-│   │   └── log_viewer.py
-│   └── tabs/
-│       ├── "documents/"
-│       │   ├── "documents_tab.py"             # Вкладка для работы с документами
-│       │   ├── "document_info_widget.py"      # Правая часть documents_tab
-│       │   └── "status_progress_widget.py"    # Виджет с прогресс баром статуса обработки документа
-│       └── templates/
-│           ├── templates_tab.py               # Вкладка для работы с шаблонами
-│           └── template_editor.py
+│   ├── "documents/"
+│   │   ├── "documents_tab.py"                 # Вкладка для работы с документами
+│   │   ├── "document_info_widget.py"          # Правая часть documents_tab
+│   │   └── "status_progress_widget.py"        # Виджет с прогресс баром статуса обработки документа
+│   └── templates/
+│       ├── "templates_tab.py"                 # Вкладка для работы с шаблонами
+│       └── template_editor.py
 │
-├── infrastructure/                            # Работа с ресурсами
+├── infrastructure/                            # Работа с данными приложения
 │   ├── "storage/"
-│   │   ├── "base_manager.py"                  # Базовый класс для менеджнров
+│   │   ├── "base_manager.py"                  # Базовый менеджер
 │   │   ├── "document_manager.py"              # Менеджер для управления документами в системе
-│   │   └── "templates_manager.py"             # Менеджер для управления шаблонами в системе
-│   ├── ontology/
-│   │   ├── ontology_repository.py
-│   │   └── rdf_store_adapter.py
-│   └── config/
-│       └── settings.py
+│   │   ├── "template_manager.py"              # Менеджер для управления шаблонами в системе
+│   │   └── "template_loader.py"               # Загрузчик кода шаблона 
+│   └── ontology/
+│       ├── ontology_repository.py
+│       └── rdf_store_adapter.py
 |
-├── data/                                      # Данные приложения
+├── "resources/"                               # Неизменяемые ресурсы приложения
+├── "data/"                                    # Динамические данные приложения
 │   ├── "documents/"                           # Загруженные документы + промежуточные форматы и метаинформация
-│   ├── templates/                             # Шаблоны (плагины)
-│   └── config/                                # Конфигурация системы
-│       └── settings.py                        # Настройки
+│   ├── "templates/"                           # Шаблоны (плагины)
+│   └── "app.log"                              # Логи
 │
-└── test/                                      # Тестирование отдельных частей приложения
+└── test/
     ├── "documents/"                           # Тестовые документы
-    └── module_tests/                          # Тесты для отдельных модулей
+    └── module_tests/                          # Unit-тесты отдельных модулей
 ```
 
 ### Дополнительно

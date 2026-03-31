@@ -1,78 +1,117 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
-from core.document.document import Document
-from core.document.status import DocumentStatus
-from app.modules.base import BaseModule, ModuleResult
-from app.modules.converter.converter import Converter
+from core.document import Document
+from modules.base import BaseModule, ModuleResult
 
 
-@dataclass
-class PipelineStage:
-    """Описание стадии пайплайна."""
-
-    name: str
-    target_status: DocumentStatus
-    module: BaseModule
-
-
-class PipelineResult(str, Enum):
+class PipelineResult(StrEnum):
     """Результат выполнения пайплайна."""
 
     OK = "ok"
     FAILED = "failed"
 
-    def __str__(self):
-        return self.value
-
     def __int__(self):
         return int(self.value == PipelineResult.OK)
 
 
-class PipelineEngine:
+class Pipeline:
+
+    @dataclass
+    class Stage:
+        name: str
+        start_status: Document.Status
+        target_status: Document.Status
+        module: BaseModule
 
     def __init__(self):
+        self.setup_done = False
+
+    def setup(self):
+        """
+        Настройка пайплайна. Определение последовательности стадий обработки документа.
+        Настройка выполняется не сразу при инициализации пайплайна, а при первом запуске, 
+        чтобы избежать проблем с импортами.
+        """
+        from modules.converter.converter import Converter
+        from modules.classifier import Classifier
+        from modules.extractor import Extractor
+        from modules.validator import Validator
+        from modules.triple_builder import TripleBuilder
+        from modules.connector import Connector
         self.stages = [
-            PipelineStage(
+            Pipeline.Stage(
                 name="conversion",
-                target_status=DocumentStatus.UDDM_EXTRACTED,
+                start_status=Document.Status.UPLOADED,
+                target_status=Document.Status.UDDM_EXTRACTED,
                 module=Converter()
             ),
-            # PipelineStage(
-            #     name="classification",
-            #     target_status=DocumentStatus.CLASS_DETERMINED,
-            #     module=Classifier()
-            # ),
-            # PipelineStage(
-            #     name="extraction",
-            #     target_status=DocumentStatus.KNOWLEDGE_EXTRACTED,
-            #     module=Extractor()
-            # ),
-            # PipelineStage(
-            #     name="validation",
-            #     target_status=DocumentStatus.VALIDATED,
-            #     module=Validator()
-            # ),
-            # PipelineStage(
-            #     name="model_insertion",
-            #     target_status=DocumentStatus.ADDED_TO_MODEL,
-            #     module=ModelInsertor()
-            # ),
+            Pipeline.Stage(
+                name="classification",
+                start_status=Document.Status.UDDM_EXTRACTED,
+                target_status=Document.Status.CLASS_DETERMINED,
+                module=Classifier()
+            ),
+            Pipeline.Stage(
+                name="terms_extraction",
+                start_status=Document.Status.CLASS_DETERMINED,
+                target_status=Document.Status.TERMS_EXTRACTED,
+                module=Extractor()
+            ),
+            Pipeline.Stage(
+                name="validation",
+                start_status=Document.Status.TERMS_EXTRACTED,
+                target_status=Document.Status.TERMS_VALIDATED,
+                module=Validator()
+            ),
+            Pipeline.Stage(
+                name="triple_building",
+                start_status=Document.Status.TERMS_VALIDATED,
+                target_status=Document.Status.TRIPLES_BUILT,
+                module=TripleBuilder()
+            ),
+            Pipeline.Stage(
+                name="model_insertion",
+                start_status=Document.Status.TRIPLES_BUILT,
+                target_status=Document.Status.ADDED_TO_MODEL,
+                module=Connector()
+            ),
         ]
 
-    def run(self, document: Document, final_stage: DocumentStatus = DocumentStatus.ADDED_TO_MODEL) -> PipelineResult:
+        from app.context import get_logger
+        self.logger = get_logger()
+
+        self.setup_done = True
+
+    def run(self, document: Document, final_stage: Document.Status = Document.Status.ADDED_TO_MODEL) -> PipelineResult:
         """Начинает / продолжает обработку докумнта до достижения final_stage."""
+        if not self.setup_done:
+            self.setup()
+
+        self.logger.info(f"[Pipeline] started")
+        self.logger.info(f"  Document: {document.name}")
+        self.logger.info(f"  Target status: {document.status} -> {final_stage}")
+
+        if int(document.status) >= int(final_stage):
+            self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {document.status})")
+            return PipelineResult.OK
+
         for stage in self.stages:
+            if document.status == stage.start_status:
+                self.logger.info(f"  <{stage.name}> started")
+                result = stage.module.execute(document)
+                self.logger.info(f"  <{stage.name}> code: {result}")
 
-            # Если стадия уже выполнена — пропускаем
-            if int(document.status) >= int(stage.target_status):
-                continue
+                if result == ModuleResult.OK:
+                    document.status = stage.target_status
+                else:
+                    self.logger.info(f"  Final status: {document.status}")
+                    self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
+                    return PipelineResult.FAILED
 
-            result = stage.module.execute(document)
-            if result != ModuleResult.OK:
+            if int(document.status) >= int(final_stage):
                 break
 
-            if document.status == final_stage:
-                break
-
-        return PipelineResult.OK if int(document.status) >= int(final_stage) else PipelineResult.FAILED
+        self.logger.info(f"  Final status: {document.status}")
+        self.logger.info(f"[Pipeline] code: {PipelineResult.OK}")
+        return PipelineResult.OK
