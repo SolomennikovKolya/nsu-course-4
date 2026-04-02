@@ -7,7 +7,7 @@ from core.template.field_validator import *
 
 class TemplateCode(BaseTemplateCode):
 
-    def classify(self, document: Document) -> bool:
+    def classify(self, doc_name: str, uddm: UDDM) -> bool:
         return True
 
     def fields(self) -> List[Field]:

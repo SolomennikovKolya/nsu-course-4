@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.context import get_logger
 from core.document import Document
+from modules import Converter, Classifier, Extractor, Validator, TripleBuilder, Connector
 from modules.base import BaseModule, ModuleResult
 
 
@@ -33,12 +35,6 @@ class Pipeline:
         Настройка выполняется не сразу при инициализации пайплайна, а при первом запуске, 
         чтобы избежать проблем с импортами.
         """
-        from modules.converter.converter import Converter
-        from modules.classifier import Classifier
-        from modules.extractor import Extractor
-        from modules.validator import Validator
-        from modules.triple_builder import TripleBuilder
-        from modules.connector import Connector
         self.stages = [
             Pipeline.Stage(
                 name="conversion",
@@ -78,7 +74,6 @@ class Pipeline:
             ),
         ]
 
-        from app.context import get_logger
         self.logger = get_logger()
 
         self.setup_done = True

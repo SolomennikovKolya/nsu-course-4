@@ -17,13 +17,13 @@ class Converter(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            uddm = self._convert(document.original_file_path())
-            uddm.save(document.uddm_file_path())
+            document.uddm = self._convert(document.original_file_path())
+            document.uddm.save(document.uddm_file_path())
 
             # Различные визуальные представления UDDM
-            UDDMToText().save(uddm, document.directory / "plain_text.txt")
-            UDDMToHTML().save(uddm, document.directory / "uddm_html_view.html")
-            UDDMToTree().save(uddm, document.directory / "uddm_tree_view.txt")
+            UDDMToText().save(document.uddm, document.directory / "plain_text.txt")
+            UDDMToHTML().save(document.uddm, document.directory / "uddm_html_view.html")
+            UDDMToTree().save(document.uddm, document.directory / "uddm_tree_view.txt")
 
             return ModuleResult.OK
 
@@ -51,7 +51,7 @@ class Converter(BaseModule):
             uddm = converter.adapt_to_uddm(structured_data)
             return uddm
 
-        raise RuntimeError(f"No converter found for format: {format_name}")
+        raise RuntimeError(f"Нет подходящего конвертера для формата: {format_name}")
 
     def _normalize(self, file_path: Path) -> Path:
         """Рекуррентная нормализация."""

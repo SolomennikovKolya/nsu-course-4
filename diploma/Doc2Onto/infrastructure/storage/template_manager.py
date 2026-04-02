@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import shutil
 
+from app.context import get_logger
 from core.template.template import Template
 from infrastructure.storage.base_manager import BaseManager
 from infrastructure.storage.template_loader import TemplateLoader
@@ -30,18 +31,29 @@ class TemplateManager(BaseManager[Template, str]):
     def __init__(self, base_dir: Path = BASE_DIR):
         super().__init__(base_dir)
 
-        # Кэш для списка классов документов
-        self.doc_classes: List[str] = []
+        self.doc_classes: List[str] = []  # Кэш для списка классов документов
         self._load_doc_classes()
 
     def get(self, name: str) -> Optional[Template]:
-        """Возвращает шаблон по имени (классу документа). Автоматически загружает код шаблона."""
-        template = super().get(name)
-        if not template:
+        """Возвращает шаблон по имени (классу документа)."""
+        directory = self.base_dir / name
+
+        valid, meta = self._is_directory_valid(directory)
+        if not valid or not meta:
             return None
 
-        template.code = TemplateLoader.load(template)
-        return template
+        temp = Template(
+            name=str(meta.get("name")),
+            directory=Path(meta["directory"]),
+            description=str(meta["description"]) if meta.get("description") else None
+        )
+
+        temp.code = TemplateLoader.load(temp)
+        if temp.code is None:
+            get_logger().error(f"[TemplateManager] Template {temp.name} does not have a valid code.")
+            return None
+
+        return temp
 
     def add(self, name: str) -> Template:
         """Создаёт новый шаблон с заданным именем (классом документа). Возвращает созданный шаблон."""
@@ -63,9 +75,20 @@ class TemplateManager(BaseManager[Template, str]):
 
         return template
 
+    def delete(self, temp: Template):
+        """Удаляет шаблон из системы."""
+        directory = self._get_directory(temp)
+        if directory.exists() and directory.is_dir():
+            shutil.rmtree(directory)
+
+        if temp.name in self.doc_classes:
+            self.doc_classes.remove(temp.name)
+
     def doc_classes_list(self) -> List[str]:
         """Возвращает список всех существующих классов документов."""
         return self.doc_classes
+
+    # ========== ПРИВАТНЫЕ МЕТОДЫ ==========
 
     def _load_doc_classes(self):
         self.doc_classes.clear()
@@ -82,24 +105,22 @@ class TemplateManager(BaseManager[Template, str]):
 
     def _doc_class_from_meta(self, directory: Path) -> Optional[str]:
         meta = self._load_meta(directory)
+        if not meta:
+            return None
         return meta.get("name")
 
     def _get_directory(self, obj: Template) -> Path:
         return obj.directory
 
-    def _is_directory_valid(self, directory: Path) -> bool:
+    def _is_directory_valid(self, directory: Path) -> Tuple[bool, Optional[dict]]:
+        """
+        Проверяет, что директория соответствует структуре хранения шаблона и содержит необходимые файлы.
+        Возвращает кортеж (is_valid, meta), где is_valid - булево значение, указывающее на валидность директории,
+        а meta - словарь с метаданными шаблона (или None, если мета не подгрузилась).
+        """
         meta = self._load_meta(directory)
-        return bool(meta) \
+        valid = bool(meta) \
             and meta.get("name") == directory.name \
             and (directory / "code.py").exists()
 
-    def _object_from_meta(self, directory: Path) -> Optional[Template]:
-        if not self._is_directory_valid(directory):
-            return None
-
-        meta = self._load_meta(directory)
-        return Template(
-            name=str(meta.get("name")),
-            directory=Path(meta["directory"]),
-            description=str(meta["description"]) if meta.get("description") else None
-        )
+        return valid, meta

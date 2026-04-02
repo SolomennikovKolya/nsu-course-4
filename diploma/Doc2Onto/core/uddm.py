@@ -95,14 +95,27 @@ class UDDM:
     @staticmethod
     def load(path: Path) -> "UDDM":
         """Десериализация из xml-файла."""
-        tree = ET.parse(path)
-        root = tree.getroot()
+        try:
+            tree = ET.parse(path)
+            root = tree.getroot()
 
-        blocks = []
-        for child in root:
-            blocks.append(Block._from_xml(child))
+            blocks = []
+            for child in root:
+                blocks.append(Block._from_xml(child))
 
-        return UDDM(blocks)
+            return UDDM(blocks)
+
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"XML файл не найден: {path}") from e
+
+        except ET.ParseError as e:
+            raise ET.ParseError(f"Ошибка парсинга XML файла {path}: {e}") from e
+
+        except ValueError as e:
+            raise ValueError(f"Ошибка при десериализации блока: {e}") from e
+
+        except Exception as e:
+            raise RuntimeError(f"Неожиданная ошибка при загрузке UDDM из {path}: {e}") from e
 
     def _to_xml(self) -> ET.Element:
         root = ET.Element("document")
@@ -133,7 +146,7 @@ class Block(ABC):
         if tag == "table":
             return Table._from_xml(element)
 
-        raise ValueError(f"Unknown block type: {tag}")
+        raise ValueError(f"Неизвестный тип блока: {tag}")
 
 
 class Text(Block):

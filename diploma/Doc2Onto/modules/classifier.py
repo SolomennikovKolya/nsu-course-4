@@ -24,16 +24,20 @@ class Classifier(BaseModule):
                     document.template = template
                     return ModuleResult.OK
                 else:
-                    self.log(WARNING, f"Inconsistency found: document has class {document.doc_class} but no template found")
+                    self.log(WARNING, f"Inconsistency: document has class {document.doc_class} but no template found")
 
             # Автоматическая классификация
+            if not document.uddm:
+                self.log(WARNING, "Cannot classify document without UDDM")
+                return ModuleResult.FAILED
+
             for template_name in self.temp_manager.doc_classes_list():
                 template = self.temp_manager.get(template_name)
                 if not template or not template.code:
                     continue
 
                 try:
-                    if template.code.classify(document):
+                    if template.code.classify(document.name, document.uddm):
                         document.doc_class = template.name
                         document.template = template
                         return ModuleResult.OK

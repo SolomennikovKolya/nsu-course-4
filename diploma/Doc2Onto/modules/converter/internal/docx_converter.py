@@ -33,13 +33,13 @@ class DocxConverter(BaseInternalConverter):
         try:
             xml_data = docx.read("word/document.xml")
         except KeyError:
-            raise RuntimeError("DOCX document.xml not found")
+            raise RuntimeError("DOCX document.xml не найден")
 
         root = ET.fromstring(xml_data)
 
         body = root.find(f"{W}body")
         if body is None:
-            raise RuntimeError("DOCX body not found")
+            raise RuntimeError("DOCX body не найден")
 
         return body
 

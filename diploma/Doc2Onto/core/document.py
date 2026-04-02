@@ -4,6 +4,7 @@ from pathlib import Path
 from enum import StrEnum, auto
 
 from core.template.template import Template
+from core.uddm import UDDM
 
 
 @dataclass
@@ -33,13 +34,14 @@ class Document:
             }
             return stages[self]
 
-    name: str            # Название документа (имя файла)
-    directory: Path      # Директория с документом и его данными. Название директории соответствует имени документа
+    name: str                         # Название документа (имя оригинального файла)
+    directory: Path                   # Директория с документом и его данными
+    status: Status = Status.UPLOADED  # Статус обработки документа
 
-    status: Status = Status.UPLOADED     # Статус обработки документа
-    doc_class: Optional[str] = None      # Класс документа (соответствует шаблону извлечения)
-    # Шаблон обработки документа. Загружается динамически при определении класса документа
-    template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})
+    doc_class: Optional[str] = None   # Класс документа (название шаблона извлечения)
+
+    uddm: Optional[UDDM] = field(default=None, repr=False, metadata={'skip_dict': True})          # UDDM документа
+    template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})  # Шаблон извлечения
 
     def original_file_path(self):
         return self.directory / self.name

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from logging import ERROR
 
+from app.context import get_logger
 from core.document import Document
 
 
@@ -27,7 +28,6 @@ class BaseModule(ABC):
     def __init__(self) -> None:
         super().__init__()
 
-        from app.context import get_logger
         self._logger = get_logger()
 
     @abstractmethod

@@ -19,14 +19,16 @@ class BaseManager(ABC, Generic[T, A]):
         self.base_dir = base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
+    @abstractmethod
     def get(self, name: str) -> Optional[T]:
-        """Возвращает один объект по имени."""
-        directory = self.base_dir / name
-        return self._object_from_meta(directory)
+        pass
 
     @abstractmethod
     def add(self, arg: A) -> T:
-        """Сохраняет новый объект."""
+        pass
+
+    @abstractmethod
+    def delete(self, obj: T):
         pass
 
     def list(self) -> List[T]:
@@ -36,7 +38,7 @@ class BaseManager(ABC, Generic[T, A]):
             return items
 
         for directory in self.base_dir.iterdir():
-            obj = self._object_from_meta(directory)
+            obj = self.get(directory.name)
             if obj:
                 items.append(obj)
 
@@ -52,20 +54,37 @@ class BaseManager(ABC, Generic[T, A]):
         directory = self._get_directory(obj)
         self._save_meta(directory, data)
 
+    # ========== ПРИВАТНЫЕ МЕТОДЫ ==========
+
     @abstractmethod
     def _get_directory(self, obj: T) -> Path:
         """Возвращает директорию, где хранится объект."""
         pass
 
-    @abstractmethod
-    def _is_directory_valid(self, directory: Path) -> bool:
-        """Проверяет структуру директории на соответствие внутренним стандартам хранения."""
-        pass
+    def _meta_path(self, directory: Path) -> Path:
+        """Возвращает путь к файлу метаданных в директории."""
+        return directory / META_FILENAME
 
-    @abstractmethod
-    def _object_from_meta(self, directory: Path) -> Optional[T]:
-        """Десериализует объект из метаданных."""
-        pass
+    def _load_meta(self, directory: Path) -> Optional[dict]:
+        """Загружает метаданные из мета-файла в заданной директории."""
+        if not directory.exists() or not directory.is_dir():
+            return None
+
+        meta_file = self._meta_path(directory)
+        if not meta_file.exists():
+            return None
+
+        with meta_file.open("r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return None
+
+    def _save_meta(self, directory: Path, data: dict):
+        """Сохраняет метаданные."""
+        meta_file = self._meta_path(directory)
+        with meta_file.open("w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     def _compute_hash(self, path: Path) -> str:
         """Вычисляет хеш файла."""
@@ -74,28 +93,3 @@ class BaseManager(ABC, Generic[T, A]):
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
         return h.hexdigest()
-
-    def _meta_path(self, directory: Path) -> Path:
-        """Возвращает путь к файлу метаданных в директории."""
-        return directory / META_FILENAME
-
-    def _load_meta(self, directory: Path) -> dict:
-        """Загружает метаданные из мета-файла в заданной директории."""
-        if not directory.exists() or not directory.is_dir():
-            return {}
-
-        meta_file = self._meta_path(directory)
-        if not meta_file.exists():
-            return {}
-
-        with meta_file.open("r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
-
-    def _save_meta(self, directory: Path, data: dict):
-        """Сохраняет метаданные."""
-        meta_file = self._meta_path(directory)
-        with meta_file.open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)

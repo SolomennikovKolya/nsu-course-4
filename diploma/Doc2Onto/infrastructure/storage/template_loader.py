@@ -2,6 +2,7 @@ import importlib.util
 import sys
 from typing import Optional
 
+from app.context import get_logger
 from core.template.template import Template
 from core.template.base import BaseTemplateCode
 
@@ -11,9 +12,6 @@ class TemplateLoader:
 
     @staticmethod
     def load(template: Template) -> Optional[BaseTemplateCode]:
-        from app.context import get_logger
-        logger = get_logger()
-
         try:
             code_path = template.code_file_path()
             if not code_path.exists():
@@ -32,8 +30,9 @@ class TemplateLoader:
             if not hasattr(module, "TemplateCode"):
                 return None
 
+            # TODO: сделать дополнительные проверки кода шаблона
             return module.TemplateCode()
 
         except Exception:
-            logger.error(f"[TemplateLoader] Failed to load template code for {template.name}", exc_info=True)
+            get_logger().error(f"[TemplateLoader] Error loading template code for {template.name}", exc_info=True)
             return None
