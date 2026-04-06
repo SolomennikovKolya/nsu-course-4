@@ -1,27 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
+from core.template.extraction_result import ExtractionResult
 from core.template.field_validator import ValidationResult
 from core.template.field import Field
 from core.uddm import UDDM
 
 
-class ExtractionResult:
-    """Результат извлечения полей документа по шаблону. Содержит значения полей и их описание."""
-
-    def __init__(self):
-        self.values: Dict[str, Dict] = {}
-
-    def add(self, field: Field, value):
-        self.values[field.name] = {
-            "value": value,
-            "description": field.description,
-            "field_type": field.field_type
-        }
-
-
 class BaseTemplateCode(ABC):
-    """Базовый класс для шаблонов. Содержит методы, которые должны переопределить реальные шаблоны."""
+    """Базовый класс для кода шаблона. Содержит методы, которые должны переопределить реальный код шаблона."""
 
     @abstractmethod
     def classify(self, doc_name: str, uddm: UDDM) -> bool:

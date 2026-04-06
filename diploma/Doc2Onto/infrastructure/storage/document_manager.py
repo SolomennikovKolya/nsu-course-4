@@ -46,20 +46,23 @@ class DocumentManager(BaseManager[Document, Path]):
             doc_class=meta.get("doc_class")
         )
 
+        # Загрузка UDDM
         if doc.uddm_file_path().exists():
             try:
                 doc.uddm = UDDM.load(doc.uddm_file_path())
             except Exception as e:
                 doc.status = max(doc.status, Document.Status.UPLOADED)
-                get_logger().error(f"[DocumentManager] Cannot load UDDM for document {doc.name}: {e}")
+                get_logger().error(
+                    f"[DocumentManager] Cannot load UDDM for document {doc.name}: {e}")
 
+        # Загрузка шаблона
         if doc.doc_class:
             doc.template = get_temp_manager().get(doc.doc_class)
             if not doc.template:
-                doc.status = max(doc.status, Document.Status.UDDM_EXTRACTED)
-                doc.doc_class = None
                 get_logger().warning(
                     f"[DocumentManager] Document {doc.name} has class {doc.doc_class} but no corresponding template found")
+                doc.status = max(doc.status, Document.Status.UDDM_EXTRACTED)
+                doc.doc_class = None
 
         return doc
 
