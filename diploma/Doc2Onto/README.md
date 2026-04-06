@@ -51,8 +51,8 @@ Doc2Onto/
 │   ├── "main_window.py"                       # Главное окно
 │   ├── "documents/"
 │   │   ├── "documents_tab.py"                 # Вкладка для работы с документами
-│   │   ├── "document_info_widget.py"          # Правая часть documents_tab
-│   │   └── "status_progress_widget.py"        # Виджет с прогресс баром статуса обработки документа
+│   │   ├── "document_info.py"                 # Правая часть documents_tab
+│   │   └── "status_progress.py"               # Виджет с прогресс баром статуса обработки документа
 │   └── templates/
 │       ├── "templates_tab.py"                 # Вкладка для работы с шаблонами
 │       └── template_editor.py

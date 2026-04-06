@@ -31,6 +31,7 @@ class TemplateManager(BaseManager[Template, str]):
     def __init__(self, base_dir: Path = BASE_DIR):
         super().__init__(base_dir)
 
+        self.logger = get_logger()
         self.doc_classes: List[str] = []  # Кэш для списка классов документов
         self._load_doc_classes()
 
@@ -50,7 +51,7 @@ class TemplateManager(BaseManager[Template, str]):
 
         temp.code = TemplateLoader.load(temp)
         if temp.code is None:
-            get_logger().error(f"[TemplateManager] Template {temp.name} does not have a valid code.")
+            self.logger.error(f"[TemplateManager] Template {temp.name} does not have a valid code.")
             return None
 
         return temp
@@ -83,6 +84,42 @@ class TemplateManager(BaseManager[Template, str]):
 
         if temp.name in self.doc_classes:
             self.doc_classes.remove(temp.name)
+
+    def rename(self, temp: Template, new_name: str):
+        """
+        Переименовывает шаблон. В случае ошибки выбрасывает исключение.
+        Синхронизацию ``doc_class`` у документов нужно выполнять отдельно (см. ``DocumentManager``).
+        """
+        new_name = new_name.strip()
+        if not new_name:
+            self.logger.warning(f"[TemplateManager] Attempted to set empty template name during renaming {temp.name}")
+            raise ValueError("Имя шаблона не может быть пустым")
+
+        if new_name == temp.name:
+            return
+
+        new_path = self.base_dir / new_name
+        if new_path.exists():
+            self.logger.warning(f'[TemplateManager] Template with name "{new_name}" already exists during renaming attempt')
+            raise FileExistsError(f'Шаблон с именем "{new_name}" уже существует')
+
+        old_name = temp.name
+        old_path = self.base_dir / old_name
+
+        try:
+            old_path.rename(new_path)
+        except OSError as exc:
+            self.logger.warning(f"[TemplateManager] Failed to rename template {old_name} to {new_name}: {exc}")
+            raise exc
+
+        temp.name = new_name
+        temp.directory = new_path
+        self.save_metadata(temp)
+
+        if old_name in self.doc_classes:
+            self.doc_classes[self.doc_classes.index(old_name)] = new_name
+        elif new_name not in self.doc_classes:
+            self.doc_classes.append(new_name)
 
     def doc_classes_list(self) -> List[str]:
         """Возвращает список всех существующих классов документов."""

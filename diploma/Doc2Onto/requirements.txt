@@ -1,4 +1,6 @@
 lxml==6.0.2
+mammoth==1.9.0
+pygments==2.19.1
 PySide6==6.10.2
 PySide6_Addons==6.10.2
 PySide6_Essentials==6.10.2

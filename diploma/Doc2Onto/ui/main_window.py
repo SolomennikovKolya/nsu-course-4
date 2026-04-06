@@ -25,6 +25,7 @@ class MainWindow(QMainWindow):
 
         # Сигналы
         self.tabs.currentChanged.connect(self.on_tab_changed)
+        self.templates_tab.templates_changed.connect(self.documents_tab.refresh_templates)
 
     def on_tab_changed(self, index):
         if self.tabs.widget(index) is self.documents_tab:

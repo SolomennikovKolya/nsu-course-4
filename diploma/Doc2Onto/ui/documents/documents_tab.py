@@ -1,8 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton,
     QFileDialog, QHBoxLayout,
-    QTreeWidget, QTreeWidgetItem, QSplitter,
-    QMessageBox
+    QTreeWidget, QTreeWidgetItem, QSplitter
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -13,7 +12,8 @@ from app.context import get_pipeline, get_doc_manager
 from app.pipeline import PipelineResult
 from core.document import Document
 from modules.converter.registry import ConverterRegistry
-from ui.documents.document_info_widget import DocumentInfoWidget
+from ui.documents.document_info import DocumentInfoWidget
+from ui.common.utils import show_error_dialog
 
 
 class DocumentsTab(QWidget):
@@ -24,26 +24,24 @@ class DocumentsTab(QWidget):
 
         self.pipeline = get_pipeline()
         self.doc_manager = get_doc_manager()
-        self.documents: List[Document] = []
+        self.documents_cache: List[Document] = []
 
-        # Левая панель
-        left_widget = QWidget()
-        left_widget.setMinimumWidth(250)
-        left_layout = QVBoxLayout(left_widget)
-
+        # --- Список документов ---
         self.upload_btn = QPushButton("Загрузить документ")
-
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(20)
 
+        left_widget = QWidget()
+        left_widget.setMinimumWidth(250)
+        left_layout = QVBoxLayout(left_widget)
         left_layout.addWidget(self.upload_btn)
         left_layout.addWidget(self.tree)
 
-        # Правая панель
+        # --- Информация о документе ---
         self.info_widget = DocumentInfoWidget()
 
-        # Основной макет
+        # --- Основной макет ---
         splitter = QSplitter()
         splitter.addWidget(left_widget)
         splitter.addWidget(self.info_widget)
@@ -54,19 +52,13 @@ class DocumentsTab(QWidget):
         main_layout = QHBoxLayout(self)
         main_layout.addWidget(splitter)
 
-        # Сигналы
+        # --- Сигналы ---
         self.upload_btn.clicked.connect(self.add_document)
         self.tree.itemSelectionChanged.connect(self.update_info)
-        self.info_widget.documents_tree_changed.connect(self.refresh_documents_tree)
+        self.info_widget.document_changed.connect(self.refresh_documents_tree)
         self.info_widget.document_deleted.connect(self.on_document_deleted)
 
         self.refresh_documents_tree()
-
-    def show_error_dialog(self, message: str, title: str = " "):
-        QMessageBox.critical(self, title, message)
-
-    def show_info_dialog(self, message: str, lable: str = " "):
-        QMessageBox.information(self, lable, message)
 
     def add_document(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, "Выберите документы")
@@ -80,11 +72,11 @@ class DocumentsTab(QWidget):
             file_name = file_path.name
 
             if not ConverterRegistry.is_format_supported(file_path.suffix.lower().replace(".", "")):
-                self.show_error_dialog(f'Формат документа "{file_name}" не поддерживается.', "Ошибка загрузки документа")
+                show_error_dialog(self, f'Формат документа "{file_name}" не поддерживается.', "Ошибка загрузки документа")
                 continue
 
             # if self.doc_manager.is_file_exists(file_path):
-            #     self.show_info_dialog(f'Документ "{file_name}" уже существует в системе.', "Ошибка загрузки документа")
+            #     show_warning_dialog(self, f'Документ "{file_name}" уже существует в системе.', "Ошибка загрузки документа")
             #     continue
 
             doc = self.doc_manager.add(file_path)
@@ -93,7 +85,7 @@ class DocumentsTab(QWidget):
             res = self.pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
             if res == PipelineResult.FAILED:
                 self.doc_manager.delete(doc)
-                self.show_error_dialog(f'Не удалось извлечь данные из документа "{file_name}".')
+                show_error_dialog(self, f'Не удалось извлечь данные из документа "{file_name}".', "Ошибка извлечения")
                 continue
 
             self.doc_manager.save_metadata(doc)
@@ -120,10 +112,10 @@ class DocumentsTab(QWidget):
 
     def refresh_documents_tree(self):
         self.tree.clear()
-        self.documents = self.doc_manager.list()
+        self.documents_cache = self.doc_manager.list()
 
         groups: dict[str, list[Document]] = {}
-        for doc in self.documents:
+        for doc in self.documents_cache:
             key = doc.doc_class if doc.doc_class else "Без класса"
             if key not in groups:
                 groups[key] = []
@@ -157,4 +149,5 @@ class DocumentsTab(QWidget):
         self.tree.expandAll()
 
     def refresh_templates(self):
+        self.refresh_documents_tree()
         self.info_widget.refresh_classes()

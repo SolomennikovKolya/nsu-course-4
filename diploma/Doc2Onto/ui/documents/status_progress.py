@@ -9,11 +9,11 @@ class StatusProgressWidget(QWidget):
 
     steps = [
         "Документ загружен",
-        "Извлечены данные",
+        "Извлечены данные (UDDM)",
         "Определён класс документа",
         "Извлечены термы",
-        "Термы провалидированы",
-        "Собраны триплеты",
+        "Пройдена валидация",
+        "Построены триплеты",
         "Знания добавлены в модель"
     ]
 
@@ -28,7 +28,7 @@ class StatusProgressWidget(QWidget):
             label.setStyleSheet("color: gray")
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            label.setMinimumWidth(80)
+            # label.setMinimumWidth(80)
 
             main_layout.addWidget(label, 1)
             self.step_labels.append(label)

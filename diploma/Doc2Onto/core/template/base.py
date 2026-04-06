@@ -20,6 +20,7 @@ class BaseTemplateCode(ABC):
         """Определяет поля, которые нужно извлекать из документа. Должен возвращать список объектов Field."""
         raise NotImplementedError()
 
+    # TODO: перенести привязку валидаторов полей напрямую в Field
     @abstractmethod
     def validate(self, extraction_result: ExtractionResult) -> ValidationResult:
         """Проверяет корректность извлеченных данных."""

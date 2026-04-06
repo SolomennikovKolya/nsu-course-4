@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional, TypeVar, Generic
 import json
 import hashlib
+from typing import Iterator
 
 from app.utils import smart_asdict
 
@@ -31,18 +32,19 @@ class BaseManager(ABC, Generic[T, A]):
     def delete(self, obj: T):
         pass
 
-    def list(self) -> List[T]:
-        """Возвращает список всех существующих объектов."""
-        items = []
+    def iterate(self) -> Iterator[T]:
+        """Итератор по всем объектам."""
         if not self.base_dir.exists():
-            return items
+            return
 
         for directory in self.base_dir.iterdir():
             obj = self.get(directory.name)
             if obj:
-                items.append(obj)
+                yield obj
 
-        return items
+    def list(self) -> List[T]:
+        """Возвращает список всех существующих объектов."""
+        return list(self.iterate())
 
     def save_metadata(self, obj: T):
         """Сохраняет метаданные объекта."""

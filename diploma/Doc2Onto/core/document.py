@@ -49,5 +49,14 @@ class Document:
     def uddm_file_path(self):
         return self.directory / "uddm.xml"
 
+    def plain_text_file_path(self):
+        return self.directory / "plain_text.txt"
+
+    def uddm_html_view_file_path(self):
+        return self.directory / "uddm_html_view.html"
+
+    def uddm_tree_view_file_path(self):
+        return self.directory / "uddm_tree_view.txt"
+
     def rdf_file_path(self):
         return self.directory / "rdf.xml"

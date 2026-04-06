@@ -18,12 +18,12 @@ class Field:
 
     def __init__(self, name: str, description: str,
                  selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator, field_type: Type):
-        self.name: str = name
-        self.description: str = description         # Для LLM fallback и UI
-        self.selector: FieldSelector = selector     # Где искать
-        self.extractor: FieldExtractor = extractor  # Как извлекать
-        self.validator: FieldValidator = validator  # Как валидировать
-        self.field_type: Field.Type = field_type    # Чем является
+        self.name: str = name                       # Название поля, используемое в дальнейшем при построении RDF-триплетов
+        self.description: str = description         # Осмысленное исчерпывающее описание для извлечения поля с использованием LLM
+        self.selector: FieldSelector = selector     # Где искать?
+        self.extractor: FieldExtractor = extractor  # Как извлекать?
+        self.validator: FieldValidator = validator  # Как валидировать?
+        self.field_type: Field.Type = field_type    # Чем является?
 
     def extract(self, uddm: UDDM):
         """Извлекает значение поля из UDDM, используя селектор и экстрактор."""

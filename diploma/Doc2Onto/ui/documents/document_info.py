@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel,
     QHBoxLayout, QComboBox, QPushButton,
-    QMessageBox, QStackedLayout
+    QMessageBox, QStackedLayout, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal
 from typing import Optional
@@ -9,7 +9,8 @@ from typing import Optional
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.utils import require_attribute
 from core.document import Document
-from ui.documents.status_progress_widget import StatusProgressWidget
+from ui.documents.status_progress import StatusProgressWidget
+from ui.documents.document_view import DocumentViewWidget
 
 
 def require_document(method):
@@ -20,8 +21,8 @@ def require_document(method):
 class DocumentInfoWidget(QWidget):
     """Виджет для отображения информации о документе и управления его обработкой."""
 
-    documents_tree_changed = Signal()
-    document_deleted = Signal()  # Немного отличается от documents_tree_changed, т.к. надо вызвать дополнительные действия
+    document_changed = Signal()  # Сигнал, что информация о документе изменилась
+    document_deleted = Signal()  # Сигнал, что документ удален
 
     def __init__(self):
         super().__init__()
@@ -50,29 +51,38 @@ class DocumentInfoWidget(QWidget):
 
     def build_document_page(self) -> QWidget:
         """Страница с информацией о документе и кнопками управления обработкой."""
-        # Название
+        self.page_document = QWidget()
+        self.page_layout = QVBoxLayout(self.page_document)
+
+        # --- Заголовок ---
         self.title = QLabel()
         self.title.setWordWrap(True)
-        self.title.setStyleSheet("font-size:16px;font-weight:bold")
+        self.title.setStyleSheet("font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;")
+        self.page_layout.addWidget(self.title)
 
-        # Класс
+        # --- Класс ---
         self.class_combo = QComboBox()
-        self.class_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.class_combo.addItem("Не определён", None)
+        self.class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.class_combo.addItem("Класс не определён", None)
         for doc_class in self.temp_manager.doc_classes_list():
             self.class_combo.addItem(doc_class, doc_class)
 
         self.class_combo.currentIndexChanged.connect(self.change_class)
 
-        class_layout = QHBoxLayout()
-        class_layout.addWidget(QLabel("Класс:"))
-        class_layout.addWidget(self.class_combo)
-        class_layout.addStretch()
+        self.page_layout.addWidget(self.class_combo, 1)
 
-        # Статус
+        # --- Статус ---
         self.status_widget = StatusProgressWidget()
+        self.page_layout.addWidget(self.status_widget)
 
-        # Кнопки
+        self.page_layout.addSpacing(8)
+
+        # --- Отображение документа ---
+        self.document_view = DocumentViewWidget()
+        self.document_view.setMinimumHeight(240)
+        self.page_layout.addWidget(self.document_view, 1)
+
+        # --- Кнопки ---
         self.action_button = QPushButton()
         self.action_button.clicked.connect(self.run_action)
 
@@ -94,22 +104,13 @@ class DocumentInfoWidget(QWidget):
         buttons_layout.addWidget(self.action_button)
         buttons_layout.addWidget(self.restart_button)
         buttons_layout.addWidget(self.delete_button)
-
-        # Сборка всей страницы
-        self.page_document = QWidget()
-        self.page_layout = QVBoxLayout(self.page_document)
-
-        self.page_layout.addWidget(self.title)
-        self.page_layout.addLayout(class_layout)
-        self.page_layout.addWidget(QLabel("Статус:"))
-        self.page_layout.addWidget(self.status_widget)
-        self.page_layout.addStretch()
         self.page_layout.addLayout(buttons_layout)
 
         return self.page_document
 
     def set_document(self, document: Optional[Document]):
         self.document = document
+        self.document_view.set_document(document)
 
         if document is None:
             self.stack.setCurrentWidget(self.page_empty)
@@ -146,7 +147,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status)
         self.update_buttons()
-        self.documents_tree_changed.emit()
+        self.document_changed.emit()
 
     @require_document
     def run_action(self, doc: Document):
@@ -155,7 +156,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status)
         self.update_buttons()
-        self.documents_tree_changed.emit()
+        self.document_changed.emit()
 
     @require_document
     def restart_action(self, doc: Document):
@@ -165,7 +166,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status)
         self.update_buttons()
-        self.documents_tree_changed.emit()
+        self.document_changed.emit()
 
     @require_document
     def delete_action(self, doc: Document):
@@ -230,18 +231,17 @@ class DocumentInfoWidget(QWidget):
             self.delete_button.setEnabled(True)
 
     def refresh_classes(self):
-        current = self.class_combo.currentData()
-
         self.class_combo.blockSignals(True)
 
         self.class_combo.clear()
-        self.class_combo.addItem("Не определён", None)
+        self.class_combo.addItem("Класс не определён", None)
 
         for doc_class in self.temp_manager.doc_classes_list():
             self.class_combo.addItem(doc_class, doc_class)
 
-        index = self.class_combo.findData(current)
-        if index >= 0:
-            self.class_combo.setCurrentIndex(index)
+        if self.document is not None:
+            index = self.class_combo.findData(self.document.doc_class)
+            if index >= 0:
+                self.class_combo.setCurrentIndex(index)
 
         self.class_combo.blockSignals(False)
