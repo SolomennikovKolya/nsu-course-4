@@ -9,6 +9,7 @@ from typing import Optional
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.utils import require_attribute
 from core.document import Document
+from ui.common.editable_title import EditableTitleWidget
 from ui.documents.status_progress import StatusProgressWidget
 from ui.documents.document_view import DocumentViewWidget
 
@@ -55,9 +56,12 @@ class DocumentInfoWidget(QWidget):
         self.page_layout = QVBoxLayout(self.page_document)
 
         # --- Заголовок ---
-        self.title = QLabel()
-        self.title.setWordWrap(True)
-        self.title.setStyleSheet("font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;")
+        self.title = EditableTitleWidget(
+            placeholder="",
+            title_style="font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;",
+            subdued_style="color:#8a8a8a;",
+        )
+        self.title.committed.connect(self.rename_document)
         self.page_layout.addWidget(self.title)
 
         # --- Класс ---
@@ -119,13 +123,24 @@ class DocumentInfoWidget(QWidget):
         self.stack.setCurrentWidget(self.page_document)
 
         # Обновляем данные на странице
-        self.title.setText(document.name)
+        self.title.set_value(document.name)
         index = self.class_combo.findData(document.doc_class)
         if index >= 0:
             self.class_combo.setCurrentIndex(index)
 
         self.status_widget.set_status(document.status)
         self.update_buttons()
+
+    @require_document
+    def rename_document(self, doc: Document, new_name: str):
+        try:
+            self.doc_manager.rename(doc, new_name)
+        except Exception as e:
+            QMessageBox.warning(self, "Переименование документа", str(e))
+            self.title.set_value(doc.name)
+            return
+        self.title.set_value(new_name)
+        self.document_changed.emit()
 
     def change_class(self):
         doc = self.document

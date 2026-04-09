@@ -92,7 +92,6 @@ class TemplateManager(BaseManager[Template, str]):
         """
         new_name = new_name.strip()
         if not new_name:
-            self.logger.warning(f"[TemplateManager] Attempted to set empty template name during renaming {temp.name}")
             raise ValueError("Имя шаблона не может быть пустым")
 
         if new_name == temp.name:
@@ -100,7 +99,6 @@ class TemplateManager(BaseManager[Template, str]):
 
         new_path = self.base_dir / new_name
         if new_path.exists():
-            self.logger.warning(f'[TemplateManager] Template with name "{new_name}" already exists during renaming attempt')
             raise FileExistsError(f'Шаблон с именем "{new_name}" уже существует')
 
         old_name = temp.name
@@ -109,7 +107,6 @@ class TemplateManager(BaseManager[Template, str]):
         try:
             old_path.rename(new_path)
         except OSError as exc:
-            self.logger.warning(f"[TemplateManager] Failed to rename template {old_name} to {new_name}: {exc}")
             raise exc
 
         temp.name = new_name

@@ -91,6 +91,50 @@ class DocumentManager(BaseManager[Document, Path]):
         if doc.directory.exists() and doc.directory.is_dir():
             shutil.rmtree(doc.directory)
 
+    def rename(self, doc: Document, new_name: str):
+        """Переименовывает документ (директорию и оригинальный файл), обновляет meta.json."""
+        new_name = (new_name or "").strip()
+        if not new_name:
+            raise ValueError("Имя документа не может быть пустым")
+
+        if new_name == doc.name:
+            return
+
+        old_name = doc.name
+        old_dir = self.base_dir / old_name
+        old_file = old_dir / old_name
+        if not old_dir.exists():
+            raise FileNotFoundError(f'Документ "{old_name}" не найден в хранилище.')
+        if not old_file.exists():
+            raise FileNotFoundError(f'Оригинальный файл "{old_name}" не найден.')
+
+        new_dir = self.base_dir / new_name
+        if new_dir.exists():
+            raise FileExistsError(f'Документ с названием "{new_name}" уже существует.')
+
+        try:
+            old_dir.rename(new_dir)
+        except OSError as exc:
+            raise OSError(str(exc))
+
+        # После переименования директории надо переименовать оригинальный файл.
+        new_file = new_dir / new_name
+        old_file_in_new_dir = new_dir / old_name
+        try:
+            if old_file_in_new_dir.exists() and not new_file.exists():
+                old_file_in_new_dir.rename(new_file)
+        except OSError as exc:
+            # Пытаемся откатить директорию обратно, чтобы не оставить систему в полусостоянии.
+            try:
+                new_dir.rename(old_dir)
+            except OSError:
+                pass
+            raise OSError(str(exc))
+
+        doc.name = new_name
+        doc.directory = new_dir
+        self.save_metadata(doc)
+
     def is_file_exists(self, file_path: Path) -> bool:
         """Проверяет, существует ли файл в системе."""
         name = file_path.name

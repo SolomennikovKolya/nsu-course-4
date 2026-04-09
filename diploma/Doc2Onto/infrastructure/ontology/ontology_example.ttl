@@ -1,0 +1,8 @@
+@prefix : <http://doc2onto.org/ontology#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+:Student rdf:type rdf:Class .
+:Document rdf:type rdf:Class .
+
+:hasGrade rdf:type rdf:Property .
+:hasName rdf:type rdf:Property .

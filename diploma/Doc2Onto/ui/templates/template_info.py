@@ -10,7 +10,6 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -23,6 +22,7 @@ from PySide6.QtWidgets import (
 from app.context import get_doc_manager, get_temp_manager
 from app.paths import project_root
 from core.template.template import Template
+from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from ui.common.utils import show_warning_dialog
 
@@ -87,12 +87,14 @@ class TemplateInfoWidget(QWidget):
         page = QWidget()
         lay = QVBoxLayout(page)
 
-        lay.addWidget(QLabel("Название шаблона:"))
-        self.name_edit = QLineEdit()
-        self.name_edit.editingFinished.connect(self._on_name_editing_finished)
-        lay.addWidget(self.name_edit)
+        self.title = EditableTitleWidget(
+            placeholder="Название шаблона",
+            title_style="font-size:16px;font-weight:bold;",
+            subdued_style="color:#8a8a8a;",
+        )
+        self.title.committed.connect(self._on_template_name_committed)
+        lay.addWidget(self.title)
 
-        lay.addWidget(QLabel("Описание:"))
         self.description_edit = QPlainTextEdit()
         self.description_edit.setPlaceholderText("Краткое описание шаблона…")
         self.description_edit.setMaximumHeight(100)
@@ -129,7 +131,7 @@ class TemplateInfoWidget(QWidget):
 
         self.stack.setCurrentIndex(1)
         self._loading_fields = True
-        self.name_edit.setText(template.name)
+        self.title.set_value(template.name)
         self.description_edit.setPlainText(template.description or "")
         self._set_code_preview(template)
         self._loading_fields = False
@@ -148,11 +150,11 @@ class TemplateInfoWidget(QWidget):
             return
         self.code_preview.setHtml(python_code_to_preview_html(source))
 
-    def _on_name_editing_finished(self):
+    def _on_template_name_committed(self, new_name: str):
         if self._loading_fields or self.template is None:
             return
 
-        new_name = self.name_edit.text().strip()
+        new_name = (new_name or "").strip()
         if new_name == self.template.name:
             return
 
@@ -167,7 +169,7 @@ class TemplateInfoWidget(QWidget):
             self.template_name_changed.emit()
         except Exception as exc:
             show_warning_dialog(self, str(exc), "Ошибка переименования шаблона")
-            self.name_edit.setText(self.template.name)
+            self.title.set_value(self.template.name)
 
     def _on_description_changed(self):
         if self._loading_fields or self.template is None:
