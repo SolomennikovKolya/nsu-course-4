@@ -1,14 +1,32 @@
 import importlib.util
 import sys
-from typing import Optional
+from typing import Optional, Tuple
 
 from app.context import get_logger
-from core.template.template import Template
 from core.template.base import BaseTemplateCode
+from core.template.template import Template
 
 
 class TemplateLoader:
-    """Динамически загружает код шалона."""
+    """Динамически загружает код шаблона."""
+
+    @staticmethod
+    def validate_code(code: BaseTemplateCode):
+        """
+        Статическая проверка экземпляра кода шаблона.
+
+        Проверяется отсутствие нереализованных абстрактных методов и наличие ожидаемых методов.
+        """
+
+        cls = type(code)
+        abstract = getattr(cls, "__abstractmethods__", None)
+        if abstract:
+            names = ", ".join(sorted(abstract))
+            raise ValueError(f"Класс TemplateCode остаётся абстрактным, не реализованы: {names}.")
+
+        for name in ("classify", "fields", "validate", "build_triples"):
+            if not callable(getattr(code, name, None)):
+                raise ValueError(f"Метод «{name}» отсутствует или не является вызываемым.")
 
     @staticmethod
     def load(template: Template) -> Optional[BaseTemplateCode]:
@@ -30,7 +48,6 @@ class TemplateLoader:
             if not hasattr(module, "TemplateCode"):
                 return None
 
-            # TODO: сделать дополнительные проверки кода шаблона
             return module.TemplateCode()
 
         except Exception:

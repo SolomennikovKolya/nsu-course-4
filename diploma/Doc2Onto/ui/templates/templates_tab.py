@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QInputDialog,
     QSplitter,
+    QMessageBox,
 )
 from PySide6.QtCore import Signal
 from typing import Optional
@@ -13,7 +14,6 @@ from typing import Optional
 from app.context import get_temp_manager
 from core.template.template import Template
 from ui.templates.template_info import TemplateInfoWidget
-from ui.common.utils import show_warning_dialog
 
 
 class TemplatesTab(QWidget):
@@ -75,7 +75,7 @@ class TemplatesTab(QWidget):
             return
 
         if name in self.temp_manager.doc_classes_list():
-            show_warning_dialog(self, "Шаблон с таким именем уже существует.", "Ошибка добавления шаблона")
+            QMessageBox.critical(self, "Ошибка добавления шаблона", "Шаблон с таким именем уже существует.")
             return
 
         t = self.temp_manager.add(name)

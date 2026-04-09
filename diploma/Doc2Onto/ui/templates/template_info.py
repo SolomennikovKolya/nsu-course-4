@@ -22,9 +22,9 @@ from PySide6.QtWidgets import (
 from app.context import get_doc_manager, get_temp_manager
 from app.paths import project_root
 from core.template.template import Template
+from infrastructure.storage.template_loader import TemplateLoader
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
-from ui.common.utils import show_warning_dialog
 
 
 def _open_template_code_in_editor(code_path: Path) -> None:
@@ -111,9 +111,13 @@ class TemplateInfoWidget(QWidget):
         self.edit_btn = QPushButton("Редактировать шаблон")
         self.edit_btn.setToolTip("Открыть code.py в VS Code (если доступен командой code), иначе в редакторе по умолчанию")
         self.edit_btn.clicked.connect(self._on_edit_code)
+        self.validate_btn = QPushButton("Валидировать шаблон")
+        self.validate_btn.setToolTip("Проверка синтаксиса и структуры класса TemplateCode")
+        self.validate_btn.clicked.connect(self._on_validate_template)
         self.delete_btn = QPushButton("Удалить шаблон")
         self.delete_btn.clicked.connect(self._on_delete_template)
         btn_row.addWidget(self.edit_btn)
+        btn_row.addWidget(self.validate_btn)
         btn_row.addWidget(self.delete_btn)
         btn_row.addStretch()
         lay.addLayout(btn_row)
@@ -168,7 +172,7 @@ class TemplateInfoWidget(QWidget):
                 get_doc_manager().save_metadata(doc)
             self.template_name_changed.emit()
         except Exception as exc:
-            show_warning_dialog(self, str(exc), "Ошибка переименования шаблона")
+            QMessageBox.warning(self, "Ошибка переименования шаблона", str(exc))
             self.title.set_value(self.template.name)
 
     def _on_description_changed(self):
@@ -188,9 +192,29 @@ class TemplateInfoWidget(QWidget):
             return
         path = self.template.code_file_path()
         if not path.exists():
-            show_warning_dialog(self, "Файл code.py не найден.", "Ошибка редактирования шаблона")
+            QMessageBox.warning(self, "Ошибка редактирования шаблона", "Файл code.py не найден.")
             return
         _open_template_code_in_editor(path)
+
+    def _on_validate_template(self) -> None:
+        if self.template is None:
+            return
+
+        code = self.template.code
+        if code is None:
+            QMessageBox.warning(
+                self,
+                "Валидация шаблона",
+                "Код шаблона не загружен (ошибка при загрузке code.py). "
+                "Исправьте файл и перезагрузите шаблоны или перезапустите приложение.",
+            )
+            return
+
+        try:
+            TemplateLoader.validate_code(code)
+            QMessageBox.information(self, "Валидация шаблона", "Шаблон успешно проверен.")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка валидации шаблона", str(e))
 
     def _on_delete_template(self):
         if self.template is None:

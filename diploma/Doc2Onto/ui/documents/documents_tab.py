@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton,
     QFileDialog, QHBoxLayout,
-    QTreeWidget, QTreeWidgetItem, QSplitter
+    QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -13,7 +13,6 @@ from app.pipeline import PipelineResult
 from core.document import Document
 from modules.converter.registry import ConverterRegistry
 from ui.documents.document_info import DocumentInfoWidget
-from ui.common.utils import show_error_dialog
 
 
 class DocumentsTab(QWidget):
@@ -72,11 +71,11 @@ class DocumentsTab(QWidget):
             file_name = file_path.name
 
             if not ConverterRegistry.is_format_supported(file_path.suffix.lower().replace(".", "")):
-                show_error_dialog(self, f'Формат документа "{file_name}" не поддерживается.', "Ошибка загрузки документа")
+                QMessageBox.critical(self, "Ошибка загрузки документа", f'Формат документа "{file_name}" не поддерживается.')
                 continue
 
             # if self.doc_manager.is_file_exists(file_path):
-            #     show_warning_dialog(self, f'Документ "{file_name}" уже существует в системе.', "Ошибка загрузки документа")
+            #     QMessageBox.warning(self, "Ошибка загрузки документа", f'Документ "{file_name}" уже существует в системе.')
             #     continue
 
             doc = self.doc_manager.add(file_path)
@@ -85,7 +84,7 @@ class DocumentsTab(QWidget):
             res = self.pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
             if res == PipelineResult.FAILED:
                 self.doc_manager.delete(doc)
-                show_error_dialog(self, f'Не удалось извлечь данные из документа "{file_name}".', "Ошибка извлечения")
+                QMessageBox.critical(self, "Ошибка извлечения", f'Не удалось извлечь данные из документа "{file_name}".')
                 continue
 
             self.doc_manager.save_metadata(doc)

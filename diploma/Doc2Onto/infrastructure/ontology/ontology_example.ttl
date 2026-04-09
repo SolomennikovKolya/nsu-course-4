@@ -1,8 +1,158 @@
 @prefix : <http://doc2onto.org/ontology#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-:Student rdf:type rdf:Class .
-:Document rdf:type rdf:Class .
+# ========== Классы ==========
 
-:hasGrade rdf:type rdf:Property .
-:hasName rdf:type rdf:Property .
+# --- люди ---
+
+:Персона rdf:type owl:Class .
+
+:Студент rdf:type owl:Class ;
+    rdfs:subClassOf :Персона .
+
+:Сотрудник rdf:type owl:Class ;
+    rdfs:subClassOf :Персона .
+
+
+# --- оброзовательная структура ---
+
+:Организация rdf:type owl:Class .
+
+:СтруктурноеПодразделение rdf:type owl:Class ;
+    rdfs:subClassOf [
+        rdf:type owl:Restriction ;
+        owl:onProperty :входитВ ;
+        owl:someValuesFrom :Организация
+    ] .
+
+:Университет rdf:type owl:Class ;
+    rdfs:subClassOf :Организация .
+
+:Факультет rdf:type owl:Class ;
+    rdfs:subClassOf :СтруктурноеПодразделение ;
+    rdfs:subClassOf [
+        rdf:type owl:Restriction ;
+        owl:onProperty :входитВ ;
+        owl:someValuesFrom :Университет
+    ] .
+
+:Кафедра rdf:type owl:Class ;
+    rdfs:subClassOf :СтруктурноеПодразделение .
+
+:ВнешняяОрганизация rdf:type owl:Class ;
+    rdfs:subClassOf :Организация .
+
+
+:Кафедра rdfs:subClassOf [
+    rdf:type owl:Restriction ;
+    owl:onProperty :входитВ ;
+    owl:someValuesFrom :Факультет
+] .
+
+# --- личные данные ---
+
+:Практика rdf:type owl:Class .
+:ВКР rdf:type owl:Class .
+
+:Группа rdf:type owl:Class .
+:Направление rdf:type owl:Class .
+:Профиль rdf:type owl:Class .
+
+# ========== Объектные свойства ==========
+
+:обучаетсяВГруппе rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range :Группа .
+
+:обучаетсяНаНаправлении rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range :Направление .
+
+:имеетПрофиль rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range :Профиль .
+
+:состоитВКафедре rdf:type owl:ObjectProperty ;
+    rdfs:domain :Сотрудник ;
+    rdfs:range :Кафедра .
+
+:имеетПрактику rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range :Практика .
+
+:имеетВКР rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range :ВКР .
+
+:имеетРуководителя rdf:type owl:ObjectProperty ;
+    rdfs:domain :ВКР ;
+    rdfs:range :Сотрудник .
+
+:проходитПрактикуВ rdf:type owl:ObjectProperty ;
+    rdfs:domain :Практика ;
+    rdfs:range :Организация .
+
+# ========== Дата-свойства ==========
+
+:ФИО rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Персона ;
+    rdfs:range xsd:string .
+
+:номерГруппы rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Группа ;
+    rdfs:range xsd:string .
+
+:email rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Персона ;
+    rdfs:range xsd:string .
+
+:телефон rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Персона ;
+    rdfs:range xsd:string .
+
+:тема rdf:type owl:DatatypeProperty ;
+    rdfs:domain :ВКР ;
+    rdfs:range xsd:string .
+
+:датаНачала rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Практика ;
+    rdfs:range xsd:date .
+
+:датаОкончания rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Практика ;
+    rdfs:range xsd:date .
+
+:оценка rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Практика ;
+    rdfs:range xsd:integer .
+
+# ========== Ограничения ==========
+
+
+
+:Студент rdfs:subClassOf [
+    rdf:type owl:Restriction ;
+    owl:onProperty :обучаетсяВГруппе ;
+    owl:cardinality 1
+] .
+
+:Студент rdfs:subClassOf [
+    rdf:type owl:Restriction ;
+    owl:onProperty :имеетВКР ;
+    owl:maxCardinality 1
+] .
+
+:Практика rdfs:subClassOf [
+    rdf:type owl:Restriction ;
+    owl:onProperty :проходитПрактикуВ ;
+    owl:someValuesFrom :Организация
+] .
+
+:ВКР rdfs:subClassOf [
+    rdf:type owl:Restriction ;
+    owl:onProperty :имеетРуководителя ;
+    owl:allValuesFrom :Сотрудник
+] .

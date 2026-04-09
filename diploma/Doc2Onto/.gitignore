@@ -1,5 +1,8 @@
 .vscode/
+
 .env/
 __pycache__/
+.mypy_cache/
+
 test/
 data/
