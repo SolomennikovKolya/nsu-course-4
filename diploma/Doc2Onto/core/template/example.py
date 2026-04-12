@@ -8,13 +8,13 @@ from core.template.field_validator import *
 class TemplateCode(BaseTemplateCode):
 
     def classify(self, doc_name: str, uddm: UDDM) -> bool:
-        return True
+        return False
 
     def fields(self) -> List[Field]:
         raise NotImplementedError()
 
     def validate(self, extraction_result: ExtractionResult) -> ValidationResult:
-        return ValidationResult()
+        raise NotImplementedError()
 
     def build_triples(self, validation_result: ValidationResult) -> List[Dict]:
         raise NotImplementedError()
