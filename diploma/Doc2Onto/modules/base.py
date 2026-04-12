@@ -35,7 +35,7 @@ class BaseModule(ABC):
         pass
 
     def log(self, level: int, message: str):
-        self._logger.log(level, f"    [{self.__class__.__name__}] " + message, exc_info=True)
+        self._logger.log(level, f"    [{self.__class__.__name__}] " + message, exc_info=False)
 
     def log_exception(self):
         self._logger.log(ERROR, f"    [{self.__class__.__name__}] Exception occurred", exc_info=True)
