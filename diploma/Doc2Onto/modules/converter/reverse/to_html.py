@@ -23,7 +23,7 @@ class UDDMToHTML(BaseReverseConverter):
 
     def convert(self, uddm: UDDM) -> str:
         """Преобразует UDDM в HTML."""
-        body = "".join(self._render_block(b) for b in uddm.blocks)
+        body = "".join(self._render_block(b) for b in uddm.root)
         return HTML_TEMPLATE.format(body=body)
 
     def _render_block(self, block: Block) -> str:

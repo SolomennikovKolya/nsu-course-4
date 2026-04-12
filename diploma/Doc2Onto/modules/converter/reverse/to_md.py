@@ -10,7 +10,7 @@ class UDDMToMarkdown(BaseReverseConverter):
         """Преобразует UDDM в Markdown."""
         lines: List[str] = []
 
-        for block in uddm.blocks:
+        for block in uddm.root:
             self._walk_block(lines, block)
 
         return "\n".join(lines)

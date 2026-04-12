@@ -233,7 +233,7 @@ class DocumentInfoWidget(QWidget):
 
     def update_restart_button(self):
         doc = self.document
-        if doc is None or doc.status == Document.Status.UPLOADED:
+        if doc is None:
             self.restart_button.setEnabled(False)
         else:
             self.restart_button.setEnabled(True)

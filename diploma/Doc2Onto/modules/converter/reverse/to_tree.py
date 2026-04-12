@@ -8,11 +8,11 @@ class UDDMToTree(BaseReverseConverter):
         """Преобразует UDDM в древовидное текстовое представление."""
         lines: List[str] = []
 
-        for i, b in enumerate(uddm.blocks):
-            is_last = i == len(uddm.blocks) - 1
+        for i, b in enumerate(uddm.root):
+            is_last = i == len(uddm.root) - 1
             self._walk_block(lines, b, "", is_last)
 
-        return "DOCUMENT\n" + "\n".join(lines)
+        return "ROOT\n" + "\n".join(lines)
 
     def _walk_block(self, lines: List[str], block: Block, prefix: str, is_last: bool):
         branch = "└── " if is_last else "├── "
@@ -68,7 +68,7 @@ class UDDMToTree(BaseReverseConverter):
 #         """Преобразует UDDM в древовидное представление."""
 #         lines: List[str] = []
 
-#         for b in uddm.blocks:
+#         for b in uddm.root:
 #             self._walk_block(lines, b)
 
 #         return "\n".join(lines)

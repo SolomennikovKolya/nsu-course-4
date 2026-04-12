@@ -12,18 +12,22 @@ class UDDM:
     def __init__(self, blocks: List[Block]):
         """
         Пример создания:
+        ```python
         doc = UDDM([
             Text([
                 P("Paragraph 1"),
                 P("Paragraph 2")
             ])
         ])
+        ```
         """
-        self.blocks: List[Block] = blocks
+        self.root = Root(blocks)
+
+    # ----- итераторы -----
 
     def iter_blocks(self) -> Iterator[Block]:
-        """Базовый итератор для DFS обхода всех блоков."""
-        for block in self.blocks:
+        """Итератор для обхода всех блоков."""
+        for block in self.root.blocks:
             yield from self._iter_block(block)
 
     def _iter_block(self, block: Block) -> Iterator[Block]:
@@ -43,29 +47,31 @@ class UDDM:
                     for b in cell.blocks:
                         yield from self._iter_block(b)
 
-    def iter_texts(self) -> Iterator["Text"]:
+    def iter_texts(self) -> Iterator[Text]:
         """Итератор для обхода всех текстовых блоков."""
         for block in self.iter_blocks():
             if isinstance(block, Text):
                 yield block
 
-    def iter_paragraphs(self) -> Iterator["P"]:
+    def iter_paragraphs(self) -> Iterator[P]:
         """Итератор для обхода всех абзацев."""
         for text in self.iter_texts():
             for p in text.paragraphs:
                 yield p
 
-    def iter_lists(self) -> Iterator["ListBlock"]:
+    def iter_lists(self) -> Iterator[ListBlock]:
         """Итератор для обхода всех списков."""
         for block in self.iter_blocks():
             if isinstance(block, ListBlock):
                 yield block
 
-    def iter_tables(self) -> Iterator["Table"]:
+    def iter_tables(self) -> Iterator[Table]:
         """Итератор для обхода всех таблиц."""
         for block in self.iter_blocks():
             if isinstance(block, Table):
                 yield block
+
+    # ----- геттеры -----
 
     def get_all_texts(self) -> List[Text]:
         """Получить все текстовые блоки."""
@@ -87,22 +93,13 @@ class UDDM:
         """Получить все таблицы."""
         return [table for table in self.iter_tables()]
 
-    def save(self, path: Path):
-        """Сериализация в xml-файл."""
-        tree = ET.ElementTree(self._to_xml())
-        tree.write(path, encoding="utf-8", xml_declaration=True)
-
     @staticmethod
     def load(path: Path) -> "UDDM":
         """Десериализация из xml-файла."""
         try:
             tree = ET.parse(path)
             root = tree.getroot()
-
-            blocks = []
-            for child in root:
-                blocks.append(Block._from_xml(child))
-
+            blocks = [Block._from_xml(b) for b in root]
             return UDDM(blocks)
 
         except FileNotFoundError as e:
@@ -117,21 +114,77 @@ class UDDM:
         except Exception as e:
             raise RuntimeError(f"Неожиданная ошибка при загрузке UDDM из {path}: {e}") from e
 
+    def save(self, path: Path):
+        """Сериализация в xml-файл."""
+        tree = ET.ElementTree(self.root._to_xml())
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
+class UDDMElement(ABC):
+    """Базовый тип для узлов дерева UDDM."""
+
+    @abstractmethod
+    def __str__(self) -> str:
+        """Строковое представление элемента."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def __iter__(self) -> Iterator["UDDMElement"]:
+        """Итератор для обхода всех дочерних элементов."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def __len__(self) -> int:
+        """Количество дочерних элементов."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def __getitem__(self, index: int) -> "UDDMElement":
+        """Получение элемента по индексу."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _from_xml(element: ET.Element) -> "UDDMElement":
+        """Десериализация из xml-элемента."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _to_xml(self) -> ET.Element:
-        root = ET.Element("document")
+        """Сериализация в xml-элемент."""
+        raise NotImplementedError
 
-        for block in self.blocks:
-            root.append(block._to_xml())
 
-        return root
+class Root(UDDMElement):
+    """Корень документа."""
+
+    def __init__(self, blocks: List[Block]):
+        self.blocks: List[Block] = blocks
+
+    def __str__(self) -> str:
+        return "\n".join(str(b) for b in self.blocks)
+
+    def __iter__(self) -> Iterator[Block]:
+        return iter(self.blocks)
+
+    def __len__(self) -> int:
+        return len(self.blocks)
+
+    def __getitem__(self, index: int) -> Block:
+        return self.blocks[index]
+
+    @staticmethod
+    def _from_xml(element: ET.Element) -> "Root":
+        return Root([Block._from_xml(b) for b in element])
+
+    def _to_xml(self) -> ET.Element:
+        el = ET.Element("root")
+        el.extend(b._to_xml() for b in self.blocks)
+        return el
 
 
 class Block(ABC):
     """Абстрактный базовый блок UDDM."""
-
-    @abstractmethod
-    def _to_xml(self) -> ET.Element:
-        raise NotImplementedError
 
     @staticmethod
     def _from_xml(element: ET.Element) -> "Block":
@@ -148,246 +201,202 @@ class Block(ABC):
 
         raise ValueError(f"Неизвестный тип блока: {tag}")
 
+    @abstractmethod
+    def _to_xml(self) -> ET.Element:
+        raise NotImplementedError
 
-class Text(Block):
+
+class Text(Block, UDDMElement):
     """Текстовый блок, состоящий из параграфов."""
 
     def __init__(self, paragraphs: List[P]):
         self.paragraphs: List[P] = paragraphs
 
-    def __iter__(self):
-        return iter(self.paragraphs)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.paragraphs)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[P]:
+        return iter(self.paragraphs)
+
+    def __len__(self) -> int:
         return len(self.paragraphs)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> P:
         return self.paragraphs[index]
-
-    def _to_xml(self) -> ET.Element:
-        el = ET.Element("text")
-
-        for p in self.paragraphs:
-            el.append(p._to_xml())
-
-        return el
 
     @staticmethod
     def _from_xml(element: ET.Element) -> "Text":
-        paragraphs = []
+        return Text([P._from_xml(p) for p in element.findall("p")])
 
-        for p in element.findall("p"):
-            paragraphs.append(P._from_xml(p))
+    def _to_xml(self) -> ET.Element:
+        el = ET.Element("text")
+        el.extend(p._to_xml() for p in self.paragraphs)
+        return el
 
-        return Text(paragraphs)
 
-
-class P:
+class P(UDDMElement):
     """Параграф - атомарный элемент текста."""
 
     def __init__(self, text: str):
         self.text: str = text
 
-    def __iter__(self):
-        return iter(self.text)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return self.text
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.text)
+
+    def __len__(self) -> int:
         return len(self.text)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> str:
         return self.text[index]
+
+    @staticmethod
+    def _from_xml(element: ET.Element) -> "P":
+        return P(element.text or "")
 
     def _to_xml(self) -> ET.Element:
         el = ET.Element("p")
         el.text = self.text
         return el
 
-    @staticmethod
-    def _from_xml(element: ET.Element) -> "P":
-        return P(element.text or "")
 
-
-class ListBlock(Block):
+class ListBlock(Block, UDDMElement):
     """Список."""
 
     def __init__(self, items: List[Item]):
         self.items: List[Item] = items
 
-    def __iter__(self):
-        return iter(self.items)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.items)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[Item]:
+        return iter(self.items)
+
+    def __len__(self) -> int:
         return len(self.items)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Item:
         return self.items[index]
-
-    def _to_xml(self) -> ET.Element:
-        el = ET.Element("list")
-
-        for item in self.items:
-            el.append(item._to_xml())
-
-        return el
 
     @staticmethod
     def _from_xml(element: ET.Element) -> "ListBlock":
-        items = []
+        return ListBlock([Item._from_xml(i) for i in element.findall("item")])
 
-        for item_el in element.findall("item"):
-            items.append(Item._from_xml(item_el))
+    def _to_xml(self) -> ET.Element:
+        el = ET.Element("list")
+        el.extend(i._to_xml() for i in self.items)
+        return el
 
-        return ListBlock(items)
 
-
-class Item:
+class Item(UDDMElement):
     """Элемент списка."""
 
     def __init__(self, blocks: List[Block]):
         self.blocks: List[Block] = blocks
 
-    def __iter__(self):
-        return iter(self.blocks)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.blocks)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[Block]:
+        return iter(self.blocks)
+
+    def __len__(self) -> int:
         return len(self.blocks)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Block:
         return self.blocks[index]
-
-    def _to_xml(self) -> ET.Element:
-        el = ET.Element("item")
-
-        for block in self.blocks:
-            el.append(block._to_xml())
-
-        return el
 
     @staticmethod
     def _from_xml(element: ET.Element) -> "Item":
-        blocks = []
+        return Item([Block._from_xml(b) for b in element])
 
-        for child in element:
-            blocks.append(Block._from_xml(child))
+    def _to_xml(self) -> ET.Element:
+        el = ET.Element("item")
+        el.extend(b._to_xml() for b in self.blocks)
+        return el
 
-        return Item(blocks)
 
-
-class Table(Block):
+class Table(Block, UDDMElement):
     """Таблица."""
 
     def __init__(self, rows: List[Row]):
         self.rows: List[Row] = rows
 
-    def __iter__(self):
-        return iter(self.rows)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.rows)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[Row]:
+        return iter(self.rows)
+
+    def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Row:
         return self.rows[index]
 
-    def _to_xml(self):
+    @staticmethod
+    def _from_xml(element: ET.Element) -> "Table":
+        return Table([Row._from_xml(r) for r in element.findall("row")])
+
+    def _to_xml(self) -> ET.Element:
         el = ET.Element("table")
-
-        for row in self.rows:
-            el.append(row._to_xml())
-
+        el.extend(r._to_xml() for r in self.rows)
         return el
 
-    @staticmethod
-    def _from_xml(element):
-        rows = []
 
-        for row_el in element.findall("row"):
-            rows.append(Row._from_xml(row_el))
-
-        return Table(rows)
-
-
-class Row:
+class Row(UDDMElement):
     """Строка таблицы."""
 
     def __init__(self, cells: List[Cell]):
         self.cells: List[Cell] = cells
 
-    def __iter__(self):
-        return iter(self.cells)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.cells)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[Cell]:
+        return iter(self.cells)
+
+    def __len__(self) -> int:
         return len(self.cells)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Cell:
         return self.cells[index]
 
-    def _to_xml(self):
+    @staticmethod
+    def _from_xml(element: ET.Element) -> "Row":
+        return Row([Cell._from_xml(c) for c in element.findall("cell")])
+
+    def _to_xml(self) -> ET.Element:
         el = ET.Element("row")
-
-        for cell in self.cells:
-            el.append(cell._to_xml())
-
+        el.extend(c._to_xml() for c in self.cells)
         return el
 
-    @staticmethod
-    def _from_xml(element):
-        cells = []
 
-        for cell_el in element.findall("cell"):
-            cells.append(Cell._from_xml(cell_el))
-
-        return Row(cells)
-
-
-class Cell:
+class Cell(UDDMElement):
     """Клетка таблицы."""
 
     def __init__(self, blocks: List[Block]):
         self.blocks: List[Block] = blocks
 
-    def __iter__(self):
-        return iter(self.blocks)
-
-    def __str__(self):
+    def __str__(self) -> str:
         return "\n".join(str(p) for p in self.blocks)
 
-    def __len__(self):
+    def __iter__(self) -> Iterator[Block]:
+        return iter(self.blocks)
+
+    def __len__(self) -> int:
         return len(self.blocks)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Block:
         return self.blocks[index]
 
-    def _to_xml(self):
-        el = ET.Element("cell")
-
-        for block in self.blocks:
-            el.append(block._to_xml())
-
-        return el
-
     @staticmethod
-    def _from_xml(element):
-        blocks = []
+    def _from_xml(element: ET.Element) -> "Cell":
+        return Cell([Block._from_xml(b) for b in element])
 
-        for child in element:
-            blocks.append(Block._from_xml(child))
-
-        return Cell(blocks)
+    def _to_xml(self) -> ET.Element:
+        el = ET.Element("cell")
+        el.extend(b._to_xml() for b in self.blocks)
+        return el

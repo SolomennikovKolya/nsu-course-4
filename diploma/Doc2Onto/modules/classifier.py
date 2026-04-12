@@ -44,6 +44,7 @@ class Classifier(BaseModule):
                 except Exception:
                     continue
 
+            self.log(WARNING, f"No template found to classify document")
             return ModuleResult.FAILED
 
         except Exception:
