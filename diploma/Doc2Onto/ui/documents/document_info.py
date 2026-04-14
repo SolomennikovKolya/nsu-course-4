@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, Signal
 from typing import Optional
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
+from app.settings import APP_NAME
 from app.utils import require_attribute
 from core.document import Document
 from ui.common.editable_title import EditableTitleWidget
@@ -91,11 +92,9 @@ class DocumentInfoWidget(QWidget):
         self.action_button.clicked.connect(self.run_action)
 
         self.restart_button = QPushButton("Обработать заново")
-        self.restart_button.setMaximumWidth(140)
         self.restart_button.clicked.connect(self.restart_action)
 
         self.delete_button = QPushButton("Удалить документ")
-        self.delete_button.setMaximumWidth(140)
         self.delete_button.setStyleSheet("""
         QPushButton:hover {
             background-color: #d32f2f;
@@ -107,6 +106,7 @@ class DocumentInfoWidget(QWidget):
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self.action_button)
         buttons_layout.addWidget(self.restart_button)
+        buttons_layout.addStretch()
         buttons_layout.addWidget(self.delete_button)
         self.page_layout.addLayout(buttons_layout)
 
@@ -136,7 +136,7 @@ class DocumentInfoWidget(QWidget):
         try:
             self.doc_manager.rename(doc, new_name)
         except Exception as e:
-            QMessageBox.warning(self, "Переименование документа", str(e))
+            QMessageBox.warning(self, APP_NAME, str(e))
             self.title.set_value(doc.name)
             return
         self.title.set_value(new_name)
@@ -187,7 +187,7 @@ class DocumentInfoWidget(QWidget):
     def delete_action(self, doc: Document):
         reply = QMessageBox.question(
             self,
-            "Удаление документа",
+            APP_NAME,
             "Вы точно хотите удалить документ?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )

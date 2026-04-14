@@ -10,6 +10,7 @@ from typing import Optional, List
 
 from app.context import get_pipeline, get_doc_manager
 from app.pipeline import PipelineResult
+from app.settings import APP_NAME
 from core.document import Document
 from modules.converter.registry import ConverterRegistry
 from ui.documents.document_info import DocumentInfoWidget
@@ -71,11 +72,11 @@ class DocumentsTab(QWidget):
             file_name = file_path.name
 
             if not ConverterRegistry.is_format_supported(file_path.suffix.lower().replace(".", "")):
-                QMessageBox.critical(self, "Ошибка загрузки документа", f'Формат документа "{file_name}" не поддерживается.')
+                QMessageBox.critical(self, APP_NAME, f'Формат документа "{file_name}" не поддерживается.')
                 continue
 
             # if self.doc_manager.is_file_exists(file_path):
-            #     QMessageBox.warning(self, "Ошибка загрузки документа", f'Документ "{file_name}" уже существует в системе.')
+            #     QMessageBox.warning(self, APP_NAME, f'Документ "{file_name}" уже существует в системе.')
             #     continue
 
             doc = self.doc_manager.add(file_path)
@@ -84,7 +85,7 @@ class DocumentsTab(QWidget):
             res = self.pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
             if res == PipelineResult.FAILED:
                 self.doc_manager.delete(doc)
-                QMessageBox.critical(self, "Ошибка извлечения", f'Не удалось извлечь данные из документа "{file_name}".')
+                QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь данные из документа "{file_name}".')
                 continue
 
             self.doc_manager.save_metadata(doc)

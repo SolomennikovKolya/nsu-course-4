@@ -1,9 +1,12 @@
 import os
+from typing import Optional
 from openai import DefaultHttpxClient, OpenAI
+from pathlib import Path
+from string import Template as StringTemplate
 
 from app.settings import DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS
 
-_client: OpenAI | None = None
+_client: Optional[OpenAI] = None
 
 
 def get_openai_client() -> OpenAI:
@@ -14,33 +17,39 @@ def get_openai_client() -> OpenAI:
     api_key = os.getenv("OPENAI_API_KEY").strip()
     if not api_key:
         raise RuntimeError("Не задана переменная среды OPENAI_API_KEY")
-    # proxy_url = os.getenv("OPENAI_PROXY_URL").strip()
-    # if not proxy_url:
-    #     raise RuntimeError("Не задана переменная среды OPENAI_PROXY_URL")
 
     _client = OpenAI(
         api_key=api_key,
         http_client=DefaultHttpxClient(
-            # proxy=proxy_url,
             timeout=float(DEFAULT_TIMEOUT_SECONDS),
         ),
     )
     return _client
 
 
-def ask_openai(prompt: str, *, system_prompt: str | None = None, model: str | None = None) -> str:
-    used_model = model or DEFAULT_MODEL
-
+def ask_gpt(prompt: str, *, system_prompt: Optional[str] = None, model: Optional[str] = None) -> str:
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    response = get_openai_client().responses.create(
-        model=used_model,
+    client = get_openai_client()
+    response = client.responses.create(
+        model=model or DEFAULT_MODEL,
         input=messages,
     )
+
     text = getattr(response, "output_text", None)
-    if text:
-        return text.strip()
-    raise RuntimeError("OpenAI вернул пустой ответ")
+    if not text:
+        raise RuntimeError("OpenAI вернул пустой ответ")
+
+    return text.strip()
+
+
+def read_prompt(path: Path, **kwargs) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"Файл {path} не найден")
+
+    text = path.read_text(encoding="utf-8", errors="strict")
+    temp = StringTemplate(text)
+    return temp.safe_substitute(**kwargs)

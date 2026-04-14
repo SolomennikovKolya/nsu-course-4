@@ -12,6 +12,7 @@ from PySide6.QtCore import Signal
 from typing import Optional
 
 from app.context import get_temp_manager
+from app.settings import APP_NAME
 from core.template.template import Template
 from ui.templates.template_info import TemplateInfoWidget
 
@@ -66,7 +67,7 @@ class TemplatesTab(QWidget):
             self.list_widget.addItem(t.name)
 
     def add_template(self):
-        name, ok = QInputDialog.getText(self, "Добавить шаблон", "Название шаблона:")
+        name, ok = QInputDialog.getText(self, APP_NAME, "Название шаблона:")
         if not ok:
             return
 
@@ -75,7 +76,7 @@ class TemplatesTab(QWidget):
             return
 
         if name in self.temp_manager.doc_classes_list():
-            QMessageBox.critical(self, "Ошибка добавления шаблона", "Шаблон с таким именем уже существует.")
+            QMessageBox.critical(self, APP_NAME, "Шаблон с таким именем уже существует.")
             return
 
         t = self.temp_manager.add(name)

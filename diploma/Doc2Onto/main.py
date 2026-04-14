@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QIcon
 from dotenv import load_dotenv
 
+from app.settings import ICON_PATH
 from app.context import init_app_context
 from ui.main_window import MainWindow
 
@@ -13,9 +14,8 @@ def main():
     init_app_context()            # Инициализация глобального контекста приложения
     app = QApplication(sys.argv)  # Управляет жизненным циклом Qt-приложения
 
-    icon_path = Path("resources/icon.png")
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    if ICON_PATH.exists():
+        app.setWindowIcon(QIcon(str(ICON_PATH)))
 
     window = MainWindow()  # Главное окно приложения
     window.show()          # Без этого вызова окно останется скрытым
