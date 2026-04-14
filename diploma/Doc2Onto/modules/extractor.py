@@ -1,9 +1,47 @@
-from app.context import get_temp_manager
+import json
+from logging import WARNING
+from typing import Dict, Optional
+from pathlib import Path
+
 from modules.base import BaseModule, ModuleResult
 from core.document import Document
 from core.template.template import Template
-from core.uddm import UDDM
-from core.template.base import ExtractionResult
+from core.uddm.model import UDDM
+from core.template.field import Field
+
+
+class ExtractionResult:
+    """
+    Результат извлечения полей документа по шаблону. Представляет собой словарь значений полей,
+    где ключом является название поля, а значением - извлеченное значение или None, если извлечение не удалось.
+    """
+
+    def __init__(self):
+        self.values: Dict[str, Optional[str]] = {}
+
+    def get(self, field_name: str) -> Optional[str]:
+        return self.values.get(field_name)
+
+    def add(self, field: Field, value: Optional[str]):
+        self.values[field.name] = value
+
+    @staticmethod
+    def load(path: Path) -> "ExtractionResult":
+        with path.open("r", encoding="utf-8") as f:
+            values = json.load(f)
+            if not isinstance(values, dict):
+                raise ValueError(f"Invalid extraction result file: {path}")
+
+            result = ExtractionResult()
+            for field_name, value in values.items():
+                if not isinstance(field_name, str) or not isinstance(value, str):
+                    raise ValueError(f"Invalid field name or value in extraction result file: {path}")
+                result.add(field_name, value)
+            return result
+
+    def save(self, path: Path):
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(self.values, f, indent=2, ensure_ascii=False)
 
 
 class Extractor(BaseModule):
@@ -11,25 +49,23 @@ class Extractor(BaseModule):
 
     def __init__(self):
         super().__init__()
-        self.temp_manager = get_temp_manager()
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            raise NotImplementedError()
-            if not document.doc_class:
+            if not document.uddm:
+                self.log(WARNING, f"No UDDM found")
                 return ModuleResult.FAILED
 
-            template = self.temp_manager.get(document.doc_class)
-            if not template:
+            if not document.doc_class or not document.template:
+                self.log(WARNING, f"No template found")
                 return ModuleResult.FAILED
 
-            uddm = UDDM.load(document.uddm_file_path())
+            if not document.template.code:
+                self.log(WARNING, f"Template {document.template.name} has no code")
+                return ModuleResult.FAILED
 
-            extraction_result = self._extract(template, uddm)
-
-            self._save_extraction(document, extraction_result)
-
-            document.status = Document.Status.TERMS_EXTRACTED
+            extraction_result = self._extract(document.template, document.uddm)
+            extraction_result.save(document.extraction_result_file_path())
             return ModuleResult.OK
 
         except Exception:
@@ -37,21 +73,24 @@ class Extractor(BaseModule):
             return ModuleResult.FAILED
 
     def _extract(self, template: Template, uddm: UDDM) -> ExtractionResult:
+        if not template.fields:
+            template.fields = template.code.fields()
+
         result = ExtractionResult()
+        for field in template.fields:
+            try:
+                text = field.selector._select(uddm)
+                if not text:
+                    raise Exception("No text found")
 
-        # TODO: дописать логику
-        # for field in template.fields():
-        #     try:
-        #         value = field.selector.apply(uddm)
-        #         value = field.extractor.apply(value)
+                value = field.extractor._extract(text)
+                if value is None:
+                    raise Exception("No value extracted")
 
-        #         result.add(field, value)
+                result.add(field, value)
 
-        #     except Exception:
-        #         result.add(field, None)
+            except Exception:
+                self.log(WARNING, f"Error extracting field {field.name}", exc_info=True)
+                result.add(field, None)
 
         return result
-
-    def _save_extraction(self, document: Document, result: ExtractionResult):
-        # TODO: сохранить в JSON
-        document.directory.joinpath("extraction.json")

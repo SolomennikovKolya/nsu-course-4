@@ -1,7 +1,5 @@
 """HTML-предпросмотр Python-кода через Pygments."""
 
-from __future__ import annotations
-
 from html import escape
 
 from pygments import highlight

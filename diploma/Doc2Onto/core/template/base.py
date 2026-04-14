@@ -1,32 +1,68 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from core.template.extraction_result import ExtractionResult
-from core.template.field_validator import ValidationResult
 from core.template.field import Field
-from core.uddm import UDDM
+from core.uddm.model import UDDM
 
 
 class BaseTemplateCode(ABC):
-    """Базовый класс для кода шаблона. Содержит методы, которые должны переопределить реальный код шаблона."""
+    """Базовый класс для кода шаблона. Содержит методы, которые должен переопределить реальный код шаблона."""
 
     @abstractmethod
     def classify(self, doc_name: str, uddm: UDDM) -> bool:
-        """Определение класса документа. Должен возвращать True, если документ подходит под шаблон, и False иначе."""
-        return False
+        """
+        Определяет, подходит ли данный документ под этот шаблон.
 
-    @abstractmethod
-    def fields(self) -> List[Field]:
-        """Определяет поля, которые нужно извлекать из документа. Должен возвращать список объектов Field."""
-        raise NotImplementedError()
+        Аргументы:
+            doc_name (str): Название документа.
+            uddm (UDDM): Объект структуры документа, позволяет обращаться к содержимому документа для анализа.
 
-    # TODO: перенести привязку валидаторов полей напрямую в Field
-    @abstractmethod
-    def validate(self, extraction_result: ExtractionResult) -> ValidationResult:
-        """Проверяет корректность извлеченных данных."""
+        Возвращает:
+            bool: True — если документ должен обрабатываться данным шаблоном, иначе False.
+
+        Пример:
+            Можно проверить заголовки, наличие определённых ключевых фраз или просто посмотреть на название документа.
+        """
         pass
 
     @abstractmethod
-    def build_triples(self, validation_result: ValidationResult) -> List[Dict]:
-        """Построение RDF-триплетов из извлеченных данных."""
+    def fields(self) -> List[Field]:
+        """
+        Описывает поля, которые требуется извлечь из документа.
+
+        Возвращает:
+            List[Field]: Список объектов Field, каждый из которых содержит описание,
+                как извлечь, валидировать и определить релевантность для конкретного поля.
+
+        Пример:
+            return [
+                Field("organization", "Организация, в которую отправлен документ", Field.Type.LITERAL, ..., ..., ...),
+                ...
+            ]
+        """
+        pass
+
+    @abstractmethod
+    def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
+        """
+        Построение RDF-триплетов на основе извлечённых значений полей.
+
+        Аргументы:
+            fields_values (Dict[str, str]): Словарь "имя поля -> извлечённое значение", полученный после распознавания всех полей в документе.
+
+        Возвращает:
+            List[Dict]: Список триплетов (например, в виде словарей, каждый из которых содержит субъект, предикат и объект),
+                которые затем будут сериализованы в RDF или другой нужный формат.
+
+        Что нужно сделать:
+            - На базе значений из fields_values сформировать RDF-триплеты согласно онтологии (или спецификации задач).
+            - Для каждого триплета указывать субъект, предикат и объект (или соответствующую структуру).
+            - Можно использовать значения полей как части URI, литералы и т.д.
+
+        Пример:
+            return [
+                {"subject": "...", "predicate": "...", "object": "..."},
+                ...
+            ]
+        """
         pass

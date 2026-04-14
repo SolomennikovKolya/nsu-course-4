@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from core.document import Document
-from core.uddm import UDDM
+from core.uddm.model import UDDM
 from modules.base import BaseModule, ModuleResult
 from modules.converter.registry import ConverterRegistry
 from modules.converter.reverse.to_txt import UDDMToText

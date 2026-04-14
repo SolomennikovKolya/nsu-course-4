@@ -1,4 +1,4 @@
-from core.uddm import *
+from core.uddm.model import UDDM, Block, Text, P, ListBlock, Item, Table, Row, Cell
 from modules.converter.reverse.base import BaseReverseConverter
 
 

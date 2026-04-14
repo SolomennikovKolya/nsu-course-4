@@ -1,6 +1,6 @@
 from typing import List
 
-from core.uddm import UDDM
+from core.uddm.model import UDDM
 from modules.converter.reverse.base import BaseReverseConverter
 
 

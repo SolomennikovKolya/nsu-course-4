@@ -1,4 +1,4 @@
-from logging import WARNING, INFO
+from logging import WARNING
 
 from app.context import get_temp_manager
 from modules.base import BaseModule, ModuleResult
@@ -14,7 +14,7 @@ class Classifier(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            # Если класс уже определён
+            # Если класс уже определён, надо только подгрузить шаблон
             if document.doc_class:
                 if document.template:
                     return ModuleResult.OK
@@ -44,7 +44,7 @@ class Classifier(BaseModule):
                 except Exception:
                     continue
 
-            self.log(INFO, f"No template found to classify document")
+            self.log(WARNING, f"No template found to classify document")
             return ModuleResult.FAILED
 
         except Exception:

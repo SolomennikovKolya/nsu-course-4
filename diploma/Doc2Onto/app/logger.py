@@ -2,6 +2,15 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+"""
+Принятые уровни логирования:
+1. DEBUG — диагностическая информация
+2. INFO — контрольные точки работы системы
+3. WARNING — некритические ошибоки, приостановка пайплайна
+4. ERROR — критические ошибоки, падения модулей, невозможность продолжения работы
+5. CRITICAL — сервис в нерабочем состоянии, риск потери данных/безопасности
+"""
+
 
 def create_logger(use_console: bool = True, log_file: Optional[Path] = None) -> logging.Logger:
     """Создаёт и настраивает логгер для приложения."""

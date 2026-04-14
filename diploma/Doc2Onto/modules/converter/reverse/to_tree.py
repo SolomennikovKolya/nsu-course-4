@@ -1,4 +1,6 @@
-from core.uddm import *
+from typing import List
+
+from core.uddm.model import UDDM, Block, Text, ListBlock, Table
 from modules.converter.reverse.base import BaseReverseConverter
 
 

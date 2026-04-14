@@ -23,7 +23,7 @@ class Connector(BaseModule):
             return ModuleResult.OK
 
         except Exception:
-            self.log(logging.ERROR, "Exception during adding triples to model")
+            self.log_exception()
             return ModuleResult.FAILED
 
     def _load_triples(self, document: Document):

@@ -34,8 +34,8 @@ class BaseModule(ABC):
     def execute(self, document: Document) -> ModuleResult:
         pass
 
-    def log(self, level: int, message: str):
-        self._logger.log(level, f"    [{self.__class__.__name__}] " + message, exc_info=False)
+    def log(self, level: int, message: str, exc_info: bool = False):
+        self._logger.log(level, f"    [{self.__class__.__name__}] " + message, exc_info=exc_info)
 
     def log_exception(self):
         self._logger.log(ERROR, f"    [{self.__class__.__name__}] Exception occurred", exc_info=True)

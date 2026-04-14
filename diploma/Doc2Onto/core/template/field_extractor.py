@@ -1,74 +1,165 @@
 import re
-from typing import Callable, Optional, List, Union
+from typing import Callable, List, Optional, Pattern
+
+
+ExtractOperation = Callable[[str], Optional[str]]
 
 
 class FieldExtractor:
+    """
+    Экстрактор значения поля из строки.
+
+    Работает как цепочка операций преобразования текста:
+    каждая операция получает строку и возвращает новую строку
+    или None (если извлечение на этом шаге невозможно).
+    """
+
     def __init__(self):
-        self.operations: List[Callable[[str], Union[Optional[str], list]]] = []
-        self.postprocess: List[Callable[[str], Optional[str]]] = []
-        self.mode = "first"  # или "all"
+        self._operations: List[ExtractOperation] = []
 
-    def extract(self, text: str):
-        value: Union[str, list, None] = text
+    def _extract(self, text: str) -> Optional[str]:
+        """
+        Запускает цепочку операций и возвращает итоговое значение поля
+        в виде одной строки (или None, если извлечь не удалось).
+        """
+        value: Optional[str] = text
 
-        for op in self.operations:
+        for op in self._operations:
+            value = op(value)
             if value is None:
                 return None
-            if isinstance(value, list):
-                return value
-            value = op(value)
 
-        if value is None:
-            return None
+        value = value.strip()
+        return value or None
 
-        if isinstance(value, str):
-            value = value.strip()
+    def regex(self, pattern: str | Pattern[str], group: int | str = 0, flags: int = 0) -> "FieldExtractor":
+        """
+        Извлекает первое совпадение regex (или указанную группу).
+        Если совпадений нет, возвращает None.
+        """
+        compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
 
-        return value
-
-    def regex(self, pattern: str):
-        def op(text: str):
-            matches = re.findall(pattern, text)
-            if not matches:
+        def op(text: str) -> Optional[str]:
+            match = compiled.search(text)
+            if not match:
+                return None
+            try:
+                return match.group(group)
+            except (IndexError, KeyError):
                 return None
 
-            return matches if self.mode == "all" else matches[0]
-
-        self.operations.append(op)
+        self._operations.append(op)
         return self
 
-    def after(self, marker: str):
-        def op(text: str):
-            idx = text.lower().find(marker.lower())
+    def after(self, marker: str, *, case_sensitive: bool = False) -> "FieldExtractor":
+        """Оставляет часть строки после маркера."""
+        def op(text: str) -> Optional[str]:
+            if case_sensitive:
+                idx = text.find(marker)
+            else:
+                idx = text.lower().find(marker.lower())
             if idx == -1:
                 return None
             return text[idx + len(marker):]
 
-        self.operations.append(op)
+        self._operations.append(op)
         return self
 
-    def before(self, marker: str):
-        def op(text: str):
-            idx = text.lower().find(marker.lower())
+    def before(self, marker: str, *, case_sensitive: bool = False) -> "FieldExtractor":
+        """Оставляет часть строки до маркера."""
+        def op(text: str) -> Optional[str]:
+            if case_sensitive:
+                idx = text.find(marker)
+            else:
+                idx = text.lower().find(marker.lower())
             if idx == -1:
-                return text
+                return None
             return text[:idx]
 
-        self.operations.append(op)
+        self._operations.append(op)
         return self
 
-    def custom(self, func: Callable[[str], Optional[str]]):
-        self.operations.append(func)
+    def between(self,
+                left: str, right: str, *,
+                include_left: bool = False, include_right: bool = False,
+                case_sensitive: bool = False) -> "FieldExtractor":
+        """
+        Извлекает подстроку между левым (`left`) и правым (`right`) маркером в исходном тексте.
+
+        Args:
+            left (str): Левый маркер (подстрока, от которой начинается извлечение).
+            right (str): Правый маркер (подстрока, до которой заканчивается извлечение).
+            include_left (bool, optional): Включить ли левый маркер в результат. По умолчанию False.
+            include_right (bool, optional): Включить ли правый маркер в результат. По умолчанию False.
+            case_sensitive (bool, optional): Учитывать ли регистр при поиске маркеров. По умолчанию False.
+
+        Returns:
+            FieldExtractor: Текущий экстрактор для цепочки операций.
+
+        Если один из маркеров не найден, возвращает None.
+        """
+        def op(text: str) -> Optional[str]:
+            source = text if case_sensitive else text.lower()
+            left_src = left if case_sensitive else left.lower()
+            right_src = right if case_sensitive else right.lower()
+
+            left_idx = source.find(left_src)
+            if left_idx == -1:
+                return None
+
+            content_start = left_idx if include_left else left_idx + len(left)
+            search_right_from = left_idx + len(left_src)
+            right_idx = source.find(right_src, search_right_from)
+            if right_idx == -1:
+                return None
+
+            content_end = right_idx + len(right) if include_right else right_idx
+            return text[content_start:content_end]
+
+        self._operations.append(op)
         return self
 
-    def first(self):
-        self.mode = "first"
+    def replace(self, old: str, new: str, *, count: int = -1) -> "FieldExtractor":
+        """Заменяет подстроку в текущем значении."""
+        self._operations.append(lambda text: text.replace(old, new, count))
         return self
 
-    def all(self):
-        self.mode = "all"
+    def normalize_spaces(self) -> "FieldExtractor":
+        """Сжимает все последовательности whitespace в одиночный пробел."""
+        self._operations.append(lambda text: " ".join(text.split()))
+        return self
+
+    def trim(self) -> "FieldExtractor":
+        """Обрезает пробелы по краям строки."""
+        self._operations.append(lambda text: text.strip())
+        return self
+
+    def prefix(self, value: str) -> "FieldExtractor":
+        """Добавляет префикс к строке."""
+        self._operations.append(lambda text: f"{value}{text}")
+        return self
+
+    def suffix(self, value: str) -> "FieldExtractor":
+        """Добавляет суффикс к строке."""
+        self._operations.append(lambda text: f"{text}{value}")
+        return self
+
+    def lower(self) -> "FieldExtractor":
+        """Переводит строку в нижний регистр."""
+        self._operations.append(lambda text: text.lower())
+        return self
+
+    def upper(self) -> "FieldExtractor":
+        """Переводит строку в верхний регистр."""
+        self._operations.append(lambda text: text.upper())
+        return self
+
+    def apply(self, operation: ExtractOperation) -> "FieldExtractor":
+        """Добавляет пользовательскую операцию в цепочку."""
+        self._operations.append(operation)
         return self
 
 
 def extract() -> FieldExtractor:
+    """Создаёт экстрактор значения поля."""
     return FieldExtractor()

@@ -8,7 +8,7 @@ from infrastructure.storage.base_manager import BaseManager
 from infrastructure.storage.template_loader import TemplateLoader
 
 BASE_DIR = Path("data/templates")
-EXAMPLE_TEMPLATE_PATH = Path("core/template/example.py")
+CODE_EXAMPLE_PATH = Path("core/template/code_example.py")
 
 
 class TemplateManager(BaseManager[Template, str]):
@@ -46,12 +46,13 @@ class TemplateManager(BaseManager[Template, str]):
         temp = Template(
             name=str(meta.get("name")),
             directory=Path(meta["directory"]),
-            description=str(meta["description"]) if meta.get("description") else None
+            description=str(meta["description"]) if meta.get("description") else None,
+            fields=None
         )
 
         temp.code = TemplateLoader.load(temp)
         if temp.code is None:
-            self.logger.error(f"[TemplateManager] Template {temp.name} does not have a valid code.")
+            self.logger.error(f"[TemplateManager] Template {temp.name} does not have code.")
             return None
 
         return temp
@@ -68,7 +69,7 @@ class TemplateManager(BaseManager[Template, str]):
 
         target_code = directory / "code.py"
         if not target_code.exists():
-            shutil.copy(EXAMPLE_TEMPLATE_PATH, target_code)
+            shutil.copy(CODE_EXAMPLE_PATH, target_code)
 
         template = Template(name, directory)
         self.save_metadata(template)

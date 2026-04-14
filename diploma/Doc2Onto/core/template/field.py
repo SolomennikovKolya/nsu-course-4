@@ -1,40 +1,31 @@
-from __future__ import annotations
-
 from enum import StrEnum
-from typing import List
 
-from core.uddm import UDDM
 from core.template.field_selector import FieldSelector
 from core.template.field_extractor import FieldExtractor
 from core.template.field_validator import FieldValidator
 
 
 class Field:
-    """Содержит описание поля документа и информацию о том, как его извлекать."""
+    """Содержит описание поля документа и информацию о том, как его извлекать и валидировать."""
 
     class Type(StrEnum):
         INDIVIDUAL = "individual"
         LITERAL = "literal"
 
-    def __init__(self, name: str, description: str,
-                 selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator, field_type: Type):
-        self.name: str = name                       # Название поля, используемое в дальнейшем при построении RDF-триплетов
-        self.description: str = description         # Осмысленное исчерпывающее описание для извлечения поля с использованием LLM
-        self.selector: FieldSelector = selector     # Где искать?
-        self.extractor: FieldExtractor = extractor  # Как извлекать?
-        self.validator: FieldValidator = validator  # Как валидировать?
-        self.field_type: Field.Type = field_type    # Чем является?
-
-    def extract(self, uddm: UDDM):
-        """Извлекает значение поля из UDDM, используя селектор и экстрактор."""
-        try:
-            texts: List[str] = self.selector.select(uddm)
-            if not texts:
-                return None
-
-            combined = "\n".join(texts)
-            value = self.extractor.extract(combined)
-            return value
-
-        except Exception:
-            return None
+    def __init__(self, name: str, description: str, field_type: Type,
+                 selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator):
+        """
+        Args:
+            name: Уникальное название поля, используемое в дальнейшем при построении триплетов
+            description: Осмысленное исчерпывающее описание. Используется для извлечения и валидации поля с использованием LLM
+            selector: Где искать? (поиск текста, содержащего значение поля)
+            extractor: Как извлекать? (логика извлечения значения поля из текста, найденного селектором)
+            validator: Как валидировать? (правила проверки корректности извлечённого значения поля)
+            field_type: Чем является? (тип поля: индивидуум или литерал)
+        """
+        self.name: str = name
+        self.description: str = description
+        self.field_type: Field.Type = field_type
+        self.selector: FieldSelector = selector
+        self.extractor: FieldExtractor = extractor
+        self.validator: FieldValidator = validator

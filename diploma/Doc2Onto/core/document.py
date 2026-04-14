@@ -4,7 +4,7 @@ from pathlib import Path
 from enum import StrEnum, auto
 
 from core.template.template import Template
-from core.uddm import UDDM
+from core.uddm.model import UDDM
 
 
 @dataclass
@@ -38,10 +38,11 @@ class Document:
     directory: Path                   # Директория с документом и его данными
     status: Status = Status.UPLOADED  # Статус обработки документа
 
-    doc_class: Optional[str] = None   # Класс документа (название шаблона извлечения)
-
+    doc_class: Optional[str] = None                                                               # Класс документа
     uddm: Optional[UDDM] = field(default=None, repr=False, metadata={'skip_dict': True})          # UDDM документа
     template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})  # Шаблон извлечения
+
+    # ----- пути к файлам -----
 
     def original_file_path(self):
         return self.directory / self.name
@@ -57,6 +58,12 @@ class Document:
 
     def uddm_tree_view_file_path(self):
         return self.directory / "uddm_tree_view.txt"
+
+    def extraction_result_file_path(self):
+        return self.directory / "extraction_result.json"
+
+    def validation_result_file_path(self):
+        return self.directory / "validation_result.json"
 
     def rdf_file_path(self):
         return self.directory / "rdf.xml"

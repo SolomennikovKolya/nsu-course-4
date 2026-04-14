@@ -3,7 +3,8 @@ from dataclasses import asdict, fields
 
 
 def require_attribute(attr_name: str, default=None):
-    """Фабрика декораторов для проверки наличия атрибута перед выполнением метода.
+    """
+    Фабрика декораторов для проверки наличия атрибута перед выполнением метода.
 
     Args:
         attr_name: Имя атрибута объекта, который должен быть не None
@@ -21,14 +22,15 @@ def require_attribute(attr_name: str, default=None):
 
 
 def smart_asdict(obj):
-    """Преобразует dataclass в dict, исключая поля с metadata={'skip_dict': True}.
-    
+    """
+    Преобразует dataclass в dict, исключая поля с metadata={'skip_dict': True}.
+
     Используется для сохранения объектов, когда нужно исключить некоторые поля
     (например, объекты, которые загружаются динамически).
-    
+
     Args:
         obj: Dataclass объект для преобразования
-        
+
     Returns:
         dict: Словарь с исключёнными полями
     """

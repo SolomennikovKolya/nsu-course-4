@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from typing import Iterator
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from typing import List
 from abc import ABC, abstractmethod
+from enum import StrEnum
 
 
 class UDDM:
@@ -32,15 +34,12 @@ class UDDM:
 
     def _iter_block(self, block: Block) -> Iterator[Block]:
         yield block
-
         if isinstance(block, Text):
             return
-
         elif isinstance(block, ListBlock):
             for item in block.items:
                 for b in item.blocks:
                     yield from self._iter_block(b)
-
         elif isinstance(block, Table):
             for row in block.rows:
                 for cell in row.cells:
@@ -93,8 +92,10 @@ class UDDM:
         """Получить все таблицы."""
         return [table for table in self.iter_tables()]
 
+    # ----- сериализация / десериализация -----
+
     @staticmethod
-    def load(path: Path) -> "UDDM":
+    def load(path: Path) -> UDDM:
         """Десериализация из xml-файла."""
         try:
             tree = ET.parse(path)
@@ -120,7 +121,7 @@ class UDDM:
         tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
-class UDDMElement(ABC):
+class Element(ABC):
     """Базовый тип для узлов дерева UDDM."""
 
     @abstractmethod
@@ -129,7 +130,7 @@ class UDDMElement(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __iter__(self) -> Iterator["UDDMElement"]:
+    def __iter__(self) -> Iterator[Element]:
         """Итератор для обхода всех дочерних элементов."""
         raise NotImplementedError
 
@@ -139,13 +140,13 @@ class UDDMElement(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __getitem__(self, index: int) -> "UDDMElement":
+    def __getitem__(self, index: int) -> Element:
         """Получение элемента по индексу."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def _from_xml(element: ET.Element) -> "UDDMElement":
+    def _from_xml(element: ET.Element) -> Element:
         """Десериализация из xml-элемента."""
         raise NotImplementedError
 
@@ -155,7 +156,7 @@ class UDDMElement(ABC):
         raise NotImplementedError
 
 
-class Root(UDDMElement):
+class Root(Element):
     """Корень документа."""
 
     def __init__(self, blocks: List[Block]):
@@ -174,7 +175,7 @@ class Root(UDDMElement):
         return self.blocks[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Root":
+    def _from_xml(element: ET.Element) -> Root:
         return Root([Block._from_xml(b) for b in element])
 
     def _to_xml(self) -> ET.Element:
@@ -187,7 +188,7 @@ class Block(ABC):
     """Абстрактный базовый блок UDDM."""
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Block":
+    def _from_xml(element: ET.Element) -> Block:
         tag = element.tag
 
         if tag == "text":
@@ -206,7 +207,7 @@ class Block(ABC):
         raise NotImplementedError
 
 
-class Text(Block, UDDMElement):
+class Text(Block, Element):
     """Текстовый блок, состоящий из параграфов."""
 
     def __init__(self, paragraphs: List[P]):
@@ -225,7 +226,7 @@ class Text(Block, UDDMElement):
         return self.paragraphs[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Text":
+    def _from_xml(element: ET.Element) -> Text:
         return Text([P._from_xml(p) for p in element.findall("p")])
 
     def _to_xml(self) -> ET.Element:
@@ -234,7 +235,7 @@ class Text(Block, UDDMElement):
         return el
 
 
-class P(UDDMElement):
+class P(Element):
     """Параграф - атомарный элемент текста."""
 
     def __init__(self, text: str):
@@ -253,7 +254,7 @@ class P(UDDMElement):
         return self.text[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "P":
+    def _from_xml(element: ET.Element) -> P:
         return P(element.text or "")
 
     def _to_xml(self) -> ET.Element:
@@ -262,8 +263,8 @@ class P(UDDMElement):
         return el
 
 
-class ListBlock(Block, UDDMElement):
-    """Список."""
+class ListBlock(Block, Element):
+    """Список. Название 'ListBlock', чтобы отличать от простого списка."""
 
     def __init__(self, items: List[Item]):
         self.items: List[Item] = items
@@ -281,7 +282,7 @@ class ListBlock(Block, UDDMElement):
         return self.items[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "ListBlock":
+    def _from_xml(element: ET.Element) -> ListBlock:
         return ListBlock([Item._from_xml(i) for i in element.findall("item")])
 
     def _to_xml(self) -> ET.Element:
@@ -290,7 +291,7 @@ class ListBlock(Block, UDDMElement):
         return el
 
 
-class Item(UDDMElement):
+class Item(Element):
     """Элемент списка."""
 
     def __init__(self, blocks: List[Block]):
@@ -309,7 +310,7 @@ class Item(UDDMElement):
         return self.blocks[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Item":
+    def _from_xml(element: ET.Element) -> Item:
         return Item([Block._from_xml(b) for b in element])
 
     def _to_xml(self) -> ET.Element:
@@ -318,7 +319,7 @@ class Item(UDDMElement):
         return el
 
 
-class Table(Block, UDDMElement):
+class Table(Block, Element):
     """Таблица."""
 
     def __init__(self, rows: List[Row]):
@@ -337,7 +338,7 @@ class Table(Block, UDDMElement):
         return self.rows[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Table":
+    def _from_xml(element: ET.Element) -> Table:
         return Table([Row._from_xml(r) for r in element.findall("row")])
 
     def _to_xml(self) -> ET.Element:
@@ -346,7 +347,7 @@ class Table(Block, UDDMElement):
         return el
 
 
-class Row(UDDMElement):
+class Row(Element):
     """Строка таблицы."""
 
     def __init__(self, cells: List[Cell]):
@@ -365,7 +366,7 @@ class Row(UDDMElement):
         return self.cells[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Row":
+    def _from_xml(element: ET.Element) -> Row:
         return Row([Cell._from_xml(c) for c in element.findall("cell")])
 
     def _to_xml(self) -> ET.Element:
@@ -374,7 +375,7 @@ class Row(UDDMElement):
         return el
 
 
-class Cell(UDDMElement):
+class Cell(Element):
     """Клетка таблицы."""
 
     def __init__(self, blocks: List[Block]):
@@ -393,10 +394,36 @@ class Cell(UDDMElement):
         return self.blocks[index]
 
     @staticmethod
-    def _from_xml(element: ET.Element) -> "Cell":
+    def _from_xml(element: ET.Element) -> Cell:
         return Cell([Block._from_xml(b) for b in element])
 
     def _to_xml(self) -> ET.Element:
         el = ET.Element("cell")
         el.extend(b._to_xml() for b in self.blocks)
         return el
+
+
+class ElementType(StrEnum):
+    """Типы элементов дерева UDDM."""
+
+    ROOT = "root"    # Корень документа
+    TEXT = "text"    # Текстовый блок
+    P = "p"          # Абзац
+    LIST = "list"    # Список
+    ITEM = "item"    # Элемент списка
+    TABLE = "table"  # Таблица
+    ROW = "row"      # Строка таблицы
+    CELL = "cell"    # Клетка таблицы
+
+
+# Словарь для преобразования типа элемента в класс
+ELEMENT_TYPE_TO_CLASS: dict[ElementType, type] = {
+    ElementType.ROOT: Root,
+    ElementType.TEXT: Text,
+    ElementType.P: P,
+    ElementType.LIST: ListBlock,
+    ElementType.ITEM: Item,
+    ElementType.TABLE: Table,
+    ElementType.ROW: Row,
+    ElementType.CELL: Cell,
+}

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from core.uddm import UDDM
+from core.uddm.model import UDDM
 
 
 class BaseExternalConverter(ABC):
