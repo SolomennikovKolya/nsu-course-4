@@ -1,6 +1,7 @@
 # IDE
 .cursor/
 .vscode/
+.VSCodeCounter/
 
 # Python
 .venv/

@@ -1,4 +1,4 @@
-from logging import WARNING
+from logging import WARNING, INFO
 
 from app.context import get_temp_manager
 from modules.base import BaseModule, ModuleResult
@@ -17,11 +17,13 @@ class Classifier(BaseModule):
             # Если класс уже определён, надо только подгрузить шаблон
             if document.doc_class:
                 if document.template:
+                    self.log(INFO, f"Document already classified as {document.doc_class}")
                     return ModuleResult.OK
 
                 template = self.temp_manager.get(document.doc_class)
                 if template:
                     document.template = template
+                    self.log(INFO, f"Document already classified as {document.doc_class}")
                     return ModuleResult.OK
                 else:
                     self.log(WARNING, f"Inconsistency: document has class {document.doc_class} but no template found")
@@ -40,6 +42,7 @@ class Classifier(BaseModule):
                     if template.code.classify(document.name, document.uddm):
                         document.doc_class = template.name
                         document.template = template
+                        self.log(INFO, f"Document classified as {document.doc_class}")
                         return ModuleResult.OK
                 except Exception:
                     continue

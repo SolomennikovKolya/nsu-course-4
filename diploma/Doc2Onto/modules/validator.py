@@ -1,5 +1,5 @@
 from typing import Dict, List, Any, Optional
-from logging import WARNING
+from logging import WARNING, INFO
 from pathlib import Path
 import json
 
@@ -14,6 +14,21 @@ class FieldValidationError:
         self.field_name = field_name
         self.value = value
         self.message = message
+
+    def to_dict(self) -> Dict[str, Optional[str]]:
+        return {
+            "field_name": self.field_name,
+            "value": self.value,
+            "message": self.message,
+        }
+
+    @staticmethod
+    def from_dict(data: Dict[str, Optional[str]]) -> "FieldValidationError":
+        return FieldValidationError(
+            field_name=str(data.get("field_name", "")),
+            value=data.get("value"),
+            message=str(data.get("message", "")),
+        )
 
 
 class ValidationResult:
@@ -35,14 +50,37 @@ class ValidationResult:
     @staticmethod
     def load(path: Path) -> "ValidationResult":
         with path.open("r", encoding="utf-8") as f:
-            validated = json.load(f)
-            errors = json.load(f)
-            return ValidationResult(validated, errors)
+            data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError(f"Invalid validation result file: {path}")
+
+        result = ValidationResult()
+        validated = data.get("validated", {})
+        errors = data.get("errors", [])
+
+        if isinstance(validated, dict):
+            result.validated = {
+                str(field_name): value
+                for field_name, value in validated.items()
+                if isinstance(value, str)
+            }
+
+        if isinstance(errors, list):
+            result.errors = [
+                FieldValidationError.from_dict(item)
+                for item in errors
+                if isinstance(item, dict)
+            ]
+
+        return result
 
     def save(self, path: Path):
         with path.open("w", encoding="utf-8") as f:
-            json.dump(self.validated, f, indent=2, ensure_ascii=False)
-            json.dump(self.errors, f, indent=2, ensure_ascii=False)
+            data = {
+                "validated": self.validated,
+                "errors": [error.to_dict() for error in self.errors],
+            }
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 class Validator(BaseModule):
@@ -80,16 +118,20 @@ class Validator(BaseModule):
                 value = extraction_result.get(field.name)
                 if value is None:
                     result.add_error(field.name, None, "Значение поля отсутствует")
+                    self.log(WARNING, f"Value for field {field.name} is missing")
                     continue
 
                 message = field.validator._validate(value)
                 if message:
                     result.add_error(field.name, value, message)
+                    self.log(WARNING, f"Error validating field {field.name}: {message}")
                     continue
 
                 result.add_valid(field.name, value)
+                self.log(INFO, f"Field {field.name} validated successfully")
 
             except Exception:
+                result.add_error(field.name, None, "Ошибка валидации")
                 self.log(WARNING, f"Error validating field {field.name}", exc_info=True)
 
         return result

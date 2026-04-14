@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import tempfile
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -27,7 +28,10 @@ from app.openai import ask_gpt, read_prompt
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
     GENERATE_DESCR_SYS_PROMPT_PATH,
-    GENERATE_DESCR_USER_PROMPT_PATH
+    GENERATE_DESCR_USER_PROMPT_PATH,
+    GENERATE_TEMP_SYS_PROMPT_PATH,
+    GENERATE_TEMP_USER_PROMPT_PATH,
+    TEMPLATE_CODE_EXAMPLE_PATH,
 )
 from app.utils import require_attribute
 from core.document import Document
@@ -160,11 +164,14 @@ class TemplateInfoWidget(QWidget):
         self.code_preview.setOpenExternalLinks(False)
         code_preview_layout.addWidget(self.code_preview, 1)
 
-        # Кнопки действий
         actions_layout = QHBoxLayout()
         self.edit_btn = QPushButton("Редактировать шаблон")
         self.edit_btn.setToolTip("Открыть code.py в VS Code (если доступен командой code), иначе в редакторе по умолчанию")
         self.edit_btn.clicked.connect(self._on_edit_code)
+
+        self.generate_template_btn = QPushButton("Сгенерировать шаблон")
+        self.generate_template_btn.setToolTip("Сгенерировать code.py на основе описания и примера UDDM")
+        self.generate_template_btn.clicked.connect(self._on_generate_template_code)
 
         self.validate_btn = QPushButton("Валидировать шаблон")
         self.validate_btn.setToolTip("Проверка синтаксиса и структуры класса TemplateCode")
@@ -181,6 +188,7 @@ class TemplateInfoWidget(QWidget):
         self.delete_btn.clicked.connect(self._on_delete_template)
 
         actions_layout.addWidget(self.edit_btn)
+        actions_layout.addWidget(self.generate_template_btn)
         actions_layout.addWidget(self.validate_btn)
         actions_layout.addStretch()
         actions_layout.addWidget(self.delete_btn)
@@ -399,6 +407,49 @@ class TemplateInfoWidget(QWidget):
             QMessageBox.warning(self, APP_NAME, f"Не удалось сгенерировать описание: {e}")
         finally:
             self.generate_description_btn.setEnabled(True)
+
+    @require_template
+    def _on_generate_template_code(self, template: Template) -> None:
+        description = (template.description or "").strip()
+        if not description:
+            QMessageBox.warning(self, APP_NAME, "Сначала заполните описание шаблона.")
+            return
+
+        example_doc = self._choose_example_document()
+        if example_doc is None:
+            return
+        uddm_example = example_doc.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+
+        try:
+            code_example = TEMPLATE_CODE_EXAMPLE_PATH.read_text(encoding="utf-8", errors="strict")
+        except Exception as exc:
+            QMessageBox.warning(self, APP_NAME, f"Не удалось прочитать шаблон кода-пример: {exc}")
+            return
+
+        system_prompt = read_prompt(GENERATE_TEMP_SYS_PROMPT_PATH)
+        user_prompt = read_prompt(
+            GENERATE_TEMP_USER_PROMPT_PATH,
+            template_description=description,
+            uddm_example=uddm_example,
+            code_example=code_example,
+        )
+
+        self.generate_template_btn.setEnabled(False)
+        try:
+            generated_code = ask_gpt(user_prompt, system_prompt=system_prompt).strip()
+            if not generated_code:
+                raise RuntimeError("Модель вернула пустой код")
+
+            code_path = template.code_file_path()
+            code_path.write_text(generated_code + "\n", encoding="utf-8")
+            template.code = TemplateLoader.load(template)
+
+            self._set_code_preview(template)
+            QMessageBox.information(self, APP_NAME, "Код шаблона успешно сгенерирован.")
+        except Exception as e:
+            QMessageBox.warning(self, APP_NAME, f"Не удалось сгенерировать код шаблона: {e}")
+        finally:
+            self.generate_template_btn.setEnabled(True)
 
     def _on_edit_code(self):
         if self.template is None:

@@ -19,6 +19,8 @@ ICON_PATH = PROJECT_ROOT / "resources" / "images" / "icon.png"
 PROMPTS_BASE_DIR = PROJECT_ROOT / "resources" / "prompts"
 GENERATE_DESCR_SYS_PROMPT_PATH = PROMPTS_BASE_DIR / "generate_description_sys.txt"
 GENERATE_DESCR_USER_PROMPT_PATH = PROMPTS_BASE_DIR / "generate_description_user.txt"
+GENERATE_TEMP_SYS_PROMPT_PATH = PROMPTS_BASE_DIR / "generate_template_code_sys.txt"
+GENERATE_TEMP_USER_PROMPT_PATH = PROMPTS_BASE_DIR / "generate_template_code_user.txt"
 
 # OpenAI
 DEFAULT_MODEL = "gpt-5.4-mini"

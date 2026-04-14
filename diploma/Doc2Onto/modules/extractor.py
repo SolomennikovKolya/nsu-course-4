@@ -1,5 +1,5 @@
 import json
-from logging import WARNING
+from logging import WARNING, INFO
 from typing import Dict, Optional
 from pathlib import Path
 
@@ -22,8 +22,8 @@ class ExtractionResult:
     def get(self, field_name: str) -> Optional[str]:
         return self.values.get(field_name)
 
-    def add(self, field: Field, value: Optional[str]):
-        self.values[field.name] = value
+    def add(self, field_name: str, value: Optional[str]):
+        self.values[field_name] = value
 
     @staticmethod
     def load(path: Path) -> "ExtractionResult":
@@ -81,16 +81,19 @@ class Extractor(BaseModule):
             try:
                 text = field.selector._select(uddm)
                 if not text:
-                    raise Exception("No text found")
+                    self.log(WARNING, f"Error selecting text for field {field.name}")
+                    continue
 
                 value = field.extractor._extract(text)
                 if value is None:
-                    raise Exception("No value extracted")
+                    self.log(WARNING, f"Error extracting value for field {field.name}")
+                    continue
 
-                result.add(field, value)
+                result.add(field.name, value)
+                self.log(INFO, f"Value for field {field.name} extracted successfully")
 
             except Exception:
+                result.add(field.name, None)
                 self.log(WARNING, f"Error extracting field {field.name}", exc_info=True)
-                result.add(field, None)
 
         return result

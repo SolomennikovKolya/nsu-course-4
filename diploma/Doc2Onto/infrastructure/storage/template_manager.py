@@ -49,9 +49,9 @@ class TemplateManager(BaseManager[Template, str]):
         )
 
         temp.code = TemplateLoader.load(temp)
-        if temp.code is None:
-            self.logger.error(f"[TemplateManager] Template {temp.name} does not have code.")
-            return None
+        # if temp.code is None:
+        #     self.logger.error(f"[TemplateManager] Template {temp.name} does not have code.")
+        #     return None
 
         return temp
 
