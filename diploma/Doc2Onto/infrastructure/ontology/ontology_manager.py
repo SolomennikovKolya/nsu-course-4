@@ -1,7 +1,7 @@
 from rdflib import Graph, Namespace, URIRef, Literal, RDF
 from pathlib import Path
 
-ONTOLOGY_PATH = Path("data/ontology.ttl")
+from app.settings import ONTOLOGY_PATH
 
 
 class OntologyRepository:

@@ -2,13 +2,11 @@ from pathlib import Path
 from typing import Optional, List, Tuple
 import shutil
 
+from app.settings import TEMPLATES_BASE_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
 from core.template.template import Template
 from infrastructure.storage.base_manager import BaseManager
 from infrastructure.storage.template_loader import TemplateLoader
-
-BASE_DIR = Path("data/templates")
-CODE_EXAMPLE_PATH = Path("core/template/code_example.py")
 
 
 class TemplateManager(BaseManager[Template, str]):
@@ -28,7 +26,7 @@ class TemplateManager(BaseManager[Template, str]):
     ```
     """
 
-    def __init__(self, base_dir: Path = BASE_DIR):
+    def __init__(self, base_dir: Path = TEMPLATES_BASE_DIR):
         super().__init__(base_dir)
 
         self.logger = get_logger()
@@ -69,7 +67,7 @@ class TemplateManager(BaseManager[Template, str]):
 
         target_code = directory / "code.py"
         if not target_code.exists():
-            shutil.copy(CODE_EXAMPLE_PATH, target_code)
+            shutil.copy(TEMPLATE_CODE_EXAMPLE_PATH, target_code)
 
         template = Template(name, directory)
         self.save_metadata(template)

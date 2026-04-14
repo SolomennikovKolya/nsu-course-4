@@ -1,10 +1,11 @@
 
 ### Инструкция по запуску
-1. `py -3.11 -m venv .env` - создание окружения для python (необходима версия 3.11)
-2. `.env\Scripts\activate` - активация окружения
+1. `py -3.11 -m venv .venv` - создание окружения для python (необходима версия 3.11)
+2. `.venv\Scripts\activate` - активация окружения
 3. `python -m pip install --upgrade pip setuptools wheel` - обновление инструментов python
 4. `pip install -r requirements.txt` - установка всех необходимых библиотек
-5. `python main.py` - запуск всего приложения
+5. `setx [variable_name] "[variable_value]"` - установка переменных среды (см. необходимые переменные в `.env.example`)
+6. `python main.py` - запуск всего приложения
 
 ### Структура проекта
 ```python

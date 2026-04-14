@@ -1,8 +1,15 @@
+# IDE
+.cursor/
 .vscode/
 
-.env/
+# Python
+.venv/
 __pycache__/
 .mypy_cache/
 
+# Secrets
+.env
+
+# App
 test/
 data/

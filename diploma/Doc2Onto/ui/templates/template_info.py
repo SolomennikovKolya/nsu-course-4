@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.context import get_doc_manager, get_temp_manager
-from app.paths import project_root
+from app.settings import PROJECT_ROOT
 from core.template.template import Template
 from infrastructure.storage.template_loader import TemplateLoader
 from ui.common.editable_title import EditableTitleWidget
@@ -31,7 +31,7 @@ def _open_template_code_in_editor(code_path: Path) -> None:
 
     Вызываем ``code . <относительный_путь>`` с ``cwd`` = корень проекта; при несовпадении дисков — ``code <root> <file>``.
     """
-    root = project_root()
+    root = PROJECT_ROOT
     code_abs = code_path.resolve()
     for cmd in ("code", "cursor"):
         exe = shutil.which(cmd)

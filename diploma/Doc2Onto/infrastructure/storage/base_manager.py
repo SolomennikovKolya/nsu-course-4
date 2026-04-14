@@ -5,12 +5,12 @@ import json
 import hashlib
 from typing import Iterator
 
+from app.settings import META_FILENAME
 from app.utils import smart_asdict
 
 
 T = TypeVar("T")  # Объект, которым управляет менеджер
 A = TypeVar("A")  # Аргумент для создания объекта
-META_FILENAME = "meta.json"
 
 
 class BaseManager(ABC, Generic[T, A]):

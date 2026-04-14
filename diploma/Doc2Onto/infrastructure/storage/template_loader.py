@@ -1,6 +1,6 @@
 import importlib.util
 import sys
-from typing import Optional, Tuple
+from typing import Optional
 
 from app.context import get_logger
 from core.template.base import BaseTemplateCode

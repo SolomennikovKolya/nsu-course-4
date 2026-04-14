@@ -3,11 +3,10 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from app.context import get_temp_manager, get_logger
+from app.settings import DOCUMENTS_BASE_DIR
 from core.document import Document
 from core.uddm.model import UDDM
 from infrastructure.storage.base_manager import BaseManager
-
-BASE_DIR = Path("data/documents")
 
 
 class DocumentManager(BaseManager[Document, Path]):
@@ -28,7 +27,7 @@ class DocumentManager(BaseManager[Document, Path]):
     ```
     """
 
-    def __init__(self, base_dir: Path = BASE_DIR):
+    def __init__(self, base_dir: Path = DOCUMENTS_BASE_DIR):
         super().__init__(base_dir)
 
     def get(self, name: str) -> Optional[Document]:

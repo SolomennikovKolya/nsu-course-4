@@ -1,5 +1,3 @@
-"""HTML-предпросмотр Python-кода через Pygments."""
-
 from html import escape
 
 from pygments import highlight
