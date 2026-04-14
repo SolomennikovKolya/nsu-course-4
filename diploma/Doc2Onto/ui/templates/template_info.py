@@ -1,11 +1,13 @@
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -20,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.context import get_doc_manager, get_temp_manager
+from app.context import get_doc_manager, get_pipeline, get_temp_manager
 from app.openai import ask_gpt, read_prompt
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
@@ -311,18 +313,76 @@ class TemplateInfoWidget(QWidget):
                 return doc
         return None
 
+    def _choose_optional_unfilled_document_text(self) -> str:
+        """
+        Опционально выбирает внешний (незаполненный) документ и извлекает для него UDDM tree view.
+
+        Документ обрабатывается во временной директории до стадии UDDM_EXTRACTED и не добавляется в систему.
+        """
+        reply = QMessageBox.question(
+            self,
+            APP_NAME,
+            "Добавить незаполненный документ как дополнительный пример для генерации описания?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return ""
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите незаполненный документ",
+            str(PROJECT_ROOT),
+            "Документы (*.pdf *.doc *.docx *.txt *.rtf *.odt *.xlsx *.xls);;Все файлы (*)",
+        )
+        if not file_path:
+            return ""
+
+        source_path = Path(file_path)
+        if not source_path.exists():
+            QMessageBox.warning(self, APP_NAME, "Выбранный файл не найден.")
+            return ""
+
+        pipeline = get_pipeline()
+        with tempfile.TemporaryDirectory(prefix="doc2onto_unfilled_") as tmp_dir:
+            temp_dir = Path(tmp_dir)
+            temp_file_path = temp_dir / source_path.name
+            shutil.copy2(source_path, temp_file_path)
+
+            temp_doc = Document(name=source_path.name, directory=temp_dir)
+            result = pipeline.run(temp_doc, Document.Status.UDDM_EXTRACTED)
+            if int(temp_doc.status) < int(Document.Status.UDDM_EXTRACTED):
+                QMessageBox.warning(
+                    self,
+                    APP_NAME,
+                    f"Не удалось извлечь UDDM для выбранного файла (результат пайплайна: {result}).",
+                )
+                return ""
+
+            tree_path = temp_doc.uddm_tree_view_file_path()
+            if not tree_path.exists():
+                QMessageBox.warning(self, APP_NAME, "UDDM tree view для выбранного файла не создан.")
+                return ""
+
+            try:
+                return tree_path.read_text(encoding="utf-8", errors="strict")
+            except Exception as exc:
+                QMessageBox.warning(self, APP_NAME, f"Не удалось прочитать UDDM tree view: {exc}")
+                return ""
+
     @require_template
     def _on_generate_description(self, template: Template) -> None:
         example_doc = self._choose_example_document()
         if example_doc is None:
             return
         example_text = example_doc.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+        # unfilled_document_text = self._choose_optional_unfilled_document_text()
 
         system_prompt = read_prompt(GENERATE_DESCR_SYS_PROMPT_PATH)
         user_prompt = read_prompt(
             GENERATE_DESCR_USER_PROMPT_PATH,
             template_name=template.name,
             document_example=example_text,
+            # unfilled_document=unfilled_document_text,
         )
 
         self.generate_description_btn.setEnabled(False)
