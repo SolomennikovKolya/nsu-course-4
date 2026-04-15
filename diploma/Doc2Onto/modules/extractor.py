@@ -116,40 +116,32 @@ class Extractor(BaseModule):
         if not template.fields:
             template.fields = template.code.fields()
 
-        ALIGN_WIDTH = 30
         result = ExtractionResult()
 
-        # ----- Декларативное извлечение полей -----
-
+        # Декларативное извлечение полей:
         for field in template.fields:
             try:
-                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 text = field.selector._select(uddm)
                 if not text:
                     result.set_from_template(field.name, None, "Не удалось выделить текст с помощью селектора")
-                    self.log(WARNING, f"{field_label} None (error selecting text)")
                     continue
 
                 value = field.extractor._extract(text)
                 if value is None:
                     result.set_from_template(field.name, None, "Не удалось извлечь значение по правилам экстрактора")
-                    self.log(WARNING, f"{field_label} None (error extracting value)")
                     continue
 
                 result.set_from_template(field.name, value)
-                self.log(INFO, f'{field_label} "{value}"')
 
             except Exception:
-                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 result.set_from_template(field.name, None, "Ошибка извлечения поля декларативным методом")
-                self.log(WARNING, f"{field_label} None (error extracting field)", exc_info=True)
-
-        # ----- Извлечение с использованием LLM -----
 
         missing_fields = [field for field in template.fields if result.get_value(field.name) is None]
         if not missing_fields:
+            self._log_extraction_result(template, result)
             return result
 
+        # Извлечение с использованием LLM:
         try:
             uddm_text = document.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
             plain_text = document.plain_text_file_path().read_text(encoding="utf-8", errors="strict")
@@ -173,15 +165,12 @@ class Extractor(BaseModule):
                 raise ValueError("LLM ответ должен быть JSON-словарем")
 
             for field in missing_fields:
-                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 llm_value = llm_data.get(field.name)
                 if isinstance(llm_value, str) and llm_value.strip():
                     value = llm_value.strip()
                     result.set_from_llm(field.name, value)
-                    self.log(INFO, f'{field_label} "{value}" (extracted by LLM)')
                 else:
                     result.set_from_llm(field.name, None, "LLM не смог извлечь значение")
-                    self.log(WARNING, f"{field_label} None (llm fallback failed)")
 
         except Exception:
             self.log(WARNING, "LLM fallback failed", exc_info=True)
@@ -189,4 +178,26 @@ class Extractor(BaseModule):
                 if result.get_value(field.name) is None:
                     result.set_from_llm(field.name, None, "Ошибка LLM fallback")
 
+        self._log_extraction_result(template, result)
         return result
+
+    def _log_extraction_result(self, template: Template, result: ExtractionResult) -> None:
+        align_width = 30
+        if not template.fields:
+            return
+
+        for field in template.fields:
+            field_label = f"{field.name}:".ljust(align_width)
+            value = result.get_value(field.name)
+            source = result.get_source(field.name)
+            error = result.get_error(field.name)
+
+            if value is not None:
+                if source == "llm":
+                    self.log(INFO, f'{field_label} "{value}" (extracted by LLM)')
+                else:
+                    self.log(INFO, f'{field_label} "{value}"')
+            else:
+                source_label = f", source={source}" if source else ""
+                error_text = error or "value is missing"
+                self.log(WARNING, f"{field_label} None ({error_text}{source_label})")
