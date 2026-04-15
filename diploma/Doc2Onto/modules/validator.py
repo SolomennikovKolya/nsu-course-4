@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, Optional, TypedDict
 from logging import WARNING, INFO
 from pathlib import Path
 import json
@@ -9,43 +9,33 @@ from modules.extractor import ExtractionResult
 from core.template.template import Template
 
 
-class FieldValidationError:
-    def __init__(self, field_name: str, value: Optional[str], message: str):
-        self.field_name = field_name
-        self.value = value
-        self.message = message
-
-    def to_dict(self) -> Dict[str, Optional[str]]:
-        return {
-            "field_name": self.field_name,
-            "value": self.value,
-            "message": self.message,
-        }
-
-    @staticmethod
-    def from_dict(data: Dict[str, Optional[str]]) -> "FieldValidationError":
-        return FieldValidationError(
-            field_name=str(data.get("field_name", "")),
-            value=data.get("value"),
-            message=str(data.get("message", "")),
-        )
+class FieldValidationData(TypedDict):
+    valid: bool
+    value: Optional[str]
+    message: Optional[str]
 
 
 class ValidationResult:
     """Результат валидации набора полей"""
 
     def __init__(self):
-        self.validated: Dict[str, str] = {}
-        self.errors: List[FieldValidationError] = []
+        self.fields: Dict[str, FieldValidationData] = {}
 
-    def add_valid(self, field_name: str, value: str) -> None:
-        self.validated[field_name] = value
+    def set_result(self, field_name: str, valid: bool, value: Optional[str], message: Optional[str]):
+        self.fields[field_name] = {
+            "valid": valid,
+            "value": value,
+            "message": message,
+        }
 
-    def add_error(self, field_name: str, value: Optional[str], message: str) -> None:
-        self.errors.append(FieldValidationError(field_name, value, message))
+    def add_error(self, field_name: str, message: str, value: Optional[str] = None):
+        self.set_result(field_name, False, value, message)
+
+    def add_valid(self, field_name: str, value: Optional[str]):
+        self.set_result(field_name, True, value, None)
 
     def is_valid(self) -> bool:
-        return len(self.errors) == 0
+        return all(field_result["valid"] for field_result in self.fields.values())
 
     @staticmethod
     def load(path: Path) -> "ValidationResult":
@@ -55,32 +45,21 @@ class ValidationResult:
                 raise ValueError(f"Invalid validation result file: {path}")
 
         result = ValidationResult()
-        validated = data.get("validated", {})
-        errors = data.get("errors", [])
-
-        if isinstance(validated, dict):
-            result.validated = {
-                str(field_name): value
-                for field_name, value in validated.items()
-                if isinstance(value, str)
-            }
-
-        if isinstance(errors, list):
-            result.errors = [
-                FieldValidationError.from_dict(item)
-                for item in errors
-                if isinstance(item, dict)
-            ]
+        for field_name, field_result in data.items():
+            if not isinstance(field_result, dict):
+                continue
+            valid = bool(field_result.get("valid", False))
+            raw_value = field_result.get("value")
+            raw_message = field_result.get("message")
+            value = raw_value if isinstance(raw_value, str) else None
+            message = raw_message if isinstance(raw_message, str) else None
+            result.set_result(str(field_name), valid, value, message)
 
         return result
 
     def save(self, path: Path):
         with path.open("w", encoding="utf-8") as f:
-            data = {
-                "validated": self.validated,
-                "errors": [error.to_dict() for error in self.errors],
-            }
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(self.fields, f, indent=2, ensure_ascii=False)
 
 
 class Validator(BaseModule):
@@ -112,26 +91,28 @@ class Validator(BaseModule):
         if not template.fields:
             template.fields = template.code.fields()
 
+        ALIGN_WIDTH = 30
         result = ValidationResult()
         for field in template.fields:
             try:
+                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 value = extraction_result.get(field.name)
                 if value is None:
-                    result.add_error(field.name, None, "Значение поля отсутствует")
-                    self.log(WARNING, f"Value for field {field.name} is missing")
+                    result.add_error(field.name, "Значение поля отсутствует")
+                    self.log(WARNING, f"{field_label} value is missing")
                     continue
 
                 message = field.validator._validate(value)
                 if message:
-                    result.add_error(field.name, value, message)
-                    self.log(WARNING, f"Error validating field {field.name}: {message}")
+                    result.add_error(field.name, message, value)
+                    self.log(WARNING, f"{field_label} error validating field: {message}")
                     continue
 
                 result.add_valid(field.name, value)
-                self.log(INFO, f"Field {field.name} validated successfully")
+                self.log(INFO, f"{field_label} valid")
 
             except Exception:
-                result.add_error(field.name, None, "Ошибка валидации")
-                self.log(WARNING, f"Error validating field {field.name}", exc_info=True)
+                result.add_error(field.name, "Ошибка валидации")
+                self.log(WARNING, f"{field_label} error validating field", exc_info=True)
 
         return result

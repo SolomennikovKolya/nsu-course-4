@@ -84,7 +84,7 @@ class Pipeline:
             self.setup()
 
         self.logger.info(f"[Pipeline] started")
-        self.logger.info(f"  Document: {document.name}")
+        self.logger.info(f'  Document: "{document.name}"')
         self.logger.info(f"  Target status: {document.status} -> {final_stage}")
 
         if int(document.status) >= int(final_stage):

@@ -28,14 +28,16 @@ class ExtractionResult:
     @staticmethod
     def load(path: Path) -> "ExtractionResult":
         with path.open("r", encoding="utf-8") as f:
-            values = json.load(f)
-            if not isinstance(values, dict):
+            data = json.load(f)
+            if not isinstance(data, dict):
                 raise ValueError(f"Invalid extraction result file: {path}")
 
             result = ExtractionResult()
-            for field_name, value in values.items():
-                if not isinstance(field_name, str) or not isinstance(value, str):
-                    raise ValueError(f"Invalid field name or value in extraction result file: {path}")
+            for field_name, value in data.items():
+                if not isinstance(field_name, str):
+                    raise ValueError(f"Invalid field name in extraction result file: {path}")
+                if not isinstance(value, str) and not value is None:
+                    raise ValueError(f"Invalid value in extraction result file: {path}")
                 result.add(field_name, value)
             return result
 
@@ -76,24 +78,29 @@ class Extractor(BaseModule):
         if not template.fields:
             template.fields = template.code.fields()
 
+        ALIGN_WIDTH = 30
         result = ExtractionResult()
         for field in template.fields:
             try:
+                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 text = field.selector._select(uddm)
                 if not text:
-                    self.log(WARNING, f"Error selecting text for field {field.name}")
+                    result.add(field.name, None)
+                    self.log(WARNING, f"{field_label} None (error selecting text)")
                     continue
 
                 value = field.extractor._extract(text)
                 if value is None:
-                    self.log(WARNING, f"Error extracting value for field {field.name}")
+                    result.add(field.name, None)
+                    self.log(WARNING, f"{field_label} None (error extracting value)")
                     continue
 
                 result.add(field.name, value)
-                self.log(INFO, f"Value for field {field.name} extracted successfully")
+                self.log(INFO, f'{field_label} "{value}"')
 
             except Exception:
+                field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
                 result.add(field.name, None)
-                self.log(WARNING, f"Error extracting field {field.name}", exc_info=True)
+                self.log(WARNING, f"{field_label} None (error extracting field)", exc_info=True)
 
         return result

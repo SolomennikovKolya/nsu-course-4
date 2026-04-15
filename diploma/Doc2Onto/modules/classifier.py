@@ -17,16 +17,16 @@ class Classifier(BaseModule):
             # Если класс уже определён, надо только подгрузить шаблон
             if document.doc_class:
                 if document.template:
-                    self.log(INFO, f"Document already classified as {document.doc_class}")
+                    self.log(INFO, f'Document already classified as "{document.doc_class}"')
                     return ModuleResult.OK
 
                 template = self.temp_manager.get(document.doc_class)
                 if template:
                     document.template = template
-                    self.log(INFO, f"Document already classified as {document.doc_class}")
+                    self.log(INFO, f'Document already classified as "{document.doc_class}"')
                     return ModuleResult.OK
                 else:
-                    self.log(WARNING, f"Inconsistency: document has class {document.doc_class} but no template found")
+                    self.log(WARNING, f'Inconsistency: document has class "{document.doc_class}" but no template found')
 
             # Автоматическая классификация
             if not document.uddm:
@@ -42,7 +42,7 @@ class Classifier(BaseModule):
                     if template.code.classify(document.name, document.uddm):
                         document.doc_class = template.name
                         document.template = template
-                        self.log(INFO, f"Document classified as {document.doc_class}")
+                        self.log(INFO, f'Document classified as "{document.doc_class}"')
                         return ModuleResult.OK
                 except Exception:
                     continue
