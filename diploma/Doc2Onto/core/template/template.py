@@ -13,12 +13,12 @@ class Template:
     name: str        # Название шаблона / класс документа. Пример: "Заявление на практику бакалавриат КНиС 7 семестр"
     directory: Path  # Директория, где хранятся данные шаблона
 
-    description: Optional[str] = None  # Опциональный комментарий
+    description: Optional[str] = None  # Описание шаблона
 
     # Код шаблона. Загружается динамически из code.py при загрузке шаблона. Не сохраняется в meta.json
     code: Optional[BaseTemplateCode] = field(default=None, repr=False, metadata={'skip_dict': True})
 
-    # Поля шаблона. Загружаются динамически методом code.fields()
+    # Поля шаблона. Хранятся в шаблоне только для оптимизации чтобы не загружать их динамически методом code.fields()
     fields: Optional[List[Field]] = field(default=None, repr=False, metadata={'skip_dict': True})
 
     def code_file_path(self):

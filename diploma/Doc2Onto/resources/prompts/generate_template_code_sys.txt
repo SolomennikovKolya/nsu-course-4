@@ -161,6 +161,7 @@ class BaseTemplateCode(ABC):
 - На вход подаётся текст (результат работы FieldSelector)
 - Каждая операция преобразует строку
 - Если операция не может извлечь значение — возвращается None и цепочка прерывается
+- В конце цепочки делать trim() не надо (он делается автоматически)
 
 Важно:
 - Операции применяются последовательно
@@ -191,14 +192,12 @@ class BaseTemplateCode(ABC):
   - Кастомная функция
 
 Типичные паттерны:
-- Извлечь значение после ключа:
-  extract().after("ФИО:").trim()
+- Извлечь значение после ключа с нормализацией:
+  extract().after("ФИО:").keep_letters_and_spaces().normalize_spaces()
 - Извлечь по regex:
   extract().regex(r"\d{2}\.\d{2}\.\d{4}")
 - Извлечь между маркерами:
   extract().between("№", "от")
-- Очистить текст:
-  extract().after("Оценка").normalize_spaces().trim()
 
 #### FieldValidator
 
@@ -224,14 +223,16 @@ class BaseTemplateCode(ABC):
 2. Ограничения длины:
   - min_length(n: int)
   - max_length(n: int)
-3. Числовые проверки:
+3. Числовые и символьные проверки:
   - integer() — целое число
   - float_number() — вещественное число
   - numeric() — любое число
+  - no_letters() — только цифры и символы (всё кроме букв)
+  - alphabetic() — только буквы и пробелы
 4. Диапазоны:
-  - in_range(min_val: int | float, max_val: int | float)
   - less_than(bound: int | float, *, inclusive: bool = False)
   - greater_than(bound: int | float, *, inclusive: bool = False)
+  - in_range(min_val: int | float, max_val: int | float)
 5. Проверка количества слов:
   - word_count(exact: Optional[int] = None, min_words: Optional[int] = None, max_words: Optional[int] = None)
 6. apply(self, rule: Callable[[str], Optional[str]])
@@ -239,7 +240,7 @@ class BaseTemplateCode(ABC):
 
 Типичные паттерны:
 - Обязательное поле:
-  validate().required()
+  validate()
 - Проверка даты:
   validate().regex(r"\d{2}\.\d{2}\.\d{4}", full_match=True)
 - Проверка числа:

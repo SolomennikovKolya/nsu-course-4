@@ -83,8 +83,8 @@ class TemplateCode(BaseTemplateCode):
                 description="ФИО обучающегося",
                 field_type=Field.Type.INDIVIDUAL,
                 selector=select().find(ElementType.P, contains_text("(Ф.И.О.)")),
-                extractor=extract().before("(Ф.И.О.)").trim(),
-                validator=validate().min_length(5).word_count(min_words=2),
+                extractor=extract().before("(Ф.И.О.)"),
+                validator=validate().alphabetic().word_count(exact=3),
             ),
             Field(
                 name="course_number",
@@ -92,7 +92,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("курса")),
                 extractor=extract().regex(r"(\d+)\s*курса", group=1),
-                validator=validate().integer().in_range(1, 10),
+                validator=validate().integer().in_range(1, 4),
             ),
             Field(
                 name="group_number",
@@ -100,7 +100,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("группы №")),
                 extractor=extract().regex(r"группы\s*№\s*([0-9]+)", group=1),
-                validator=validate().regex(r"\d+", full_match=True),
+                validator=validate().integer(),
             ),
             Field(
                 name="direction_code",
@@ -116,7 +116,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("(код и наименование направления)")).previous_element(),
                 extractor=extract().after("направление ").after(" ").trim(),
-                validator=validate().min_length(5),
+                validator=validate().alphabetic(),
             ),
             Field(
                 name="profile_name",
@@ -124,7 +124,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("направленность (профиль)")),
                 extractor=extract().after("направленность (профиль)").trim(),
-                validator=validate().min_length(3),
+                validator=validate().alphabetic(),
             ),
             Field(
                 name="organization_full_name",
@@ -132,7 +132,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.INDIVIDUAL,
                 selector=select().find(ElementType.P, contains_text("(полное название организации")).previous_element(),
                 extractor=extract(),
-                validator=validate().min_length(5),
+                validator=validate(),
             ),
             Field(
                 name="application_date",
@@ -140,7 +140,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("Дата:")),
                 extractor=extract().after("Дата: ").regex(r"«?\s*(\d{1,2})\s*»?\s*([А-Яа-яЁё]+)\s*(\d{4}\s*г\.)", group=0),
-                validator=validate().min_length(8),
+                validator=validate(),
             ),
             Field(
                 name="supervisor_name",
@@ -149,7 +149,7 @@ class TemplateCode(BaseTemplateCode):
                 selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
                 extractor=extract().regex(r"Руководитель ВКР.*?(?:\(?Ф\.И\.О\. полностью\)?\s*)?(.*?)(?:\s+зав\. кафедрой|\s+\(должность\)|$)",
                                           group=1).keep_letters_and_spaces().normalize_spaces(),
-                validator=validate().min_length(5).word_count(min_words=2),
+                validator=validate().alphabetic().word_count(exact=3),
             ),
             Field(
                 name="supervisor_position",
@@ -157,7 +157,7 @@ class TemplateCode(BaseTemplateCode):
                 field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
                 extractor=extract().regex(r"Руководитель ВКР.*?(?P<position>зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)", group="position"),
-                validator=validate().min_length(3),
+                validator=validate(),
             ),
         ]
 

@@ -169,7 +169,7 @@ class DocumentInfoWidget(QWidget):
         self.pipeline.run(doc)
         self.doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status)
+        self.status_widget.set_status(doc.status, doc.failed_status)
         self.update_buttons()
         self.document_changed.emit()
 
@@ -179,7 +179,7 @@ class DocumentInfoWidget(QWidget):
         self.pipeline.run(doc, Document.Status.ADDED_TO_MODEL)
         self.doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status)
+        self.status_widget.set_status(doc.status, doc.failed_status)
         self.update_buttons()
         self.document_changed.emit()
 

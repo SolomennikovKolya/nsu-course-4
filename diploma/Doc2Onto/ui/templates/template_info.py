@@ -46,7 +46,7 @@ def require_template(method):
     return require_attribute("template")(method)
 
 
-def _open_template_code_in_editor(code_path: Path) -> None:
+def _open_template_code_in_editor(code_path: Path):
     """
     Открывает code.py в VS Code / Cursor с корнем проекта как workspace — иначе Pylance не видит импорты (core, app, …).
 
@@ -226,7 +226,7 @@ class TemplateInfoWidget(QWidget):
         self._set_code_preview(template)
         self._loading_fields = False
 
-    def _set_code_preview(self, template: Template) -> None:
+    def _set_code_preview(self, template: Template):
         path = template.code_file_path()
         if not path.exists():
             self.code_preview.setHtml(plain_message_to_preview_html("(файл code.py не найден)"))
@@ -273,13 +273,13 @@ class TemplateInfoWidget(QWidget):
         self.temp_manager.save_metadata(self.template)
         self._render_description_markdown(text)
 
-    def _render_description_markdown(self, text: str) -> None:
+    def _render_description_markdown(self, text: str):
         if text.strip():
             self.description_view.setMarkdown(text)
             return
         self.description_view.setHtml("<i>Описание отсутствует.</i>")
 
-    def _set_description_edit_mode(self, is_edit_mode: bool) -> None:
+    def _set_description_edit_mode(self, is_edit_mode: bool):
         if is_edit_mode:
             self.description_stack.setCurrentWidget(self.description_edit)
             self.toggle_description_mode_btn.setText("Завершить редактирование")
@@ -287,7 +287,7 @@ class TemplateInfoWidget(QWidget):
         self.description_stack.setCurrentWidget(self.description_view)
         self.toggle_description_mode_btn.setText("Редактировать описание")
 
-    def _on_toggle_description_mode(self) -> None:
+    def _on_toggle_description_mode(self):
         is_edit_mode = self.description_stack.currentWidget() is self.description_edit
         if is_edit_mode:
             self._flush_description()
@@ -378,7 +378,7 @@ class TemplateInfoWidget(QWidget):
                 return ""
 
     @require_template
-    def _on_generate_description(self, template: Template) -> None:
+    def _on_generate_description(self, template: Template):
         example_doc = self._choose_example_document()
         if example_doc is None:
             return
@@ -409,7 +409,7 @@ class TemplateInfoWidget(QWidget):
             self.generate_description_btn.setEnabled(True)
 
     @require_template
-    def _on_generate_template_code(self, template: Template) -> None:
+    def _on_generate_template_code(self, template: Template):
         description = (template.description or "").strip()
         if not description:
             QMessageBox.warning(self, APP_NAME, "Сначала заполните описание шаблона.")
@@ -460,7 +460,7 @@ class TemplateInfoWidget(QWidget):
             return
         _open_template_code_in_editor(path)
 
-    def _on_validate_template(self) -> None:
+    def _on_validate_template(self):
         if self.template is None:
             return
 

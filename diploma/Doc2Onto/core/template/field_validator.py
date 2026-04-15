@@ -43,7 +43,7 @@ class FieldValidator:
     при нарушении возвращает сообщение об ошибке. На вход каждому правилу подаётся непустая строка (значение поля). 
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self._rules: List[ValidationRule] = []
 
     def _validate(self, value: str) -> Optional[str]:
@@ -56,26 +56,6 @@ class FieldValidator:
             if message is not None:
                 return message
         return None
-
-    def regex(self, pattern: str | Pattern[str], *, flags: int = 0, full_match: bool = False) -> "FieldValidator":
-        """
-        Проверка по регулярному выражению.
-        По умолчанию — как `re.match`: совпадение с начала строки (хвост может быть любым).
-        При `full_match=True` — вся строка должна совпадать с шаблоном.
-        """
-        compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
-
-        def rule(value: str) -> Optional[str]:
-            if full_match:
-                if compiled.fullmatch(value) is None:
-                    return f"Не соответствует шаблону: {compiled.pattern}"
-            else:
-                if compiled.match(value) is None:
-                    return f"Не соответствует шаблону: {compiled.pattern}"
-            return None
-
-        self._rules.append(rule)
-        return self
 
     def min_length(self, n: int) -> "FieldValidator":
         """Минимальная длина строки (после `strip`)."""
@@ -124,6 +104,46 @@ class FieldValidator:
         def rule(value: str) -> Optional[str]:
             if _parse_numeric(value) is None:
                 return "Некорректное числовое значение"
+            return None
+
+        self._rules.append(rule)
+        return self
+
+    def alphabetic(self) -> "FieldValidator":
+        """Проверяет, что строка содержит только буквы и пробелы."""
+        def rule(value: str) -> Optional[str]:
+            if any(not (ch.isalpha() or ch.isspace()) for ch in value):
+                return "Допустимы только буквы и пробелы"
+            return None
+
+        self._rules.append(rule)
+        return self
+
+    def no_letters(self) -> "FieldValidator":
+        """Проверяет, что строка содержит только цифры, пробелы и спецсимволы (без букв)."""
+        def rule(value: str) -> Optional[str]:
+            if any(ch.isalpha() for ch in value):
+                return "Буквы недопустимы: разрешены только цифры и спецсимволы"
+            return None
+
+        self._rules.append(rule)
+        return self
+
+    def regex(self, pattern: str | Pattern[str], *, flags: int = 0, full_match: bool = False) -> "FieldValidator":
+        """
+        Проверка по регулярному выражению.
+        По умолчанию — как `re.match`: совпадение с начала строки (хвост может быть любым).
+        При `full_match=True` — вся строка должна совпадать с шаблоном.
+        """
+        compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+
+        def rule(value: str) -> Optional[str]:
+            if full_match:
+                if compiled.fullmatch(value) is None:
+                    return f"Не соответствует шаблону: {compiled.pattern}"
+            else:
+                if compiled.match(value) is None:
+                    return f"Не соответствует шаблону: {compiled.pattern}"
             return None
 
         self._rules.append(rule)

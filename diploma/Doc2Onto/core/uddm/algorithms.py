@@ -26,7 +26,7 @@ def euler_tin_tout(scope_root: Element) -> tuple[dict[Element, int], dict[Elemen
     tout: dict[Element, int] = {}
     t = 0
 
-    def dfs(v: Element) -> None:
+    def dfs(v: Element):
         nonlocal t
         tin[v] = t
         t += 1

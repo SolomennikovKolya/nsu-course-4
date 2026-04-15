@@ -38,7 +38,11 @@ class Document:
     directory: Path                   # Директория с документом и его данными
     status: Status = Status.UPLOADED  # Статус обработки документа
 
-    doc_class: Optional[str] = None                                                               # Класс документа
+    doc_class: Optional[str] = None   # Класс документа (название шаблона)
+
+    # Статус, который не смог достичься в ходе последнего запуска пайплайна
+    failed_status: Optional[Status] = field(default=None, repr=False, metadata={'skip_dict': True})
+
     uddm: Optional[UDDM] = field(default=None, repr=False, metadata={'skip_dict': True})          # UDDM документа
     template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})  # Шаблон извлечения
 

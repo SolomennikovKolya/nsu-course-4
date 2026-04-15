@@ -25,7 +25,7 @@ class BaseModule(ABC):
     Каждый модуль должен реализовывать метод execute.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
         self._logger = get_logger()

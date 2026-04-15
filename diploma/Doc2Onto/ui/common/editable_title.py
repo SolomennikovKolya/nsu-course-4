@@ -32,7 +32,7 @@ class EditableTitleWidget(QWidget):
         placeholder: str = "",
         title_style: str = "font-size:16px;font-weight:bold;",
         subdued_style: str = "color:#8a8a8a;",
-    ) -> None:
+    ):
         super().__init__()
         self._placeholder = placeholder
         self._title_style = title_style
@@ -90,17 +90,17 @@ class EditableTitleWidget(QWidget):
     def value(self) -> str:
         return self._value
 
-    def set_value(self, value: Optional[str]) -> None:
+    def set_value(self, value: Optional[str]):
         self._value = (value or "").strip()
         if self._editing:
             self._edit.setText(self._value)
         self._apply_label()
 
-    def set_enabled_editing(self, enabled: bool) -> None:
+    def set_enabled_editing(self, enabled: bool):
         self._edit_btn.setVisible(enabled)
         self._edit_btn.setEnabled(enabled)
 
-    def start_edit(self) -> None:
+    def start_edit(self):
         if not self._edit_btn.isEnabled():
             return
         self._freeze_current_height()
@@ -112,7 +112,7 @@ class EditableTitleWidget(QWidget):
         self._edit.setFocus(Qt.FocusReason.OtherFocusReason)
         self._edit.selectAll()
 
-    def cancel_edit(self) -> None:
+    def cancel_edit(self):
         if not self._editing:
             return
         self._editing = False
@@ -121,16 +121,16 @@ class EditableTitleWidget(QWidget):
         self._apply_label()
         self.cancelled.emit()
 
-    def _commit_from_editor(self) -> None:
+    def _commit_from_editor(self):
         self._commit(self._edit.text())
 
-    def _commit_from_focus_out(self) -> None:
+    def _commit_from_focus_out(self):
         # editingFinished вызывается и при Escape (через потерю фокуса),
         # но Escape мы перехватываем в keyPressEvent у QLineEdit ниже.
         if self._editing:
             self._commit(self._edit.text())
 
-    def _commit(self, new_value: str) -> None:
+    def _commit(self, new_value: str):
         new_value = (new_value or "").strip()
         if not new_value:
             # пустое имя — просто отмена (визуально мягче, чем ошибка)
@@ -143,7 +143,7 @@ class EditableTitleWidget(QWidget):
         self._apply_label()
         self.committed.emit(new_value)
 
-    def _apply_label(self) -> None:
+    def _apply_label(self):
         if self._value:
             self._label.setText(self._value)
             self._label.setStyleSheet(self._title_style)
@@ -151,7 +151,7 @@ class EditableTitleWidget(QWidget):
             self._label.setText(self._placeholder)
             self._label.setStyleSheet(f"{self._title_style}{self._subdued_style}")
 
-    def _freeze_current_height(self) -> None:
+    def _freeze_current_height(self):
         """
         При переходе в edit-mode фиксируем высоту виджета, иначе QLabel с wordWrap и QLineEdit
         имеют разные sizeHint (особенно при длинном/многострочном заголовке) и интерфейс «прыгает».
@@ -162,12 +162,12 @@ class EditableTitleWidget(QWidget):
         self.setMinimumHeight(self._frozen_height)
         self.setMaximumHeight(self._frozen_height)
 
-    def _unfreeze_height_later(self) -> None:
+    def _unfreeze_height_later(self):
         """Снимаем фиксацию высоты после обновления лейаута/переносов текста."""
         if self._frozen_height is None:
             return
 
-        def _do() -> None:
+        def _do():
             self._frozen_height = None
             self.setMaximumHeight(16777215)
             self.setMinimumHeight(0)
@@ -181,7 +181,7 @@ class _EscapeAwareLineEdit(QLineEdit):
 
     escape_pressed = Signal()
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # type: ignore[override]
+    def keyPressEvent(self, event: QKeyEvent):  # type: ignore[override]
         if event.key() == Qt.Key.Key_Escape:
             self.escape_pressed.emit()
             event.accept()

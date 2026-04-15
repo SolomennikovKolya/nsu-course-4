@@ -87,6 +87,8 @@ class Pipeline:
         self.logger.info(f'  Document: "{document.name}"')
         self.logger.info(f"  Target status: {document.status} -> {final_stage}")
 
+        document.failed_status = None
+
         if int(document.status) >= int(final_stage):
             self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {document.status})")
             return PipelineResult.OK
@@ -100,6 +102,7 @@ class Pipeline:
                 if result == ModuleResult.OK:
                     document.status = stage.target_status
                 else:
+                    document.failed_status = stage.target_status
                     self.logger.info(f"  Final status: {document.status}")
                     self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
                     return PipelineResult.FAILED

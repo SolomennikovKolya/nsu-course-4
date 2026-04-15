@@ -136,7 +136,7 @@ class DocumentViewWidget(QWidget):
         # --- Термы ---
         self._terms_label = QLabel("")
         self._terms_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._tabs.addTab(_wrap_tab_page_content(self._terms_label), "Термы")
+        self._tabs.addTab(_wrap_tab_page_content(self._terms_label), "Поля")
 
         # --- RDF ---
         self._rdf_label = QLabel("")
@@ -145,7 +145,7 @@ class DocumentViewWidget(QWidget):
 
         self._apply_no_document_state()
 
-    def set_document(self, document: Optional[Document]) -> None:
+    def set_document(self, document: Optional[Document]):
         self._document = document
         if document is None:
             self._apply_no_document_state()
@@ -155,7 +155,7 @@ class DocumentViewWidget(QWidget):
         self._refresh_uddm()
         self._set_terms_rdf_placeholders()
 
-    def _apply_no_document_state(self) -> None:
+    def _apply_no_document_state(self):
         self._original_view.clear()
         self._original_view.setPlaceholderText("Документ не выбран")
         self._original_docx_bar.setVisible(False)
@@ -177,13 +177,13 @@ class DocumentViewWidget(QWidget):
             return None
         return self._document.original_file_path()
 
-    def _open_original_in_word(self) -> None:
+    def _open_original_in_word(self):
         path = self._original_path()
         if path is None or not path.exists():
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
-    def _refresh_original(self) -> None:
+    def _refresh_original(self):
         path = self._original_path()
         self._original_view.clear()
         self._original_view.setPlaceholderText("")
@@ -230,7 +230,7 @@ class DocumentViewWidget(QWidget):
             self._original_docx_bar.setVisible(True)
             self._original_open_word_btn.setEnabled(True)
 
-    def _refresh_uddm(self) -> None:
+    def _refresh_uddm(self):
         doc = self._document
         if doc is None:
             return
@@ -280,6 +280,6 @@ class DocumentViewWidget(QWidget):
 
         self._tabs.setTabEnabled(1, uddm_any)
 
-    def _set_terms_rdf_placeholders(self) -> None:
+    def _set_terms_rdf_placeholders(self):
         self._terms_label.setText("Пока не поддерживается")
         self._rdf_label.setText("Пока не поддерживается")
