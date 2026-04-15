@@ -114,6 +114,7 @@ class Validator(BaseModule):
         hard_validation = self._hard_validate(template, extraction_result, result)
 
         self._validate_with_llm(document, hard_validation, result)
+        self._log_validation_result(template, result)
         return result
 
     def _validate_field_names_consistency(self, template: Template, extraction_result: ExtractionResult):
@@ -131,7 +132,6 @@ class Validator(BaseModule):
         hard_validation: Dict[str, Dict[str, Optional[str] | bool]] = {}
 
         for field in template.fields:
-            field_label = f"{field.name}:".ljust(LOG_ALIGN_WIDTH)
             try:
                 value = extraction_result.get_value(field.name)
                 if value is None or not value.strip():
@@ -143,7 +143,6 @@ class Validator(BaseModule):
                         "valid": False,
                         "error": error_text,
                     }
-                    self.log(WARNING, f"{field_label} value is missing")
                     continue
 
                 message = field.validator._validate(value)
@@ -155,7 +154,6 @@ class Validator(BaseModule):
                         "valid": False,
                         "error": message,
                     }
-                    self.log(WARNING, f"{field_label} error validating field: {message}")
                     continue
 
                 result.set_valid(field.name)
@@ -165,7 +163,6 @@ class Validator(BaseModule):
                     "valid": True,
                     "error": None,
                 }
-                self.log(INFO, f"{field_label} valid")
 
             except Exception:
                 error_text = "Ошибка валидации"
@@ -176,7 +173,6 @@ class Validator(BaseModule):
                     "valid": False,
                     "error": error_text,
                 }
-                self.log(WARNING, f"{field_label} error validating field", exc_info=True)
 
         return hard_validation
 
@@ -227,7 +223,31 @@ class Validator(BaseModule):
                     result.set_invalid(field_name, error_text)
 
         except Exception:
-            self.log(WARNING, "LLM validation level failed; fallback to hard validation result", exc_info=True)
+            self.log(WARNING, "LLM validation level failed", exc_info=True)
+
+    def _log_validation_result(self, template: Template, result: ValidationResult):
+        """Одна строка на поле: итог после жёсткой валидации и LLM."""
+        for field in template.fields:
+            field_label = f"{field.name}:".ljust(LOG_ALIGN_WIDTH)
+            entry = result.fields.get(field.name)
+            if not entry:
+                self.log(WARNING, f"{field_label} no entry in validation result")
+                continue
+
+            valid = entry["valid"]
+            corrected = entry.get("corrected_value")
+            source = entry.get("source")
+            error = entry.get("error")
+
+            if valid:
+                if corrected is not None and source == "llm":
+                    self.log(INFO, f'{field_label} corrected by LLM: "{corrected}"')
+                elif corrected is not None and source == "human":
+                    self.log(INFO, f'{field_label} corrected by human: "{corrected}"')
+                else:
+                    self.log(INFO, f'{field_label} valid')
+            else:
+                self.log(WARNING, f"{field_label} invalid: {error or 'error not specified'}")
 
     def _glue_errors(self, prev_err: Optional[str], new_err: Optional[str]) -> Optional[str]:
         if prev_err is None:
