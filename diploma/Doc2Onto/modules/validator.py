@@ -96,9 +96,9 @@ class Validator(BaseModule):
         for field in template.fields:
             try:
                 field_label = f"{field.name}:".ljust(ALIGN_WIDTH)
-                value = extraction_result.get(field.name)
-                if value is None:
-                    result.add_error(field.name, "Значение поля отсутствует")
+                value = extraction_result.get_value(field.name)
+                if value is None or not value.strip():
+                    result.add_error(field.name, "Обязательное поле отсутствует или пустое")
                     self.log(WARNING, f"{field_label} value is missing")
                     continue
 

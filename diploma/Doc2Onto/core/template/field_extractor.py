@@ -154,6 +154,31 @@ class FieldExtractor:
         self._operations.append(lambda text: text.upper())
         return self
 
+    def keep_letters_and_spaces(self) -> "FieldExtractor":
+        """Оставляет только буквы (латиница/кириллица) и пробельные символы."""
+        self._operations.append(lambda text: "".join(ch for ch in text if ch.isalpha() or ch.isspace()))
+        return self
+
+    def keep_digits_and_symbols(self) -> "FieldExtractor":
+        """Оставляет только цифры, пробелы и спецсимволы (без букв)."""
+        self._operations.append(
+            lambda text: "".join(
+                ch for ch in text
+                if ch.isdigit() or ch.isspace() or not ch.isalnum()
+            )
+        )
+        return self
+
+    def keep_regex(self, pattern: str | Pattern[str], *, flags: int = 0) -> "FieldExtractor":
+        """
+        Оставляет только символы, которые поштучно соответствуют regex.
+
+        Пример: ``keep_regex(r"[A-F0-9]")``.
+        """
+        compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+        self._operations.append(lambda text: "".join(ch for ch in text if compiled.fullmatch(ch)))
+        return self
+
     def apply(self, operation: ExtractOperation) -> "FieldExtractor":
         """Добавляет пользовательскую операцию в цепочку."""
         self._operations.append(operation)

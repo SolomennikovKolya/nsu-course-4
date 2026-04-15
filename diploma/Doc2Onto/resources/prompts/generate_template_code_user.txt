@@ -5,6 +5,10 @@
 #### 1. Описание шаблона
 $template_description
 
+##### Примечание
+В случае, если описание шаблона пустое или не содержит четкого описания извлекаемых полей, сам придумай, какие поля извлекать.
+Только извлекай поля, значения которых варьируются от документа к документу в рамках одного класса (постоянную информацию извлекать не надо).
+
 #### 2. Пример документа в формате UDDM
 $uddm_example
 
@@ -19,17 +23,17 @@ $code_example
   - build_triples
 3. Правила:
   1. CLASSIFY:
-    - Используй doc_name или характерные текстовые якоря
+    - Используй doc_name и характерные текстовые якоря (как запасной уровень классификации)
+    - Классификация должна быть специализированной (например, наличие слова "отзыв" не говорит о том, что документ имеет класс "Отзыв руководителя практики Бакалавриат ПИиКН 7 сем")
     - Не делай сложную логику
+    - При необходимости используй прямое обрашение к структуре UDDM
   2. FIELDS:
     - Каждый Field должен соответствовать одному полю из описания
     - name — snake_case
-    - description — склеенное описание (столбцы: описание + где искать + как извлекать)
-    - selector — строго по "Где искать"
-    - extractor — строго по "Как извлекать"
-    - validator:
-      - required для обязательных полей
-      - regex / range если применимо
+    - description — описание поля из описания шаблона 
+    - selector — строго по "Где искать". Стараться использовать относительные позиции элементов (так как структура UDDM может быть не идеальна и извлекаться с ошибками из исходного документа)
+    - extractor — строго по "Как извлекать". Не забывать, что в строке помимо искового значения поля могут быть и мусорные данные
+    - validator — максимально строгие, но при этом логичные проверки (чтобы не отбросить на самом деле валидное значение поля) 
   3. BUILD_TRIPLES:
     - Используй fields_values
     - Формируй триплеты в виде:
@@ -49,3 +53,133 @@ $code_example
 - все поля из описания присутствуют
 - нет несуществующих методов
 - код компилируется логически
+
+#### Пример шаблона "Заявление на практику Бакалавриат ПИиКН 7 сем"
+
+from typing import List, Dict
+
+from core.template.base import BaseTemplateCode
+from core.template.field import Field
+from core.template.field_selector import *
+from core.template.field_extractor import *
+from core.template.field_validator import *
+from core.uddm.model import UDDM
+
+
+class TemplateCode(BaseTemplateCode):
+
+    def classify(self, doc_name: str, uddm: UDDM) -> bool:
+        name = (doc_name or "").lower()
+        if all(word in name for word in ["заявление", "на", "практику"]):
+            return True
+
+        full_text = str(uddm.root).lower()
+        return all(word in full_text for word in ["заявление", "прошу направить меня", "практику"])
+
+    def fields(self) -> List[Field]:
+        return [
+            Field(
+                name="student_name",
+                description="ФИО обучающегося",
+                field_type=Field.Type.INDIVIDUAL,
+                selector=select().find(ElementType.P, contains_text("(Ф.И.О.)")),
+                extractor=extract().before("(Ф.И.О.)").trim(),
+                validator=validate().min_length(5).word_count(min_words=2),
+            ),
+            Field(
+                name="course_number",
+                description="Номер курса обучения",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("курса")),
+                extractor=extract().regex(r"(\d+)\s*курса", group=1),
+                validator=validate().integer().in_range(1, 10),
+            ),
+            Field(
+                name="group_number",
+                description="Номер учебной группы",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("группы №")),
+                extractor=extract().regex(r"группы\s*№\s*([0-9]+)", group=1),
+                validator=validate().regex(r"\d+", full_match=True),
+            ),
+            Field(
+                name="direction_code",
+                description="Код направления подготовки",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("направление")),
+                extractor=extract().regex(r"(\d{2}\.\d{2}\.\d{2})", group=1),
+                validator=validate().regex(r"\d{2}\.\d{2}\.\d{2}", full_match=True),
+            ),
+            Field(
+                name="direction_name",
+                description="Наименование направления подготовки",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("(код и наименование направления)")).previous_element(),
+                extractor=extract().after("направление ").after(" ").trim(),
+                validator=validate().min_length(5),
+            ),
+            Field(
+                name="profile_name",
+                description="Наименование профиля подготовки",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("направленность (профиль)")),
+                extractor=extract().after("направленность (профиль)").trim(),
+                validator=validate().min_length(3),
+            ),
+            Field(
+                name="organization_full_name",
+                description="Полное наименование организации места практики",
+                field_type=Field.Type.INDIVIDUAL,
+                selector=select().find(ElementType.P, contains_text("(полное название организации")).previous_element(),
+                extractor=extract(),
+                validator=validate().min_length(5),
+            ),
+            Field(
+                name="application_date",
+                description="Дата заявления",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("Дата:")),
+                extractor=extract().after("Дата: ").regex(r"«?\s*(\d{1,2})\s*»?\s*([А-Яа-яЁё]+)\s*(\d{4}\s*г\.)", group=0),
+                validator=validate().min_length(8),
+            ),
+            Field(
+                name="supervisor_name",
+                description="ФИО руководителя ВКР",
+                field_type=Field.Type.INDIVIDUAL,
+                selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
+                extractor=extract().regex(r"Руководитель ВКР.*?(?:\(?Ф\.И\.О\. полностью\)?\s*)?(.*?)(?:\s+зав\. кафедрой|\s+\(должность\)|$)",
+                                          group=1).keep_letters_and_spaces().normalize_spaces(),
+                validator=validate().min_length(5).word_count(min_words=2),
+            ),
+            Field(
+                name="supervisor_position",
+                description="Должность руководителя ВКР",
+                field_type=Field.Type.LITERAL,
+                selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
+                extractor=extract().regex(r"Руководитель ВКР.*?(?P<position>зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)", group="position"),
+                validator=validate().min_length(3),
+            ),
+        ]
+
+    def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
+        subject = "urn:document:application"
+        triples = []
+        mapping = {
+            "student_name": "urn:predicate:student_name",
+            "course_number": "urn:predicate:course_number",
+            "group_number": "urn:predicate:group_number",
+            "direction_code": "urn:predicate:direction_code",
+            "direction_name": "urn:predicate:direction_name",
+            "profile_name": "urn:predicate:profile_name",
+            "practice_type": "urn:predicate:practice_type",
+            "organization_full_name": "urn:predicate:organization_full_name",
+            "organization_address": "urn:predicate:organization_address",
+            "application_date": "urn:predicate:application_date",
+            "supervisor_name": "urn:predicate:supervisor_name",
+            "supervisor_position": "urn:predicate:supervisor_position",
+        }
+        for key, predicate in mapping.items():
+            value = fields_values.get(key)
+            if value:
+                triples.append({"subject": subject, "predicate": predicate, "object": value})
+        return triples

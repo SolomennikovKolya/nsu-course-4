@@ -57,16 +57,6 @@ class FieldValidator:
                 return message
         return None
 
-    def required(self) -> "FieldValidator":
-        """Значение не должно быть пустым (не строка только из пробелов)."""
-        def rule(value: str) -> Optional[str]:
-            if not value.strip():
-                return "Обязательное поле отсутствует или пустое"
-            return None
-
-        self._rules.append(rule)
-        return self
-
     def regex(self, pattern: str | Pattern[str], *, flags: int = 0, full_match: bool = False) -> "FieldValidator":
         """
         Проверка по регулярному выражению.
