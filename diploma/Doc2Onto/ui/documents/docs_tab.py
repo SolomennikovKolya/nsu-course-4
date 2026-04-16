@@ -1,19 +1,18 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton,
-    QFileDialog, QHBoxLayout,
-    QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox
-)
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from pathlib import Path
 from typing import Optional, List
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout,
+    QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox
+)
 
 from app.context import get_pipeline, get_doc_manager
 from app.pipeline import PipelineResult
 from app.settings import APP_NAME
 from core.document import Document
 from modules.converter.registry import ConverterRegistry
-from ui.documents.document_info import DocumentInfoWidget
+from ui.documents.doc_info import DocumentInfoWidget
 
 
 class DocumentsTab(QWidget):

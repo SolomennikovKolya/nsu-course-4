@@ -21,5 +21,21 @@ class Template:
     # Поля шаблона. Хранятся в шаблоне только для оптимизации чтобы не загружать их динамически методом code.fields()
     fields: Optional[List[Field]] = field(default=None, repr=False, metadata={'skip_dict': True})
 
+    def get_fields(self) -> Optional[List[Field]]:
+        """
+        Получение полей шаблона. Если поля уже загружены, возвращается список полей. 
+        Если нет, пытается загрузить из кода шаблона.
+        """
+        if self.fields:
+            return self.fields
+        if self.code is None:
+            return None
+
+        try:
+            self.fields = self.code.fields()
+            return self.fields
+        except Exception:
+            return None
+
     def code_file_path(self):
         return self.directory / "code.py"

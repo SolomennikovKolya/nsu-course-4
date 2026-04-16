@@ -1,11 +1,11 @@
 from typing import Optional
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
 
 from core.document import Document
 
 
-class StatusProgressWidget(QWidget):
+class StatusBarWidget(QWidget):
     """Виджет для отображения прогресса обработки документа по статусу."""
 
     steps = [

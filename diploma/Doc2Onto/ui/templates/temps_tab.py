@@ -14,7 +14,7 @@ from typing import Optional
 from app.context import get_temp_manager
 from app.settings import APP_NAME
 from core.template.template import Template
-from ui.templates.template_info import TemplateInfoWidget
+from ui.templates.temp_info import TemplateInfoWidget
 
 
 class TemplatesTab(QWidget):
@@ -55,8 +55,8 @@ class TemplatesTab(QWidget):
         # --- Сигналы ---
         self.add_button.clicked.connect(self.add_template)
         self.list_widget.itemSelectionChanged.connect(self.update_info)
-        self.info_widget.template_name_changed.connect(self._on_template_name_changed)
-        self.info_widget.template_deleted.connect(self._on_template_deleted)
+        self.info_widget.template_name_changed.connect(self.on_template_name_changed)
+        self.info_widget.template_deleted.connect(self.on_template_deleted)
 
         self.refresh_templates_list()
 
@@ -81,7 +81,7 @@ class TemplatesTab(QWidget):
 
         t = self.temp_manager.add(name)
         self.refresh_templates_list()
-        self._select_template_by_name(t.name)
+        self.select_template_by_name(t.name)
         self.templates_changed.emit()
 
     def get_selected_template(self) -> Optional[Template]:
@@ -97,21 +97,21 @@ class TemplatesTab(QWidget):
             return
         self.info_widget.set_template(t)
 
-    def _select_template_by_name(self, name: str):
+    def select_template_by_name(self, name: str):
         """Устанавливает выбранный шаблон списка шаблонов по имени."""
         for i in range(self.list_widget.count()):
             if self.list_widget.item(i).text() == name:
                 self.list_widget.setCurrentRow(i)
                 return
 
-    def _on_template_name_changed(self):
+    def on_template_name_changed(self):
         name = self.info_widget.current_template_name()
         self.refresh_templates_list()
         if name:
-            self._select_template_by_name(name)
+            self.select_template_by_name(name)
         self.templates_changed.emit()
 
-    def _on_template_deleted(self):
+    def on_template_deleted(self):
         self.refresh_templates_list()
         self.list_widget.clearSelection()
         self.info_widget.set_template(None)

@@ -1,14 +1,16 @@
 import json
 from logging import WARNING, INFO
-from typing import Dict, Optional, TypedDict, Literal
+from typing import Dict, Optional, TypedDict, Literal, List
 from pathlib import Path
 
 from app.openai import ask_gpt, read_prompt
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from core.document import Document
-from core.template.template import Template
+from core.template.template import Template, Field
 from modules.base import BaseModule, ModuleResult
 from modules.extractor import ExtractionResult
+
+HardValidationResult = Dict[str, Dict[str, Optional[str] | bool]]
 
 
 class FieldValidationData(TypedDict):
@@ -105,81 +107,77 @@ class Validator(BaseModule):
             return ModuleResult.FAILED
 
     def _validate(self, document: Document, template: Template, extraction_result: ExtractionResult) -> ValidationResult:
-        if not template.fields:
-            template.fields = template.code.fields()
+        fields = template.get_fields()
+        if not fields:
+            raise ValueError("Can't get fields from template")
 
-        self._validate_field_names_consistency(template, extraction_result)
+        if not self._check_field_names_consistency(fields, extraction_result):
+            raise ValueError("Field names consistency check failed")
 
+        # Сначала - жёсткая валидация по правилам шаблона
         result = ValidationResult()
-        hard_validation = self._hard_validate(template, extraction_result, result)
+        hard_validation = self._hard_validate(fields, extraction_result, result)
 
+        # Затем - валидация и коррекция LLM
         self._validate_with_llm(document, hard_validation, result)
-        self._log_validation_result(template, result)
+
+        self._log_validation_result(fields, result)
         return result
 
-    def _validate_field_names_consistency(self, template: Template, extraction_result: ExtractionResult):
-        template_names = [field.name for field in (template.fields or [])]
-        extracted_names = list(extraction_result.fields.keys())
-        if set(template_names) != set(extracted_names):
-            raise ValueError(
-                "Несовпадение набора полей template/extraction_result: "
-                f"template={template_names}, extraction={extracted_names}"
-            )
+    def _hard_validate(self, fields: List[Field], extraction_result: ExtractionResult, result: ValidationResult) -> HardValidationResult:
+        hard_validation: HardValidationResult = {}
 
-    def _hard_validate(self, template: Template, extraction_result: ExtractionResult,
-                       result: ValidationResult) -> Dict[str, Dict[str, Optional[str] | bool]]:
-        """Первый уровень: жёсткая валидация правилами."""
-        hard_validation: Dict[str, Dict[str, Optional[str] | bool]] = {}
+        for field in fields:
+            hard_validation[field.name] = self._hard_validate_field(field, extraction_result, result)
 
-        for field in template.fields:
-            try:
-                value = extraction_result.get_value(field.name)
-                if value is None or not value.strip():
-                    error_text = "Обязательное поле отсутствует или пустое"
-                    result.set_invalid(field.name, error_text)
-                    hard_validation[field.name] = {
-                        "description": field.description,
-                        "value": value,
-                        "valid": False,
-                        "error": error_text,
-                    }
-                    continue
+        return hard_validation
 
-                message = field.validator._validate(value)
-                if message:
-                    result.set_invalid(field.name, message)
-                    hard_validation[field.name] = {
-                        "description": field.description,
-                        "value": value,
-                        "valid": False,
-                        "error": message,
-                    }
-                    continue
-
-                result.set_valid(field.name)
-                hard_validation[field.name] = {
+    def _hard_validate_field(self, field: Field, extraction_result: ExtractionResult, result: ValidationResult) -> Dict[str, Optional[str] | bool]:
+        try:
+            value = extraction_result.get_value(field.name)
+            if value is None or not value.strip():
+                error_text = "Обязательное поле отсутствует или пустое"
+                result.set_invalid(field.name, error_text)
+                return {
                     "description": field.description,
                     "value": value,
-                    "valid": True,
-                    "error": None,
-                }
-
-            except Exception:
-                error_text = "Ошибка валидации"
-                result.set_invalid(field.name, error_text)
-                hard_validation[field.name] = {
-                    "description": field.description,
-                    "value": extraction_result.get_value(field.name),
                     "valid": False,
                     "error": error_text,
                 }
 
-        return hard_validation
+            message = field.validator._validate(value)
+            if message:
+                result.set_invalid(field.name, message)
+                return {
+                    "description": field.description,
+                    "value": value,
+                    "valid": False,
+                    "error": message,
+                }
 
-    def _validate_with_llm(self, document: Document, hard_validation: Dict[str, Dict[str, Optional[str] | bool]], result: ValidationResult):
-        """Второй уровень: обязательная валидация/коррекция LLM."""
+            result.set_valid(field.name)
+            return {
+                "description": field.description,
+                "value": value,
+                "valid": True,
+                "error": None,
+            }
+
+        except Exception:
+            error_text = "Ошибка валидации"
+            result.set_invalid(field.name, error_text)
+            return {
+                "description": field.description,
+                "value": extraction_result.get_value(field.name),
+                "valid": False,
+                "error": error_text,
+            }
+
+    def _validate_with_llm(self, document: Document, hard_validation: HardValidationResult, result: ValidationResult):
         try:
-            document_text = document.plain_text_file_path().read_text(encoding="utf-8", errors="strict")
+            document_text = self._read_document_text(document)
+            if document_text is None:
+                return
 
             system_prompt = read_prompt(VALIDATE_FIELDS_SYS_PROMPT_PATH)
             user_prompt = read_prompt(
@@ -188,66 +186,103 @@ class Validator(BaseModule):
                 fields=json.dumps(hard_validation, ensure_ascii=False, indent=2),
             )
 
-            llm_raw = ask_gpt(user_prompt, system_prompt=system_prompt)
-            llm_data = json.loads(llm_raw)
-            if not isinstance(llm_data, dict):
-                raise ValueError("LLM ответ должен быть JSON-словарем")
+            llm_data = self._ask_llm_validation(user_prompt, system_prompt)
+            if llm_data is None:
+                return
 
             for field_name, raw in llm_data.items():
-                if field_name not in hard_validation or not isinstance(raw, dict):
+                if field_name not in hard_validation:
+                    continue
+                if not isinstance(raw, dict):
                     continue
 
-                raw_value = raw.get("value")
-                raw_error = raw.get("error")
+                status, corrected_value, error = self._parse_llm_field_result(raw)
+                if status is None:
+                    continue
 
-                status = raw.get("status")
-                corrected_value = raw_value.strip() if isinstance(raw_value, str) and raw_value.strip() else None
-                error = raw_error.strip() if isinstance(raw_error, str) and raw_error.strip() else None
-
-                if status == "valid":
-                    result.set_valid(field_name)
-                elif status == "corrected":
-                    if corrected_value is None:
-                        error_text = self._glue_errors(
-                            result.get_error(field_name),
-                            error or "LLM вернул status=corrected без значения"
-                        )
-                        result.set_invalid(field_name, error_text)
-                    else:
-                        result.set_corrected(field_name, corrected_value, "llm", error)
-                elif status == "invalid":
-                    error_text = self._glue_errors(
-                        result.get_error(field_name),
-                        error or "LLM: значение невозможно восстановить"
-                    )
-                    result.set_invalid(field_name, error_text)
+                self._apply_llm_field_result(result, field_name, status, corrected_value, error)
 
         except Exception:
             self.log(WARNING, "LLM validation level failed", exc_info=True)
 
-    def _log_validation_result(self, template: Template, result: ValidationResult):
-        """Одна строка на поле: итог после жёсткой валидации и LLM."""
-        for field in template.fields:
+    def _read_document_text(self, document: Document) -> Optional[str]:
+        try:
+            return document.plain_text_file_path().read_text(encoding="utf-8", errors="strict")
+        except Exception:
+            return None
+
+    def _ask_llm_validation(self, user_prompt: str, system_prompt: str) -> Optional[dict]:
+        llm_raw = ask_gpt(user_prompt, system_prompt=system_prompt)
+        llm_data = json.loads(llm_raw)
+        if not isinstance(llm_data, dict):
+            raise ValueError("LLM ответ должен быть JSON-словарем")
+        return llm_data
+
+    def _parse_llm_field_result(self, raw: dict) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        status = raw.get("status")
+        if status not in ("valid", "corrected", "invalid"):
+            return None, None, None
+
+        raw_value = raw.get("value")
+        corrected_value = raw_value.strip() if isinstance(raw_value, str) and raw_value.strip() else None
+        raw_error = raw.get("error")
+        error = raw_error.strip() if isinstance(raw_error, str) and raw_error.strip() else None
+        return status, corrected_value, error
+
+    def _apply_llm_field_result(self, result: ValidationResult, field_name: str, status: str, corrected_value: Optional[str], error: Optional[str]):
+        if status == "valid":
+            result.set_valid(field_name)
+            return
+
+        if status == "corrected":
+            if corrected_value is None:
+                error_text = self._glue_errors(
+                    result.get_error(field_name),
+                    error or "LLM вернул status=corrected без значения"
+                )
+                result.set_invalid(field_name, error_text)
+                return
+
+            result.set_corrected(field_name, corrected_value, "llm", error)
+            return
+
+        # status == "invalid"
+        error_text = self._glue_errors(
+            result.get_error(field_name),
+            error or "LLM: значение невозможно восстановить"
+        )
+        result.set_invalid(field_name, error_text)
+
+    def _check_field_names_consistency(self, fields: List[Field], extraction_result: ExtractionResult) -> bool:
+        template_names = [field.name for field in fields]
+        extracted_names = list(extraction_result.fields.keys())
+        return set(template_names) == set(extracted_names)
+
+    def _log_validation_result(self, fields: List[Field], result: ValidationResult):
+        for field in fields:
             field_label = f"{field.name}:".ljust(LOG_ALIGN_WIDTH)
             entry = result.fields.get(field.name)
             if not entry:
                 self.log(WARNING, f"{field_label} no entry in validation result")
                 continue
 
-            valid = entry["valid"]
+            if not entry["valid"]:
+                error = entry.get("error") or "error not specified"
+                self.log(WARNING, f"{field_label} invalid: {error}")
+                continue
+
             corrected = entry.get("corrected_value")
             source = entry.get("source")
-            error = entry.get("error")
+            if corrected is None:
+                self.log(INFO, f'{field_label} valid')
+                continue
 
-            if valid:
-                if corrected is not None and source == "llm":
-                    self.log(INFO, f'{field_label} corrected by LLM: "{corrected}"')
-                elif corrected is not None and source == "human":
-                    self.log(INFO, f'{field_label} corrected by human: "{corrected}"')
-                else:
-                    self.log(INFO, f'{field_label} valid')
+            if source == "llm":
+                self.log(INFO, f'{field_label} corrected by LLM: "{corrected}"')
+            elif source == "human":
+                self.log(INFO, f'{field_label} corrected by human: "{corrected}"')
             else:
-                self.log(WARNING, f"{field_label} invalid: {error or 'error not specified'}")
+                self.log(INFO, f'{field_label} valid')
 
     def _glue_errors(self, prev_err: Optional[str], new_err: Optional[str]) -> Optional[str]:
         if prev_err is None:

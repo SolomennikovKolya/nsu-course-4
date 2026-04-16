@@ -1,26 +1,14 @@
 import shutil
 import subprocess
 import tempfile
-import re
 from pathlib import Path
 from typing import Optional
-
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QFileDialog,
-    QHBoxLayout,
-    QInputDialog,
-    QLabel,
-    QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QSizePolicy,
-    QSplitter,
-    QStackedWidget,
-    QTextBrowser,
-    QVBoxLayout,
-    QWidget,
+    QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
+    QPlainTextEdit, QPushButton, QSizePolicy, QSplitter, QStackedWidget,
+    QTextBrowser, QVBoxLayout, QWidget
 )
 
 from app.context import get_doc_manager, get_pipeline, get_temp_manager

@@ -1,18 +1,17 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel,
-    QHBoxLayout, QComboBox, QPushButton,
-    QMessageBox, QStackedLayout, QSizePolicy,
-)
-from PySide6.QtCore import Qt, Signal
 from typing import Optional
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton,
+    QMessageBox, QStackedLayout, QSizePolicy
+)
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
 from app.utils import require_attribute
 from core.document import Document
 from ui.common.editable_title import EditableTitleWidget
-from ui.documents.status_progress import StatusProgressWidget
-from ui.documents.document_view import DocumentViewWidget
+from ui.documents.status_bar import StatusBarWidget
+from ui.documents.view.doc_view import DocumentViewWidget
 
 
 def require_document(method):
@@ -77,7 +76,7 @@ class DocumentInfoWidget(QWidget):
         self.page_layout.addWidget(self.class_combo, 1)
 
         # --- Статус ---
-        self.status_widget = StatusProgressWidget()
+        self.status_widget = StatusBarWidget()
         self.page_layout.addWidget(self.status_widget)
 
         self.page_layout.addSpacing(8)
