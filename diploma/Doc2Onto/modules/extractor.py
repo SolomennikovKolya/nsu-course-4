@@ -1,6 +1,6 @@
 import json
 from logging import WARNING, INFO
-from typing import Dict, Optional, TypedDict, Literal, List
+from typing import Dict, Optional, TypedDict, List
 from pathlib import Path
 
 from app.openai import ask_gpt, read_prompt
@@ -13,9 +13,11 @@ from core.uddm.model import UDDM
 
 
 class FieldExtractionData(TypedDict):
-    value: Optional[str]                          # Извлеченное значение поля
-    source: Optional[Literal["template", "llm"]]  # Источник значения поля
-    error: Optional[str]                          # Ошибка извлечения значения поля (если значение не извлечено)
+    extracted: bool              # Итоговый успех/неудача извлечения поля
+    value_temp: Optional[str]    # Значение, извлечённое по шаблону
+    error_temp: Optional[str]    # Ошибка шаблонного извлечения
+    value_llm: Optional[str]     # Значение, извлечённое LLM (fallback)
+    error_llm: Optional[str]     # Ошибка LLM-извлечения (fallback)
 
 
 class ExtractionResult:
@@ -27,30 +29,66 @@ class ExtractionResult:
     def __init__(self):
         self.fields: Dict[str, FieldExtractionData] = {}
 
+    def is_extracted(self, field_name: str) -> bool:
+        return bool(self.fields.get(field_name, {}).get("extracted", False))
+
     def get_value(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("value")
+        data = self.fields.get(field_name)
+        if not data:
+            return None
+        return data.get("value_llm") or data.get("value_temp")
 
-    def get_error(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("error")
+    def get_value_temp(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("value_temp")
 
-    def get_source(self, field_name: str) -> Optional[Literal["template", "llm"]]:
-        return self.fields.get(field_name, {}).get("source")
+    def get_error_temp(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("error_temp")
+
+    def get_value_llm(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("value_llm")
+
+    def get_error_llm(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("error_llm")
 
     def set_result(
             self, field_name: str,
-            value: Optional[str], source: Optional[Literal["template", "llm"]] = None,
-            error: Optional[str] = None):
+            *,
+            extracted: bool,
+            value_temp: Optional[str] = None,
+            error_temp: Optional[str] = None,
+            value_llm: Optional[str] = None,
+            error_llm: Optional[str] = None):
         self.fields[field_name] = {
-            "value": value,
-            "source": source,
-            "error": error,
+            "extracted": extracted,
+            "value_temp": value_temp,
+            "error_temp": error_temp,
+            "value_llm": value_llm,
+            "error_llm": error_llm,
         }
 
     def set_from_template(self, field_name: str, value: Optional[str], error: Optional[str] = None):
-        self.set_result(field_name, value, "template", error)
+        prev = self.fields.get(field_name, {})
+        extracted = bool(value is not None and str(value).strip())
+        self.set_result(
+            field_name,
+            extracted=prev.get("extracted", False) or extracted,
+            value_temp=value,
+            error_temp=error,
+            value_llm=prev.get("value_llm"),
+            error_llm=prev.get("error_llm"),
+        )
 
     def set_from_llm(self, field_name: str, value: Optional[str], error: Optional[str] = None):
-        self.set_result(field_name, value, "llm", error)
+        prev = self.fields.get(field_name, {})
+        extracted = bool(value is not None and str(value).strip())
+        self.set_result(
+            field_name,
+            extracted=prev.get("extracted", False) or extracted,
+            value_temp=prev.get("value_temp"),
+            error_temp=prev.get("error_temp"),
+            value_llm=value,
+            error_llm=error,
+        )
 
     @staticmethod
     def load(path: Path) -> "ExtractionResult":
@@ -60,22 +98,27 @@ class ExtractionResult:
                 raise ValueError(f"Invalid extraction result file: {path}")
 
             result = ExtractionResult()
-            for field_name, field_value in data.items():
+            for field_name, field_data in data.items():
                 if not isinstance(field_name, str):
                     raise ValueError(f"Invalid field name in extraction result file: {path}")
 
-                if not isinstance(field_value, dict):
+                if not isinstance(field_data, dict):
                     raise ValueError(f"Invalid value in extraction result file: {path}")
 
-                raw_value = field_value.get("value")
-                raw_source = field_value.get("source")
-                raw_error = field_value.get("error")
+                extracted = bool(field_data.get("extracted", False))
+                value_temp = field_data.get("value_temp")
+                error_temp = field_data.get("error_temp")
+                value_llm = field_data.get("value_llm")
+                error_llm = field_data.get("error_llm")
 
-                value = raw_value if isinstance(raw_value, str) else None
-                source = raw_source if isinstance(raw_source, str) and raw_source in ("template", "llm") else None
-                error = raw_error if isinstance(raw_error, str) else None
-                result.set_result(field_name, value, source, error)
-
+                result.set_result(
+                    field_name,
+                    extracted=extracted,
+                    value_temp=value_temp if isinstance(value_temp, str) else None,
+                    error_temp=error_temp if isinstance(error_temp, str) else None,
+                    value_llm=value_llm if isinstance(value_llm, str) else None,
+                    error_llm=error_llm if isinstance(error_llm, str) else None,
+                )
             return result
 
     def save(self, path: Path):
@@ -84,7 +127,7 @@ class ExtractionResult:
 
 
 class Extractor(BaseModule):
-    """Извлечение RDF-термов (индивидуумы + литералы)."""
+    """Извлечение полей (индивидуумы + литералы)."""
 
     def __init__(self):
         super().__init__()
@@ -112,24 +155,25 @@ class Extractor(BaseModule):
             return ModuleResult.FAILED
 
     def _extract(self, document: Document, template: Template, uddm: UDDM) -> ExtractionResult:
-        if not template.fields:
-            template.fields = template.code.fields()
+        fields = template.get_fields()
+        if not fields:
+            raise ValueError("Can't get fields from template")
 
         result = ExtractionResult()
-        self._extract_fields_declarative(template, uddm, result)
+        self._extract_fields_declarative(fields, uddm, result)
 
-        missing_fields = [field for field in template.fields if result.get_value(field.name) is None]
+        missing_fields = [field for field in fields if not result.is_extracted(field.name)]
         if not missing_fields:
-            self._log_result(template, result)
+            self._log_result(result)
             return result
 
         self._extract_fields_llm(document, template, missing_fields, result)
-        self._log_result(template, result)
+        self._log_result(result)
         return result
 
-    def _extract_fields_declarative(self, template: Template, uddm: UDDM, result: ExtractionResult):
+    def _extract_fields_declarative(self, fields: List[Field], uddm: UDDM, result: ExtractionResult):
         """Первый уровень: Декларативное извлечение полей."""
-        for field in template.fields:
+        for field in fields:
             try:
                 text = field.selector._select(uddm)
                 if not text:
@@ -168,49 +212,45 @@ class Extractor(BaseModule):
             llm_raw = ask_gpt(user_prompt, system_prompt=system_prompt)
             llm_data = json.loads(llm_raw)
             if not isinstance(llm_data, dict):
-                raise ValueError("LLM ответ должен быть JSON-словарем")
+                raise ValueError("LLM response must be a dictionary")
 
             for field in missing_fields:
                 llm_value = llm_data.get(field.name)
                 if isinstance(llm_value, str) and llm_value.strip():
                     result.set_from_llm(field.name, llm_value.strip())
                 else:
-                    error = self._glue_errors(result.get_error(field.name), "LLM не смогла извлечь значение")
-                    result.set_result(field.name, None, None, error)
+                    result.set_from_llm(field.name, None, "LLM не смогла извлечь значение")
 
         except Exception:
-            self.log(WARNING, "LLM fallback failed", exc_info=True)
+            self.log(WARNING, "Unexpected error in LLM fallback", exc_info=True)
             for field in missing_fields:
-                if result.get_value(field.name) is None:
-                    error_text = self._glue_errors(
-                        result.get_error(field.name),
-                        "Непредвиденная ошибка при извлечении поля с помощью LLM"
-                    )
-                    result.set_result(field.name, None, None, error_text)
+                if not result.is_extracted(field.name):
+                    result.set_from_llm(field.name, None, "Непредвиденная ошибка при извлечении поля с помощью LLM")
 
-    def _log_result(self, template: Template, result: ExtractionResult):
-        if not template.fields:
-            return
+    def _log_result(self, result: ExtractionResult):
+        for field_name, field_data in result.fields.items():
+            field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
+            extracted = field_data.get("extracted", False)
+            value = field_data.get("value_llm") or field_data.get("value_temp")
+            value_temp = field_data.get("value_temp")
+            value_llm = field_data.get("value_llm")
+            error_temp = field_data.get("error_temp")
+            error_llm = field_data.get("error_llm")
 
-        for field in template.fields:
-            field_label = f"{field.name}:".ljust(LOG_ALIGN_WIDTH)
-            value = result.get_value(field.name)
-            source = result.get_source(field.name)
-            error = result.get_error(field.name)
-
-            if value is not None:
-                if source == "llm":
+            if extracted and value is not None:
+                if value_llm is not None:
                     self.log(INFO, f'{field_label} "{value}" (extracted by LLM)')
                 else:
                     self.log(INFO, f'{field_label} "{value}"')
             else:
-                source_label = f", source={source}" if source else ""
-                error_text = error or "value is missing"
-                self.log(WARNING, f"{field_label} None ({error_text}{source_label})")
+                err_parts = []
+                if error_temp:
+                    err_parts.append(f"template: {error_temp}")
+                if error_llm:
+                    err_parts.append(f"llm: {error_llm}")
+                if not err_parts:
+                    err_parts.append("value is missing")
 
-    def _glue_errors(self, prev_err: Optional[str], new_err: Optional[str]) -> Optional[str]:
-        if prev_err is None:
-            return new_err
-        if new_err is None:
-            return prev_err
-        return f"{prev_err}. {new_err}"
+                temp_part = f'temp="{value_temp}"' if value_temp is not None else "temp=null"
+                llm_part = f'llm="{value_llm}"' if value_llm is not None else "llm=null"
+                self.log(WARNING, f"{field_label} None ({'; '.join(err_parts)}; {temp_part}; {llm_part})")
