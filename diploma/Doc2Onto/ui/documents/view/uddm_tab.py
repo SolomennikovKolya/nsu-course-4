@@ -46,7 +46,7 @@ class DocumentViewUddmTab(QWidget):
         self._plain.clear()
         self._html.clear()
         self._tree.clear()
-        self._tabs.setCurrentIndex(0)
+        # self._tabs.setCurrentIndex(0)
 
         if document is None:
             self._tabs.setTabEnabled(0, False)

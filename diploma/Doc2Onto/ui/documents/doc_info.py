@@ -164,20 +164,24 @@ class DocumentInfoWidget(QWidget):
 
     @require_document
     def run_action(self, doc: Document):
-        self.pipeline.run(doc)
+        final_status = Document.Status.TRIPLES_BUILT
+        if doc.status == final_status:
+            final_status = Document.Status.ADDED_TO_MODEL
+
+        res = self.pipeline.run(doc, final_status)
         self.doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status, doc.failed_status)
+        self.status_widget.set_status(doc.status, res.failed_status)
         self.update_buttons()
         self.document_changed.emit()
 
     @require_document
     def restart_action(self, doc: Document):
         doc.status = Document.Status.UPLOADED
-        self.pipeline.run(doc, Document.Status.ADDED_TO_MODEL)
+        res = self.pipeline.run(doc, Document.Status.TRIPLES_BUILT)
         self.doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status, doc.failed_status)
+        self.status_widget.set_status(doc.status, res.failed_status)
         self.update_buttons()
         self.document_changed.emit()
 
@@ -222,9 +226,9 @@ class DocumentInfoWidget(QWidget):
 
         self.action_button.setEnabled(True)
 
-        if int(doc.status) <= int(Document.Status.CLASS_DETERMINED):
+        if doc.status == Document.Status.UPLOADED:
             self.action_button.setText("Запустить обработку")
-        elif doc.status == Document.Status.TERMS_VALIDATED:
+        elif doc.status == Document.Status.TRIPLES_BUILT:
             self.action_button.setText("Добавить в модель")
         else:
             self.action_button.setText("Продолжить обработку")

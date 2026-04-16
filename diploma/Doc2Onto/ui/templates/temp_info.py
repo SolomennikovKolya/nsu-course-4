@@ -264,7 +264,7 @@ class TemplateInfoWidget(QWidget):
         if text.strip():
             self.description_view.setMarkdown(text)
             return
-        self.description_view.setHtml("<i>Описание отсутствует.</i>")
+        self.description_view.setHtml("<i>Описание отсутствует</i>")
 
     def _set_description_edit_mode(self, is_edit_mode: bool):
         if is_edit_mode:
@@ -344,12 +344,12 @@ class TemplateInfoWidget(QWidget):
             shutil.copy2(source_path, temp_file_path)
 
             temp_doc = Document(name=source_path.name, directory=temp_dir)
-            result = pipeline.run(temp_doc, Document.Status.UDDM_EXTRACTED)
+            res = pipeline.run(temp_doc, Document.Status.UDDM_EXTRACTED)
             if int(temp_doc.status) < int(Document.Status.UDDM_EXTRACTED):
                 QMessageBox.warning(
                     self,
                     APP_NAME,
-                    f"Не удалось извлечь UDDM для выбранного файла (результат пайплайна: {result}).",
+                    f"Не удалось извлечь UDDM для выбранного файла (результат пайплайна: {res}).",
                 )
                 return ""
 

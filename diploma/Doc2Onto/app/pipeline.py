@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from enum import StrEnum
+from typing import Optional, Self
 
 from app.context import get_logger
 from core.document import Document
@@ -7,14 +7,29 @@ from modules import Converter, Classifier, Extractor, Validator, TripleBuilder, 
 from modules.base import BaseModule, ModuleResult
 
 
-class PipelineResult(StrEnum):
+@dataclass(frozen=True)
+class PipelineResult:
     """Результат выполнения пайплайна."""
 
-    OK = "ok"
-    FAILED = "failed"
+    OK = "OK"
+    FAILED = "FAILED"
 
-    def __int__(self):
-        return int(self.value == PipelineResult.OK)
+    success: bool
+    failed_status: Optional[Document.Status] = None
+
+    @classmethod
+    def ok(cls) -> Self:
+        return cls(success=True)
+
+    @classmethod
+    def failed(cls, status: Optional[Document.Status] = None) -> Self:
+        return cls(success=False, failed_status=status)
+
+    def __bool__(self) -> bool:
+        return self.success
+
+    def __str__(self) -> str:
+        return self.OK if self.success else self.FAILED
 
 
 class Pipeline:
@@ -91,7 +106,7 @@ class Pipeline:
 
         if int(document.status) >= int(final_stage):
             self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {document.status})")
-            return PipelineResult.OK
+            return PipelineResult.ok()
 
         for stage in self.stages:
             if document.status == stage.start_status:
@@ -105,11 +120,11 @@ class Pipeline:
                     document.failed_status = stage.target_status
                     self.logger.info(f"  Final status: {document.status}")
                     self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
-                    return PipelineResult.FAILED
+                    return PipelineResult.failed(stage.target_status)
 
             if int(document.status) >= int(final_stage):
                 break
 
         self.logger.info(f"  Final status: {document.status}")
         self.logger.info(f"[Pipeline] code: {PipelineResult.OK}")
-        return PipelineResult.OK
+        return PipelineResult.ok()

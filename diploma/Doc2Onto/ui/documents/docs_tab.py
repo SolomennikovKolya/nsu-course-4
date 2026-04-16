@@ -82,7 +82,7 @@ class DocumentsTab(QWidget):
 
             # Пытаемся извлечь UDDM сразу после загрузки
             res = self.pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
-            if res == PipelineResult.FAILED:
+            if not res:
                 self.doc_manager.delete(doc)
                 QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь данные из документа "{file_name}".')
                 continue
