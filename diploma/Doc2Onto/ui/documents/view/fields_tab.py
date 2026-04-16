@@ -26,6 +26,7 @@ class DocumentViewFieldsTab(QWidget):
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._list_widget = QWidget()
+        self._list_widget.setStyleSheet("background: transparent;")
         self._list_layout = QVBoxLayout(self._list_widget)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
         self._list_layout.setSpacing(6)
@@ -34,7 +35,9 @@ class DocumentViewFieldsTab(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         self._scroll.setWidget(self._list_widget)
+        self._scroll.viewport().setStyleSheet("background: transparent;")
 
         self._stack = QStackedLayout()
         self._stack.setContentsMargins(0, 0, 0, 0)
@@ -216,7 +219,7 @@ class FieldRowWidget(QFrame):
             QFrame#FieldRowWidget {
                 border: 1px solid #3a3a3a;
                 border-radius: 6px;
-                background: transparent;
+                background-color: #242424;
             }
             QFrame#FieldRowWidget QLabel {
                 border: none;
@@ -226,6 +229,18 @@ class FieldRowWidget(QFrame):
                 border: none;
                 background: transparent;
                 spacing: 6px;
+                color: #ffffff;
+            }
+            QFrame#FieldRowWidget QCheckBox::indicator {
+                width: 14px;
+                height: 14px;
+                border: 1px solid #bdbdbd;
+                border-radius: 3px;
+                background: transparent;
+            }
+            QFrame#FieldRowWidget QCheckBox::indicator:checked {
+                background: #ffffff;
+                border: 1px solid #ffffff;
             }
             QFrame#FieldRowWidget QLineEdit {
                 border: 1px solid #4a4a4a;
@@ -248,7 +263,7 @@ class FieldRowWidget(QFrame):
         if desc_html:
             title_html = (
                 f'<span style="font-weight:600;">{escape(self._name)}</span>'
-                f'<span style="color:{self._COLOR_GRAY};"> {desc_html}</span>'
+                f'<span style="color:{self._COLOR_GRAY};"> • {desc_html}</span>'
             )
         else:
             title_html = f'<span style="font-weight:600;">{escape(self._name)}</span>'
