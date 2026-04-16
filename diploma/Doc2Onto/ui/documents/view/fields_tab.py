@@ -1,3 +1,4 @@
+from html import escape
 from typing import Callable, Dict, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -6,8 +7,8 @@ from PySide6.QtWidgets import (
 )
 
 from core.document import Document
-from modules.extractor import ExtractionResult
-from modules.validator import ValidationResult
+from modules.extractor import ExtractionResult, FieldExtractionData
+from modules.validator import ValidationResult, FieldValidationData
 
 
 class DocumentViewFieldsTab(QWidget):
@@ -80,26 +81,43 @@ class DocumentViewFieldsTab(QWidget):
             self._show_empty("Не удалось загрузить поля из шаблона.")
             return True
 
-        has_rows = False
+        field_names_template = {field.name for field in fields}
+        field_names_extraction = set(extraction_res.fields.keys())
+        field_names_validation = set(validation_res.fields.keys())
+
+        if field_names_template != field_names_extraction:
+            self._show_empty(
+                f"Неконсистентность структур: поля шаблона не совпадают с результатами экстракции. "
+                f"В шаблоне: {sorted(field_names_template)}, в экстракции: {sorted(field_names_extraction)}. "
+                f"Перезапустите обработку."
+            )
+            return True
+
+        if field_names_template != field_names_validation:
+            self._show_empty(
+                f"Неконсистентность структур: поля шаблона не совпадают с результатами валидации. "
+                f"В шаблоне: {sorted(field_names_template)}, в валидации: {sorted(field_names_validation)}. "
+                f"Перезапустите обработку."
+            )
+            return True
 
         for field in fields:
             extraction_data = extraction_res.fields.get(field.name)
             validation_data = validation_res.fields.get(field.name)
 
             row = FieldRowWidget(
-                extraction_data,
-                validation_data,
+                parent=self._list_widget,
                 field_name=field.name,
                 field_description=field.description,
+                extraction_data=extraction_data,
+                validation_data=validation_data,
                 on_change=self._handle_row_change,
-                parent=self._list_widget,
             )
 
             self._rows[field.name] = row
             self._list_layout.insertWidget(self._list_layout.count() - 1, row)
-            has_rows = True
 
-        if has_rows:
+        if self._rows:
             self._stack.setCurrentWidget(self._scroll)
         else:
             self._show_empty("Поля отсутствуют.")
@@ -125,21 +143,11 @@ class DocumentViewFieldsTab(QWidget):
         self._rows = {}
         self._list_layout.addStretch()
 
-    def _handle_row_change(self, field_name: str, value: str, is_valid: bool):
+    def _handle_row_change(self, field_name: str, new_value: str, new_valid: bool):
         """Обработка изменения значения или флага валидности поля."""
         document = self._document
         if document is None:
             return
-
-        extraction_path = document.extraction_result_file_path()
-        if not extraction_path.exists():
-            self._show_empty("Результаты экстракции пока отсутствуют.")
-            return True
-        try:
-            extraction_res = ExtractionResult.load(extraction_path)
-        except Exception as exc:
-            self._show_empty(f"Не удалось прочитать результаты экстракции: {exc}")
-            return True
 
         validation_path = document.validation_result_file_path()
         if not validation_path.exists():
@@ -149,19 +157,14 @@ class DocumentViewFieldsTab(QWidget):
         except Exception:
             return
 
-        row = self._rows.get(field_name)
-        base_value = row.extracted_value() if row is not None else ""
-        normalized_value = value.strip()
-
-        if is_valid:
-            if normalized_value and normalized_value != base_value:
-                validation_res.set_corrected(field_name, normalized_value, "human")
+        if new_valid:
+            validation_res.set_valid_manual(field_name)
+            if new_value and new_value != validation_res.get_extracted_value(field_name):
+                validation_res.set_corrected_value_manual(field_name, new_value)
             else:
-                validation_res.set_valid(field_name)
+                validation_res.set_corrected_value_manual(field_name, None)
         else:
-            row = self._rows.get(field_name)
-            manual_error = row.error_text() if row is not None else None
-            validation_res.set_invalid(field_name, manual_error or "Поле отмечено пользователем как невалидное")
+            validation_res.set_invalid_manual(field_name)
 
         try:
             validation_res.save(validation_path)
@@ -170,111 +173,137 @@ class DocumentViewFieldsTab(QWidget):
 
 
 class FieldRowWidget(QFrame):
+    """Одна строка поля: заголовок, значение, поясняющая строка состояния."""
+
+    _COLOR_GREEN = "#66bb6a"
+    _COLOR_YELLOW = "#ffca28"
+    _COLOR_GRAY = "#9e9e9e"
+    _COLOR_RED = "#ef5350"
+
     def __init__(
         self,
-        extraction_data,
-        validation_data,
-        on_change: Callable[[str, str, bool], None],
-        *,
+        parent: QWidget,
         field_name: str,
-        field_description: Optional[str],
-        parent: Optional[QWidget] = None,
+        field_description: str,
+        extraction_data: FieldExtractionData,
+        validation_data: FieldValidationData,
+        on_change: Callable[[str, str, bool], None],
     ):
         super().__init__(parent)
-        extraction_dict = extraction_data if isinstance(extraction_data, dict) else {}
-        validation_dict = validation_data if isinstance(validation_data, dict) else {}
+        self.setObjectName("FieldRowWidget")
+        self.setFrameShape(QFrame.Shape.NoFrame)
 
         self._name = field_name
-        self._extracted_value = extraction_dict.get("value") if isinstance(extraction_dict.get("value"), str) else ""
         self._on_change = on_change
         self._is_updating = False
 
-        description = field_description if isinstance(field_description, str) else None
+        # --- Extraction (FieldExtractionData) ---
+        self._value_llm = extraction_data.get("value_llm") or ""
+        self._value_temp = extraction_data.get("value_temp") or ""
 
-        corrected_value = validation_dict.get("corrected_value")
-        displayed_value = corrected_value if isinstance(corrected_value, str) else self._extracted_value
-        is_valid = bool(validation_dict.get("valid", False))
+        # --- Validation snapshot ---
+        self._extracted_value = validation_data.get("extracted_value") or ""
+        self._val_err_temp = validation_data.get("error_temp")
+        self._corrected_value_llm = validation_data.get("corrected_value_llm") or ""
+        self._val_err_llm = validation_data.get("error_llm")
+        self._corrected_value_manual = validation_data.get("corrected_value_manual") or ""
 
-        error_text = validation_dict.get("error") or extraction_dict.get("error")
-        error_text = error_text if isinstance(error_text, str) else None
+        self._init_displayed_value = self._corrected_value_manual or self._corrected_value_llm or self._extracted_value or ""
+        is_valid = validation_data.get("valid")
 
-        extraction_source = extraction_dict.get("source")
-        extraction_source = extraction_source if isinstance(extraction_source, str) else None
-        correction_source = validation_dict.get("source")
-        correction_source = correction_source if isinstance(correction_source, str) else None
-
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet("QFrame { border: 1px solid #3a3a3a; border-radius: 6px; }")
+        self.setStyleSheet(
+            """
+            QFrame#FieldRowWidget {
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                background: transparent;
+            }
+            QFrame#FieldRowWidget QLabel {
+                border: none;
+                background: transparent;
+            }
+            QFrame#FieldRowWidget QCheckBox {
+                border: none;
+                background: transparent;
+                spacing: 6px;
+            }
+            QFrame#FieldRowWidget QLineEdit {
+                border: 1px solid #4a4a4a;
+                border-radius: 4px;
+                padding: 4px 6px;
+                background: #2a2a2a;
+            }
+            """
+        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(4)
+        layout.setSpacing(6)
 
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(6)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(8)
 
-        name_label = QLabel(self._name)
-        name_label.setStyleSheet("QLabel { font-weight: 600; }")
-        header_layout.addWidget(name_label)
-        header_layout.addStretch()
+        desc_html = escape(field_description) if field_description.strip() else ""
+        if desc_html:
+            title_html = (
+                f'<span style="font-weight:600;">{escape(self._name)}</span>'
+                f'<span style="color:{self._COLOR_GRAY};"> {desc_html}</span>'
+            )
+        else:
+            title_html = f'<span style="font-weight:600;">{escape(self._name)}</span>'
+
+        self._title_label = QLabel()
+        self._title_label.setTextFormat(Qt.TextFormat.RichText)
+        self._title_label.setText(title_html)
+        self._title_label.setWordWrap(False)
+        header.addWidget(self._title_label, stretch=1)
 
         self._valid_checkbox = QCheckBox("Валидно")
         self._valid_checkbox.setChecked(is_valid)
-        header_layout.addWidget(self._valid_checkbox)
-        layout.addLayout(header_layout)
-
-        if description:
-            description_label = QLabel(description)
-            description_label.setWordWrap(True)
-            description_label.setStyleSheet("QLabel { color: #9a9a9a; }")
-            layout.addWidget(description_label)
+        header.addWidget(self._valid_checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(header)
 
         self._value_edit = QLineEdit()
-        self._value_edit.setText(displayed_value)
+        self._value_edit.setText(self._init_displayed_value)
         self._value_edit.setPlaceholderText("Значение поля")
         layout.addWidget(self._value_edit)
 
-        sources_text = self._build_sources_text(extraction_source, correction_source)
-        self._sources_label = QLabel(sources_text)
-        self._sources_label.setStyleSheet("QLabel { color: #8a8a8a; }")
-        layout.addWidget(self._sources_label)
-
-        self._error_label = QLabel(error_text or "")
-        self._error_label.setWordWrap(True)
-        self._error_label.setStyleSheet("QLabel { color: #ff8a80; }")
-        layout.addWidget(self._error_label)
+        self._info_label = QLabel()
+        self._info_label.setTextFormat(Qt.TextFormat.RichText)
+        self._info_label.setWordWrap(True)
+        layout.addWidget(self._info_label)
 
         self._valid_checkbox.toggled.connect(self._emit_change)
         self._value_edit.textChanged.connect(self._emit_change)
-        self._update_error_visibility()
+        self._refresh_info_line()
 
-    def _build_sources_text(self, extraction_source: Optional[str], correction_source: Optional[str]) -> str:
-        markers = []
-        if extraction_source == "template":
-            markers.append("извлечено: шаблон")
-        elif extraction_source == "llm":
-            markers.append("извлечено: LLM")
+    def _refresh_info_line(self) -> None:
+        valid = self._valid_checkbox.isChecked()
 
-        if correction_source == "llm":
-            markers.append("исправлено: LLM")
-        elif correction_source == "human":
-            markers.append("исправлено: вручную")
-        return " | ".join(markers)
+        if valid:
+            if self._value_edit.text().strip() != self._init_displayed_value:
+                text = "Исправлено вручную"
+                color = self._COLOR_GREEN
+            elif self._corrected_value_llm:
+                text = "Исправлено LLM"
+                color = self._COLOR_YELLOW
+            else:
+                if self._value_llm:
+                    text = "Извлечено LLM"
+                    color = self._COLOR_YELLOW
+                else:
+                    text = "Извлечено шаблоном"
+                    color = self._COLOR_GREEN
+            self._info_label.setText(f'<span style="color:{color};">{escape(text)}</span>')
+        else:
+            parts = [p for p in (self._val_err_temp, self._val_err_llm) if p]
+            msg = ". ".join(parts) if parts else "Поле отмечено как невалидное"
+            self._info_label.setText(f'<span style="color:{self._COLOR_RED};">{escape(msg)}</span>')
 
     def _emit_change(self):
         if self._is_updating:
             return
-        self._update_error_visibility()
-        self._on_change(self._name, self._value_edit.text(), self._valid_checkbox.isChecked())
 
-    def _update_error_visibility(self):
-        show_error = (not self._valid_checkbox.isChecked()) and bool(self._error_label.text().strip())
-        self._error_label.setVisible(show_error)
-
-    def extracted_value(self) -> str:
-        return self._extracted_value
-
-    def error_text(self) -> Optional[str]:
-        text = self._error_label.text().strip()
-        return text or None
+        self._refresh_info_line()
+        self._on_change(self._name, self._value_edit.text().strip(), self._valid_checkbox.isChecked())

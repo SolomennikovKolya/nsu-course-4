@@ -51,13 +51,15 @@ class ExtractionResult:
         return self.fields.get(field_name, {}).get("error_llm")
 
     def set_result(
-            self, field_name: str,
+            self,
+            field_name: str,
             *,
-            extracted: bool,
+            extracted: bool = False,
             value_temp: Optional[str] = None,
             error_temp: Optional[str] = None,
             value_llm: Optional[str] = None,
-            error_llm: Optional[str] = None):
+            error_llm: Optional[str] = None
+    ):
         self.fields[field_name] = {
             "extracted": extracted,
             "value_temp": value_temp,
@@ -66,29 +68,33 @@ class ExtractionResult:
             "error_llm": error_llm,
         }
 
-    def set_from_template(self, field_name: str, value: Optional[str], error: Optional[str] = None):
-        prev = self.fields.get(field_name, {})
-        extracted = bool(value is not None and str(value).strip())
-        self.set_result(
-            field_name,
-            extracted=prev.get("extracted", False) or extracted,
-            value_temp=value,
-            error_temp=error,
-            value_llm=prev.get("value_llm"),
-            error_llm=prev.get("error_llm"),
-        )
+    def ensure_field(self, field_name: str):
+        if field_name in self.fields:
+            return
 
-    def set_from_llm(self, field_name: str, value: Optional[str], error: Optional[str] = None):
-        prev = self.fields.get(field_name, {})
-        extracted = bool(value is not None and str(value).strip())
-        self.set_result(
-            field_name,
-            extracted=prev.get("extracted", False) or extracted,
-            value_temp=prev.get("value_temp"),
-            error_temp=prev.get("error_temp"),
-            value_llm=value,
-            error_llm=error,
-        )
+        self.set_result(field_name)
+
+    def set_value_temp(self, field_name: str, value: str):
+        self.ensure_field(field_name)
+        self.fields[field_name]["extracted"] = True
+        self.fields[field_name]["value_temp"] = value
+        self.fields[field_name]["error_temp"] = None
+
+    def set_error_temp(self, field_name: str, error: str):
+        self.ensure_field(field_name)
+        self.fields[field_name]["value_temp"] = None
+        self.fields[field_name]["error_temp"] = error
+
+    def set_value_llm(self, field_name: str, value: str):
+        self.ensure_field(field_name)
+        self.fields[field_name]["extracted"] = True
+        self.fields[field_name]["value_llm"] = value
+        self.fields[field_name]["error_llm"] = None
+
+    def set_error_llm(self, field_name: str, error: str):
+        self.ensure_field(field_name)
+        self.fields[field_name]["value_llm"] = None
+        self.fields[field_name]["error_llm"] = error
 
     @staticmethod
     def load(path: Path) -> "ExtractionResult":
@@ -97,29 +103,29 @@ class ExtractionResult:
             if not isinstance(data, dict):
                 raise ValueError(f"Invalid extraction result file: {path}")
 
-            result = ExtractionResult()
-            for field_name, field_data in data.items():
-                if not isinstance(field_name, str):
-                    raise ValueError(f"Invalid field name in extraction result file: {path}")
+        result = ExtractionResult()
+        for field_name, field_data in data.items():
+            if not isinstance(field_name, str):
+                raise ValueError(f"Invalid field name in extraction result file: {path}")
 
-                if not isinstance(field_data, dict):
-                    raise ValueError(f"Invalid value in extraction result file: {path}")
+            if not isinstance(field_data, dict):
+                raise ValueError(f"Invalid value in extraction result file: {path}")
 
-                extracted = bool(field_data.get("extracted", False))
-                value_temp = field_data.get("value_temp")
-                error_temp = field_data.get("error_temp")
-                value_llm = field_data.get("value_llm")
-                error_llm = field_data.get("error_llm")
+            extracted = bool(field_data.get("extracted", False))
+            value_temp = field_data.get("value_temp")
+            error_temp = field_data.get("error_temp")
+            value_llm = field_data.get("value_llm")
+            error_llm = field_data.get("error_llm")
 
-                result.set_result(
-                    field_name,
-                    extracted=extracted,
-                    value_temp=value_temp if isinstance(value_temp, str) else None,
-                    error_temp=error_temp if isinstance(error_temp, str) else None,
-                    value_llm=value_llm if isinstance(value_llm, str) else None,
-                    error_llm=error_llm if isinstance(error_llm, str) else None,
-                )
-            return result
+            result.set_result(
+                field_name,
+                extracted=extracted,
+                value_temp=value_temp if isinstance(value_temp, str) else None,
+                error_temp=error_temp if isinstance(error_temp, str) else None,
+                value_llm=value_llm if isinstance(value_llm, str) else None,
+                error_llm=error_llm if isinstance(error_llm, str) else None,
+            )
+        return result
 
     def save(self, path: Path):
         with path.open("w", encoding="utf-8") as f:
@@ -177,18 +183,18 @@ class Extractor(BaseModule):
             try:
                 text = field.selector._select(uddm)
                 if not text:
-                    result.set_from_template(field.name, None, "Не удалось выделить текст с помощью селектора")
+                    result.set_error_temp(field.name, "Не удалось выделить текст с помощью селектора")
                     continue
 
                 value = field.extractor._extract(text)
                 if value is None:
-                    result.set_from_template(field.name, None, "Не удалось извлечь значение по правилам экстрактора")
+                    result.set_error_temp(field.name, "Не удалось извлечь значение по правилам экстрактора")
                     continue
 
-                result.set_from_template(field.name, value)
+                result.set_value_temp(field.name, value)
 
             except Exception:
-                result.set_from_template(field.name, None, "Ошибка извлечения поля декларативным методом")
+                result.set_error_temp(field.name, "Ошибка извлечения поля декларативным методом")
 
     def _extract_fields_llm(self, document: Document, template: Template, missing_fields: List[Field], result: ExtractionResult):
         """Второй уровень: Извлечение с использованием LLM."""
@@ -217,25 +223,26 @@ class Extractor(BaseModule):
             for field in missing_fields:
                 llm_value = llm_data.get(field.name)
                 if isinstance(llm_value, str) and llm_value.strip():
-                    result.set_from_llm(field.name, llm_value.strip())
+                    result.set_value_llm(field.name, llm_value.strip())
                 else:
-                    result.set_from_llm(field.name, None, "LLM не смогла извлечь значение")
+                    result.set_error_llm(field.name, "LLM не смогла извлечь значение")
 
         except Exception:
             self.log(WARNING, "Unexpected error in LLM fallback", exc_info=True)
             for field in missing_fields:
                 if not result.is_extracted(field.name):
-                    result.set_from_llm(field.name, None, "Непредвиденная ошибка при извлечении поля с помощью LLM")
+                    result.set_error_llm(field.name, "Непредвиденная ошибка при извлечении поля с помощью LLM")
 
     def _log_result(self, result: ExtractionResult):
-        for field_name, field_data in result.fields.items():
+        for field_name in result.fields.keys():
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
-            extracted = field_data.get("extracted", False)
-            value = field_data.get("value_llm") or field_data.get("value_temp")
-            value_temp = field_data.get("value_temp")
-            value_llm = field_data.get("value_llm")
-            error_temp = field_data.get("error_temp")
-            error_llm = field_data.get("error_llm")
+
+            extracted = result.is_extracted(field_name)
+            value = result.get_value(field_name)
+            value_temp = result.get_value_temp(field_name)
+            value_llm = result.get_value_llm(field_name)
+            error_temp = result.get_error_temp(field_name)
+            error_llm = result.get_error_llm(field_name)
 
             if extracted and value is not None:
                 if value_llm is not None:

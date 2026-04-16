@@ -62,39 +62,3 @@ class UDDMToTree(BaseReverseConverter):
                     for k, b in enumerate(cell.blocks):
                         last = k == len(cell.blocks) - 1
                         self._walk_block(lines, b, cell_prefix, last)
-
-
-# class UDDMToTree(BaseReverseConverter):
-
-#     def convert(self, uddm: UDDM) -> str:
-#         """Преобразует UDDM в древовидное представление."""
-#         lines: List[str] = []
-
-#         for b in uddm.root:
-#             self._walk_block(lines, b)
-
-#         return "\n".join(lines)
-
-#     def _walk_block(self, lines: List[str], block: Block, indent=0):
-#         prefix = "  " * indent
-
-#         if isinstance(block, Text):
-#             lines.append(f"{prefix}TEXT")
-#             for p in block.paragraphs:
-#                 lines.append(f"{prefix}  p: {p.text}")
-
-#         elif isinstance(block, ListBlock):
-#             lines.append(f"{prefix}LIST")
-#             for item in block.items:
-#                 lines.append(f"{prefix}  ITEM")
-#                 for b in item.blocks:
-#                     self._walk_block(lines, b, indent + 2)
-
-#         elif isinstance(block, Table):
-#             lines.append(f"{prefix}TABLE")
-#             for row in block.rows:
-#                 lines.append(f"{prefix}  ROW")
-#                 for cell in row.cells:
-#                     lines.append(f"{prefix}    CELL")
-#                     for b in cell.blocks:
-#                         self._walk_block(lines, b, indent + 3)
