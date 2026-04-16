@@ -56,12 +56,12 @@ class DocumentViewFieldsTab(QWidget):
         self._clear_rows()
 
         if document is None or document.template is None:
-            self._show_empty("Выберите класс документа и запустите обработку.")
+            self._show_empty("Выберите класс документа и запустите обработку")
             return True
 
         extraction_path = document.extraction_result_file_path()
         if not extraction_path.exists():
-            self._show_empty("Результаты экстракции пока отсутствуют.")
+            self._show_empty("Результаты экстракции пока отсутствуют")
             return True
         try:
             extraction_res = ExtractionResult.load(extraction_path)
@@ -71,7 +71,7 @@ class DocumentViewFieldsTab(QWidget):
 
         validation_path = document.validation_result_file_path()
         if not validation_path.exists():
-            self._show_empty("Результаты валидации пока отсутствуют.")
+            self._show_empty("Результаты валидации пока отсутствуют")
             return True
         try:
             validation_res = ValidationResult.load(validation_path)
@@ -81,7 +81,7 @@ class DocumentViewFieldsTab(QWidget):
 
         fields = document.template.get_fields()
         if not fields:
-            self._show_empty("Не удалось загрузить поля из шаблона.")
+            self._show_empty("Не удалось загрузить поля из шаблона")
             return True
 
         field_names_template = {field.name for field in fields}
@@ -92,7 +92,7 @@ class DocumentViewFieldsTab(QWidget):
             self._show_empty(
                 f"Неконсистентность структур: поля шаблона не совпадают с результатами экстракции. "
                 f"В шаблоне: {sorted(field_names_template)}, в экстракции: {sorted(field_names_extraction)}. "
-                f"Перезапустите обработку."
+                f"Перезапустите обработку"
             )
             return True
 
@@ -100,7 +100,7 @@ class DocumentViewFieldsTab(QWidget):
             self._show_empty(
                 f"Неконсистентность структур: поля шаблона не совпадают с результатами валидации. "
                 f"В шаблоне: {sorted(field_names_template)}, в валидации: {sorted(field_names_validation)}. "
-                f"Перезапустите обработку."
+                f"Перезапустите обработку"
             )
             return True
 
@@ -123,7 +123,7 @@ class DocumentViewFieldsTab(QWidget):
         if self._rows:
             self._stack.setCurrentWidget(self._scroll)
         else:
-            self._show_empty("Поля отсутствуют.")
+            self._show_empty("Поля отсутствуют")
         return True
 
     def _show_empty(self, message: str):

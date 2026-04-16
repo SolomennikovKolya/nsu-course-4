@@ -89,7 +89,6 @@ class TemplateInfoWidget(QWidget):
         empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         empty_layout.addWidget(empty_label)
-        empty_layout.addStretch()
         return page
 
     def _build_detail_page(self) -> QWidget:

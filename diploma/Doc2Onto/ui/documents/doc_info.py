@@ -46,8 +46,6 @@ class DocumentInfoWidget(QWidget):
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         empty_layout.addWidget(self.empty_label)
-        empty_layout.addStretch()
-
         return self.page_empty
 
     def build_document_page(self) -> QWidget:
