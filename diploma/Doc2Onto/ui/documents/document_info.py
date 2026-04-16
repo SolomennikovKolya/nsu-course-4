@@ -113,6 +113,7 @@ class DocumentInfoWidget(QWidget):
         return self.page_document
 
     def set_document(self, document: Optional[Document]):
+        """Установка документа в виджет."""
         self.document = document
         self.document_view.set_document(document)
 
