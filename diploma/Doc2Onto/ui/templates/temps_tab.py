@@ -25,26 +25,26 @@ class TemplatesTab(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.temp_manager = get_temp_manager()
-        self.templates_cache: list[Template] = []
+        self._temp_manager = get_temp_manager()
+        self._temps_cache: list[Template] = []
 
         # --- Список шаблонов ---
-        self.add_button = QPushButton("Добавить шаблон")
-        self.list_widget = QListWidget()
+        add_button = QPushButton("Добавить шаблон")
+        self._list = QListWidget()
 
-        left_widget = QWidget()
-        left_widget.setMinimumWidth(250)
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.addWidget(self.add_button)
-        left_layout.addWidget(self.list_widget)
+        list_widget = QWidget()
+        list_widget.setMinimumWidth(250)
+        list_layout = QVBoxLayout(list_widget)
+        list_layout.addWidget(add_button)
+        list_layout.addWidget(self._list)
 
         # --- Информация о шаблоне ---
-        self.info_widget = TemplateInfoWidget()
+        self._info_widget = TemplateInfoWidget()
 
         # --- Основной макет ---
         splitter = QSplitter()
-        splitter.addWidget(left_widget)
-        splitter.addWidget(self.info_widget)
+        splitter.addWidget(list_widget)
+        splitter.addWidget(self._info_widget)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([300, 900])
@@ -53,20 +53,14 @@ class TemplatesTab(QWidget):
         main_layout.addWidget(splitter)
 
         # --- Сигналы ---
-        self.add_button.clicked.connect(self.add_template)
-        self.list_widget.itemSelectionChanged.connect(self.update_info)
-        self.info_widget.template_name_changed.connect(self.on_template_name_changed)
-        self.info_widget.template_deleted.connect(self.on_template_deleted)
+        add_button.clicked.connect(self._on_temp_added)
+        self._list.itemSelectionChanged.connect(self._on_temp_selection_changed)
+        self._info_widget.template_name_changed.connect(self._on_temp_name_changed)
+        self._info_widget.template_deleted.connect(self._on_temp_deleted)
 
-        self.refresh_templates_list()
+        self._refresh_list()
 
-    def refresh_templates_list(self):
-        self.list_widget.clear()
-        self.templates_cache = self.temp_manager.list()
-        for t in self.templates_cache:
-            self.list_widget.addItem(t.name)
-
-    def add_template(self):
+    def _on_temp_added(self):
         name, ok = QInputDialog.getText(self, APP_NAME, "Название шаблона:")
         if not ok:
             return
@@ -75,44 +69,53 @@ class TemplatesTab(QWidget):
         if not name:
             return
 
-        if name in self.temp_manager.doc_classes_list():
+        if name in self._temp_manager.doc_classes_list():
             QMessageBox.critical(self, APP_NAME, "Шаблон с таким именем уже существует.")
             return
 
-        t = self.temp_manager.add(name)
-        self.refresh_templates_list()
-        self.select_template_by_name(t.name)
+        temp = self._temp_manager.add(name)
+        self._refresh_list()
+        self._select_temp_by_name(temp.name)
         self.templates_changed.emit()
 
-    def get_selected_template(self) -> Optional[Template]:
-        row = self.list_widget.currentRow()
-        if 0 <= row < len(self.templates_cache):
-            return self.templates_cache[row]
+    def _refresh_list(self):
+        self._list.clear()
+        self._temps_cache = self._temp_manager.list()
+        for temp in self._temps_cache:
+            self._list.addItem(temp.name)
+
+    def _on_temp_selection_changed(self):
+        temp = self._get_selected_temp()
+        if temp is None:
+            self._info_widget.set_template(None)
+            return
+
+        self._info_widget.set_template(temp)
+
+    def _get_selected_temp(self) -> Optional[Template]:
+        row = self._list.currentRow()
+        if 0 <= row < len(self._temps_cache):
+            return self._temps_cache[row]
+
         return None
 
-    def update_info(self):
-        t = self.get_selected_template()
-        if t is None:
-            self.info_widget.set_template(None)
-            return
-        self.info_widget.set_template(t)
-
-    def select_template_by_name(self, name: str):
-        """Устанавливает выбранный шаблон списка шаблонов по имени."""
-        for i in range(self.list_widget.count()):
-            if self.list_widget.item(i).text() == name:
-                self.list_widget.setCurrentRow(i)
-                return
-
-    def on_template_name_changed(self):
-        name = self.info_widget.current_template_name()
-        self.refresh_templates_list()
+    def _on_temp_name_changed(self):
+        name = self._info_widget.current_template_name()
+        self._refresh_list()
         if name:
-            self.select_template_by_name(name)
+            self._select_temp_by_name(name)
+
         self.templates_changed.emit()
 
-    def on_template_deleted(self):
-        self.refresh_templates_list()
-        self.list_widget.clearSelection()
-        self.info_widget.set_template(None)
+    def _select_temp_by_name(self, name: str):
+        """Устанавливает выбранный шаблон списка шаблонов по имени."""
+        for i in range(self._list.count()):
+            if self._list.item(i).text() == name:
+                self._list.setCurrentRow(i)
+                return
+
+    def _on_temp_deleted(self):
+        self._refresh_list()
+        self._list.clearSelection()
+        self._info_widget.set_template(None)
         self.templates_changed.emit()

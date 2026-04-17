@@ -90,7 +90,7 @@ class DocumentsTab(QWidget):
         main_layout.addWidget(splitter)
 
         # --- Сигналы ---
-        self._upload_btn.clicked.connect(self._on_upload_doc)
+        self._upload_btn.clicked.connect(self._on_doc_upload)
         self._tree.itemSelectionChanged.connect(self._on_doc_selection_changed)
         self._info_widget.document_changed.connect(self._on_doc_info_changed)
         self._info_widget.document_deleted.connect(self._on_doc_deleted)
@@ -98,7 +98,7 @@ class DocumentsTab(QWidget):
         self._load_docs_cache()
         self._refresh_tree()
 
-    def _on_upload_doc(self):
+    def _on_doc_upload(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, "Выберите документы")
         if not file_paths:
             return
@@ -134,10 +134,10 @@ class DocumentsTab(QWidget):
             self._refresh_tree()
 
     def _on_doc_selection_changed(self):
-        doc = self._get_selected_document()
+        doc = self._get_selected_doc()
         self._info_widget.set_document(doc)
 
-    def _get_selected_document(self) -> Optional[Document]:
+    def _get_selected_doc(self) -> Optional[Document]:
         item = self._tree.currentItem()
         if not item:
             return None
