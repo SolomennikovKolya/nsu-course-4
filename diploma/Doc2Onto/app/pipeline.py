@@ -66,18 +66,18 @@ class Pipeline:
             Pipeline.Stage(
                 name="terms_extraction",
                 start_status=Document.Status.CLASS_DETERMINED,
-                target_status=Document.Status.TERMS_EXTRACTED,
+                target_status=Document.Status.FIELDS_EXTRACTED,
                 module=Extractor()
             ),
             Pipeline.Stage(
                 name="validation",
-                start_status=Document.Status.TERMS_EXTRACTED,
-                target_status=Document.Status.TERMS_VALIDATED,
+                start_status=Document.Status.FIELDS_EXTRACTED,
+                target_status=Document.Status.FIELDS_VALIDATED,
                 module=Validator()
             ),
             Pipeline.Stage(
                 name="triple_building",
-                start_status=Document.Status.TERMS_VALIDATED,
+                start_status=Document.Status.FIELDS_VALIDATED,
                 target_status=Document.Status.TRIPLES_BUILT,
                 module=TripleBuilder()
             ),
@@ -101,8 +101,6 @@ class Pipeline:
         self.logger.info(f"[Pipeline] started")
         self.logger.info(f'  Document: "{document.name}"')
         self.logger.info(f"  Target status: {document.status} -> {final_stage}")
-
-        document.failed_status = None
 
         if int(document.status) >= int(final_stage):
             self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {document.status})")

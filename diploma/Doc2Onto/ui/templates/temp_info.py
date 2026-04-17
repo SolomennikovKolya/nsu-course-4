@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.context import get_doc_manager, get_pipeline, get_temp_manager
-from app.openai import ask_gpt, read_prompt
+from app.agents import ask_gpt, read_prompt
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
     GENERATE_DESCR_SYS_PROMPT_PATH,

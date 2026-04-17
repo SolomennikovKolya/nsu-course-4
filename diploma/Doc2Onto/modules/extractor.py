@@ -3,7 +3,7 @@ from logging import WARNING, INFO
 from typing import Dict, Optional, TypedDict, List
 from pathlib import Path
 
-from app.openai import ask_gpt, read_prompt
+from app.agents import ask_gpt, read_prompt
 from app.settings import EXTRACT_FIELDS_SYS_PROMPT_PATH, EXTRACT_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from modules.base import BaseModule, ModuleResult
 from core.document import Document
@@ -82,6 +82,7 @@ class ExtractionResult:
 
     def set_error_temp(self, field_name: str, error: str):
         self.ensure_field(field_name)
+        self.fields[field_name]["extracted"] = False
         self.fields[field_name]["value_temp"] = None
         self.fields[field_name]["error_temp"] = error
 
@@ -93,6 +94,7 @@ class ExtractionResult:
 
     def set_error_llm(self, field_name: str, error: str):
         self.ensure_field(field_name)
+        self.fields[field_name]["extracted"] = False
         self.fields[field_name]["value_llm"] = None
         self.fields[field_name]["error_llm"] = error
 
@@ -140,7 +142,8 @@ class Extractor(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            if not document.uddm:
+            uddm = UDDM.load(document.uddm_file_path())
+            if not uddm:
                 self.log(WARNING, f"No UDDM found")
                 return ModuleResult.FAILED
 
@@ -152,7 +155,7 @@ class Extractor(BaseModule):
                 self.log(WARNING, f"Template {document.template.name} has no code")
                 return ModuleResult.FAILED
 
-            extraction_result = self._extract(document, document.template, document.uddm)
+            extraction_result = self._extract(document, document.template, uddm)
             extraction_result.save(document.extraction_result_file_path())
             return ModuleResult.OK
 
@@ -199,21 +202,19 @@ class Extractor(BaseModule):
     def _extract_fields_llm(self, document: Document, template: Template, missing_fields: List[Field], result: ExtractionResult):
         """Второй уровень: Извлечение с использованием LLM."""
         try:
+            system_prompt = read_prompt(EXTRACT_FIELDS_SYS_PROMPT_PATH)
+
             uddm_text = document.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
-            plain_text = document.plain_text_file_path().read_text(encoding="utf-8", errors="strict")
             fields_desc = "\n".join(
                 f'- "{field.name}": {field.description}'
                 for field in missing_fields
             )
-
             user_prompt = read_prompt(
                 EXTRACT_FIELDS_USER_PROMPT_PATH,
-                document_uddm=uddm_text,
-                document_text=plain_text,
+                document_text=uddm_text,
                 template_description=template.description or "",
                 fields=fields_desc,
             )
-            system_prompt = read_prompt(EXTRACT_FIELDS_SYS_PROMPT_PATH)
 
             llm_raw = ask_gpt(user_prompt, system_prompt=system_prompt)
             llm_data = json.loads(llm_raw)

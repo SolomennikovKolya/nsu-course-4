@@ -3,7 +3,7 @@ from logging import WARNING, INFO
 from typing import Dict, Optional, TypedDict, List
 from pathlib import Path
 
-from app.openai import ask_gpt, read_prompt
+from app.agents import ask_gpt, read_prompt
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from core.document import Document
 from core.template.template import Template, Field
@@ -86,6 +86,7 @@ class ValidationResult:
 
     def set_invalid_temp(self, field_name: str, error: str):
         self.ensure_field(field_name)
+        self.fields[field_name]["valid"] = False
         self.fields[field_name]["error_temp"] = error
 
     def set_valid_llm(self, field_name: str):
@@ -95,6 +96,7 @@ class ValidationResult:
 
     def set_invalid_llm(self, field_name: str, error: str):
         self.ensure_field(field_name)
+        self.fields[field_name]["valid"] = False
         self.fields[field_name]["error_llm"] = error
 
     def set_llm_corrected(self, field_name: str, corrected_value: str):
@@ -248,10 +250,10 @@ class Validator(BaseModule):
         try:
             system_prompt = read_prompt(VALIDATE_FIELDS_SYS_PROMPT_PATH)
 
-            plain_text = document.plain_text_file_path().read_text(encoding="utf-8", errors="strict")
+            uddm_text = document.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
             user_prompt = read_prompt(
                 VALIDATE_FIELDS_USER_PROMPT_PATH,
-                document_text=plain_text,
+                document_text=uddm_text,
                 fields=json.dumps(hard_validation, ensure_ascii=False, indent=2),
             )
 
@@ -268,8 +270,7 @@ class Validator(BaseModule):
                 if status is None:
                     continue
 
-                hard_valid = hard_validation.get(field_name, {}).get("valid", False)
-                self._apply_llm_field_result(result, field_name, status, corrected_value, error, hard_valid)
+                self._apply_llm_field_result(result, field_name, status, corrected_value, error)
 
         except Exception:
             self.log(WARNING, "LLM validation level failed", exc_info=True)
@@ -279,7 +280,7 @@ class Validator(BaseModule):
         if status not in ("valid", "corrected", "invalid"):
             return None, None, None
 
-        raw_value = raw.get("value")
+        raw_value = raw.get("corrected_value")
         corrected_value = raw_value.strip() if isinstance(raw_value, str) and raw_value.strip() else None
 
         raw_error = raw.get("error")
@@ -288,13 +289,12 @@ class Validator(BaseModule):
 
     def _apply_llm_field_result(
             self, result: ValidationResult, field_name: str,
-            status: str, corrected_value: Optional[str], error: Optional[str],
-            hard_valid: bool
+            status: str, corrected_value: Optional[str], error: Optional[str]
     ):
         if status == "valid":
-            # Не исправляем валидность, если поле не было валидно изначально
-            if hard_valid:
-                result.set_valid_llm(field_name)
+            # Если поле было валидно изначально, то оставляем его валидным
+            # Если поле было невалидно изначально, то оставляем его невалидным (так как LLM не смог исправить его, но вернул status=valid)
+            pass
         elif status == "corrected":
             if corrected_value is None:
                 result.set_invalid_llm(field_name, error or "LLM вернул status=corrected без значения")

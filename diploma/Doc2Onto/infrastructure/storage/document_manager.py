@@ -5,7 +5,6 @@ from typing import Optional, Tuple
 from app.context import get_temp_manager, get_logger
 from app.settings import DOCUMENTS_BASE_DIR
 from core.document import Document
-from core.uddm.model import UDDM
 from infrastructure.storage.base_manager import BaseManager
 
 
@@ -44,15 +43,6 @@ class DocumentManager(BaseManager[Document, Path]):
             status=Document.Status(meta.get("status", Document.Status.UPLOADED)),
             doc_class=meta.get("doc_class")
         )
-
-        # Загрузка UDDM
-        if doc.uddm_file_path().exists():
-            try:
-                doc.uddm = UDDM.load(doc.uddm_file_path())
-            except Exception as e:
-                doc.status = max(doc.status, Document.Status.UPLOADED)
-                get_logger().error(
-                    f"[DocumentManager] Cannot load UDDM for document {doc.name}", exc_info=True)
 
         # Загрузка шаблона
         if doc.doc_class:

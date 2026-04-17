@@ -56,13 +56,13 @@ class Converter(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            document.uddm = self._convert(document.original_file_path())
-            document.uddm.save(document.uddm_file_path())
+            uddm = self._convert(document.original_file_path())
+            uddm.save(document.uddm_file_path())
 
             # Различные визуальные представления UDDM
-            UDDMToText().save(document.uddm, document.directory / "plain_text.txt")
-            UDDMToHTML().save(document.uddm, document.directory / "uddm_html_view.html")
-            UDDMToTree().save(document.uddm, document.directory / "uddm_tree_view.txt")
+            UDDMToText().save(uddm, document.directory / "plain_text.txt")
+            UDDMToHTML().save(uddm, document.directory / "uddm_html_view.html")
+            UDDMToTree().save(uddm, document.directory / "uddm_tree_view.txt")
 
             return ModuleResult.OK
 

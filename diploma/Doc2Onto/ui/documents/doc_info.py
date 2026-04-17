@@ -1,8 +1,8 @@
 from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton,
-    QMessageBox, QStackedLayout, QSizePolicy
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox,
+    QPushButton, QMessageBox, QStackedLayout, QSizePolicy
 )
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
@@ -160,6 +160,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status)
         self.update_buttons()
+        self.document_view.set_document(doc)
         self.document_changed.emit()
 
     @require_document
@@ -173,6 +174,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status, res.failed_status)
         self.update_buttons()
+        self.document_view.set_document(doc)
         self.document_changed.emit()
 
     @require_document
@@ -183,6 +185,7 @@ class DocumentInfoWidget(QWidget):
 
         self.status_widget.set_status(doc.status, res.failed_status)
         self.update_buttons()
+        self.document_view.set_document(doc)
         self.document_changed.emit()
 
     @require_document

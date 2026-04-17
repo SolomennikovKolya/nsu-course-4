@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
-from ui.documents.docs_tab import DocumentsTab
+from ui.documents.main_tab import DocumentsTab
 from ui.templates.temps_tab import TemplatesTab
 
 
@@ -13,20 +13,20 @@ class MainWindow(QMainWindow):
         self.resize(900, 600)
 
         # Вкладки
-        self.tabs = QTabWidget()
+        self._tabs = QTabWidget()
 
-        self.documents_tab = DocumentsTab()
-        self.tabs.addTab(self.documents_tab, "Документы")
+        self._docs_tab = DocumentsTab()
+        self._tabs.addTab(self._docs_tab, "Документы")
 
-        self.templates_tab = TemplatesTab()
-        self.tabs.addTab(self.templates_tab, "Шаблоны")
+        self._temps_tab = TemplatesTab()
+        self._tabs.addTab(self._temps_tab, "Шаблоны")
 
-        self.setCentralWidget(self.tabs)
+        self.setCentralWidget(self._tabs)
 
         # Сигналы
-        self.tabs.currentChanged.connect(self.on_tab_changed)
-        self.templates_tab.templates_changed.connect(self.documents_tab.refresh_templates)
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+        self._temps_tab.templates_changed.connect(self._docs_tab.refresh_templates)
 
-    def on_tab_changed(self, index):
-        if self.tabs.widget(index) is self.documents_tab:
-            self.documents_tab.refresh_templates()
+    def _on_tab_changed(self, index):
+        if self._tabs.widget(index) is self._docs_tab:
+            self._docs_tab.refresh_templates()
