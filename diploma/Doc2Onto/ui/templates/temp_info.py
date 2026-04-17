@@ -21,17 +21,12 @@ from app.settings import (
     GENERATE_TEMP_USER_PROMPT_PATH,
     TEMPLATE_CODE_EXAMPLE_PATH,
 )
-from app.utils import require_attribute
 from core.document import Document
 from core.template.template import Template
 from infrastructure.storage.template_loader import TemplateLoader
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
-
-
-def require_template(method):
-    """Проверяет наличие шаблона перед выполнением метода."""
-    return require_attribute("template")(method)
+from ui.common.design import DELETE_BUTTON_STYLE
 
 
 def _open_template_code_in_editor(code_path: Path):
@@ -166,12 +161,7 @@ class TemplateInfoWidget(QWidget):
 
         self.delete_btn = QPushButton("Удалить шаблон")
         self.delete_btn.setMaximumWidth(140)
-        self.delete_btn.setStyleSheet("""
-        QPushButton:hover {
-            background-color: #d32f2f;
-            color: white;
-        }
-        """)
+        self.delete_btn.setStyleSheet(DELETE_BUTTON_STYLE)
         self.delete_btn.clicked.connect(self._on_delete_template)
 
         actions_layout.addWidget(self.edit_btn)
@@ -193,9 +183,8 @@ class TemplateInfoWidget(QWidget):
 
         return page
 
-    @require_template
-    def current_template_name(self, template: Template) -> Optional[str]:
-        return template.name
+    def current_template_name(self) -> Optional[str]:
+        return self.template.name if self.template else None
 
     def set_template(self, template: Optional[Template]):
         self.template = template
@@ -224,6 +213,7 @@ class TemplateInfoWidget(QWidget):
         except OSError as exc:
             self.code_preview.setHtml(plain_message_to_preview_html(f"(не удалось прочитать code.py: {exc})"))
             return
+
         self.code_preview.setHtml(python_code_to_preview_html(source))
 
     def _on_template_name_committed(self, new_name: str):
@@ -248,13 +238,13 @@ class TemplateInfoWidget(QWidget):
             self.title.set_value(self.template.name)
 
     def _on_description_changed(self):
-        if self._loading_fields or self.template is None:
-            return
-        self._desc_timer.start(400)
+        if not self._loading_fields and self.template:
+            self._desc_timer.start(400)
 
     def _flush_description(self):
         if self.template is None:
             return
+
         text = self.description_edit.toPlainText().strip()
         self.template.description = text if text else None
         self.temp_manager.save_metadata(self.template)
@@ -263,24 +253,24 @@ class TemplateInfoWidget(QWidget):
     def _render_description_markdown(self, text: str):
         if text.strip():
             self.description_view.setMarkdown(text)
-            return
-        self.description_view.setHtml("<i>Описание отсутствует</i>")
+        else:
+            self.description_view.setHtml("<i>Описание отсутствует</i>")
 
     def _set_description_edit_mode(self, is_edit_mode: bool):
         if is_edit_mode:
             self.description_stack.setCurrentWidget(self.description_edit)
             self.toggle_description_mode_btn.setText("Завершить редактирование")
-            return
-        self.description_stack.setCurrentWidget(self.description_view)
-        self.toggle_description_mode_btn.setText("Редактировать описание")
+        else:
+            self.description_stack.setCurrentWidget(self.description_view)
+            self.toggle_description_mode_btn.setText("Редактировать описание")
 
     def _on_toggle_description_mode(self):
         is_edit_mode = self.description_stack.currentWidget() is self.description_edit
         if is_edit_mode:
             self._flush_description()
             self._set_description_edit_mode(False)
-            return
-        self._set_description_edit_mode(True)
+        else:
+            self._set_description_edit_mode(True)
 
     def _choose_example_document(self) -> Optional[Document]:
         """Выбирает пример документа с UDDM-представлением."""
@@ -364,8 +354,11 @@ class TemplateInfoWidget(QWidget):
                 QMessageBox.warning(self, APP_NAME, f"Не удалось прочитать UDDM tree view: {exc}")
                 return ""
 
-    @require_template
-    def _on_generate_description(self, template: Template):
+    def _on_generate_description(self):
+        temp = self.template
+        if temp is None:
+            return
+
         example_doc = self._choose_example_document()
         if example_doc is None:
             return
@@ -375,7 +368,7 @@ class TemplateInfoWidget(QWidget):
         system_prompt = read_prompt(GENERATE_DESCR_SYS_PROMPT_PATH)
         user_prompt = read_prompt(
             GENERATE_DESCR_USER_PROMPT_PATH,
-            template_name=template.name,
+            template_name=temp.name,
             document_example=example_text,
             # unfilled_document=unfilled_document_text,
         )
@@ -386,7 +379,7 @@ class TemplateInfoWidget(QWidget):
             if not description:
                 raise RuntimeError("Модель вернула пустое описание")
 
-            template.description = description
+            temp.description = description
             self.description_edit.setPlainText(description)
             self._flush_description()
             QMessageBox.information(self, APP_NAME, "Описание шаблона сгенерировано.")
@@ -395,9 +388,12 @@ class TemplateInfoWidget(QWidget):
         finally:
             self.generate_description_btn.setEnabled(True)
 
-    @require_template
-    def _on_generate_template_code(self, template: Template):
-        description = (template.description or "").strip()
+    def _on_generate_template_code(self):
+        temp = self.template
+        if temp is None:
+            return
+
+        description = (temp.description or "").strip()
         if not description:
             QMessageBox.warning(self, APP_NAME, "Сначала заполните описание шаблона.")
             return
@@ -427,11 +423,11 @@ class TemplateInfoWidget(QWidget):
             if not generated_code:
                 raise RuntimeError("Модель вернула пустой код")
 
-            code_path = template.code_file_path()
+            code_path = temp.code_file_path()
             code_path.write_text(generated_code + "\n", encoding="utf-8")
-            template.code = TemplateLoader.load(template)
+            temp.code = TemplateLoader.load(temp)
 
-            self._set_code_preview(template)
+            self._set_code_preview(temp)
             QMessageBox.information(self, APP_NAME, "Код шаблона успешно сгенерирован.")
         except Exception as e:
             QMessageBox.warning(self, APP_NAME, f"Не удалось сгенерировать код шаблона: {e}")
@@ -441,10 +437,12 @@ class TemplateInfoWidget(QWidget):
     def _on_edit_code(self):
         if self.template is None:
             return
+
         path = self.template.code_file_path()
         if not path.exists():
             QMessageBox.warning(self, APP_NAME, "Ошибка редактирования шаблона: файл code.py не найден.")
             return
+
         _open_template_code_in_editor(path)
 
     def _on_validate_template(self):
@@ -470,6 +468,7 @@ class TemplateInfoWidget(QWidget):
     def _on_delete_template(self):
         if self.template is None:
             return
+
         reply = QMessageBox.question(
             self,
             APP_NAME,
@@ -478,6 +477,7 @@ class TemplateInfoWidget(QWidget):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
+
         t = self.template
         self.temp_manager.delete(t)
         self.template = None

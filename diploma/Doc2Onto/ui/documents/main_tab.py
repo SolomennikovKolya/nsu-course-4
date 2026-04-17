@@ -59,7 +59,6 @@ class DocumentsTab(QWidget):
 
     def __init__(self):
         super().__init__()
-
         self._pipeline = get_pipeline()
         self._doc_manager = get_doc_manager()
         self._docs_cache = DocumentsCache()
@@ -146,13 +145,14 @@ class DocumentsTab(QWidget):
         doc = item.data(0, Qt.ItemDataRole.UserRole)
         return doc
 
-    def _on_doc_info_changed(self):
-        doc = self._info_widget.document
+    def _on_doc_info_changed(self, doc: Document):
         if doc is not None:
             self._docs_cache.add_or_update(doc)
-        self._refresh_tree()
 
-    def _refresh_tree(self):
+        self._refresh_tree(selected_doc=doc, restore_focus=True)
+
+    def _refresh_tree(self, selected_doc: Optional[Document] = None, restore_focus: bool = False):
+        had_focus = restore_focus and self._tree.hasFocus()
         self._tree.clear()
 
         ordered_keys = self._docs_cache.group_names()
@@ -170,6 +170,22 @@ class DocumentsTab(QWidget):
                 folder.addChild(item)
 
         self._tree.expandAll()
+        if selected_doc is not None:
+            self._select_doc_in_tree(selected_doc)
+        if had_focus:
+            self._tree.setFocus()
+
+    def _select_doc_in_tree(self, doc_to_select: Document):
+        for i in range(self._tree.topLevelItemCount()):
+            folder = self._tree.topLevelItem(i)
+            for j in range(folder.childCount()):
+                item = folder.child(j)
+                item_doc = item.data(0, Qt.ItemDataRole.UserRole)
+                if item_doc is doc_to_select or (item_doc and item_doc.name == doc_to_select.name):
+                    self._tree.blockSignals(True)
+                    self._tree.setCurrentItem(item)
+                    self._tree.blockSignals(False)
+                    return
 
     def _get_doc_in_tree_color(self, doc_status: Document.Status) -> QColor:
         if doc_status == Document.Status.UPLOADED or doc_status == Document.Status.UDDM_EXTRACTED:
@@ -179,10 +195,9 @@ class DocumentsTab(QWidget):
         else:
             return QColor("#FFC107")
 
-    def _on_doc_deleted(self):
-        selected_doc = self._get_selected_document()
-        if selected_doc is not None:
-            self._docs_cache.remove(selected_doc)
+    def _on_doc_deleted(self, deleted_doc: Document):
+        self._docs_cache.remove(deleted_doc)
+
         self._refresh_tree()
         self._info_widget.set_document(None)
 

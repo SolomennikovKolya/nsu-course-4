@@ -7,261 +7,273 @@ from PySide6.QtWidgets import (
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
-from app.utils import require_attribute
 from core.document import Document
 from ui.common.editable_title import EditableTitleWidget
 from ui.documents.status_bar import StatusBarWidget
 from ui.documents.view.doc_view import DocumentViewWidget
-
-
-def require_document(method):
-    """Проверяет наличие документа перед выполнением метода."""
-    return require_attribute("document")(method)
+from ui.common.design import DELETE_BUTTON_STYLE
 
 
 class DocumentInfoWidget(QWidget):
     """Виджет для отображения информации о документе и управления его обработкой."""
 
-    document_changed = Signal()  # Сигнал, что информация о документе изменилась
-    document_deleted = Signal()  # Сигнал, что документ удален
+    document_changed = Signal(Document)  # Сигнал, что информация о документе изменилась
+    document_deleted = Signal(Document)  # Сигнал, что документ удален
 
     def __init__(self):
         super().__init__()
+        self._pipeline = get_pipeline()
+        self._doc_manager = get_doc_manager()
+        self._temp_manager = get_temp_manager()
+        self._document: Optional[Document] = None
 
-        self.pipeline = get_pipeline()
-        self.doc_manager = get_doc_manager()
-        self.temp_manager = get_temp_manager()
-        self.document: Optional[Document] = None
+        self._stack = QStackedLayout(self)
+        self._stack.addWidget(self._build_empty_page())
+        self._stack.addWidget(self._build_document_page())
 
-        self.stack = QStackedLayout(self)
-        self.stack.addWidget(self.build_empty_page())
-        self.stack.addWidget(self.build_document_page())
+    def _build_empty_page(self) -> QWidget:
+        self._empty_page = QWidget()
+        empty_layout = QVBoxLayout(self._empty_page)
 
-    def build_empty_page(self) -> QWidget:
-        """Страница, отображаемая при отсутствии выбранного документа."""
-        self.page_empty = QWidget()
-        empty_layout = QVBoxLayout(self.page_empty)
+        empty_label = QLabel("Выберите документ")
+        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.empty_label = QLabel("Выберите документ")
-        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(empty_label)
+        return self._empty_page
 
-        empty_layout.addWidget(self.empty_label)
-        return self.page_empty
-
-    def build_document_page(self) -> QWidget:
-        """Страница с информацией о документе и кнопками управления обработкой."""
-        self.page_document = QWidget()
-        self.page_layout = QVBoxLayout(self.page_document)
+    def _build_document_page(self) -> QWidget:
+        self._document_page = QWidget()
+        page_layout = QVBoxLayout(self._document_page)
 
         # --- Заголовок ---
-        self.title = EditableTitleWidget(
+        self._title = EditableTitleWidget(
             placeholder="",
             title_style="font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;",
             subdued_style="color:#8a8a8a;",
         )
-        self.title.committed.connect(self.rename_document)
-        self.page_layout.addWidget(self.title)
+        self._title.committed.connect(self._on_rename_doc)
+        page_layout.addWidget(self._title)
 
         # --- Класс ---
-        self.class_combo = QComboBox()
-        self.class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.class_combo.addItem("Класс не определён", None)
-        for doc_class in self.temp_manager.doc_classes_list():
-            self.class_combo.addItem(doc_class, doc_class)
+        self._class_combo = QComboBox()
+        self._class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._class_combo.addItem("Класс не определён", None)
+        for doc_class in self._temp_manager.doc_classes_list():
+            self._class_combo.addItem(doc_class, doc_class)
 
-        self.class_combo.currentIndexChanged.connect(self.change_class)
-
-        self.page_layout.addWidget(self.class_combo, 1)
+        self._class_combo.currentIndexChanged.connect(self._on_change_class)
+        page_layout.addWidget(self._class_combo, 1)
 
         # --- Статус ---
-        self.status_widget = StatusBarWidget()
-        self.page_layout.addWidget(self.status_widget)
-
-        self.page_layout.addSpacing(8)
+        self._status_widget = StatusBarWidget()
+        page_layout.addWidget(self._status_widget)
+        page_layout.addSpacing(8)
 
         # --- Отображение документа ---
-        self.document_view = DocumentViewWidget()
-        self.document_view.setMinimumHeight(240)
-        self.page_layout.addWidget(self.document_view, 1)
+        self._document_view = DocumentViewWidget()
+        self._document_view.setMinimumHeight(240)
+        page_layout.addWidget(self._document_view, 1)
 
         # --- Кнопки ---
-        self.action_button = QPushButton()
-        self.action_button.clicked.connect(self.run_action)
+        self._action_button = QPushButton()
+        self._action_button.clicked.connect(self._on_run_pipeline)
 
-        self.restart_button = QPushButton("Обработать заново")
-        self.restart_button.clicked.connect(self.restart_action)
+        self._restart_button = QPushButton("Обработать заново")
+        self._restart_button.clicked.connect(self._on_restart_pipeline)
 
-        self.delete_button = QPushButton("Удалить документ")
-        self.delete_button.setStyleSheet("""
-        QPushButton:hover {
-            background-color: #d32f2f;
-            color: white;
-        }
-        """)
-        self.delete_button.clicked.connect(self.delete_action)
+        self._delete_button = QPushButton("Удалить документ")
+        self._delete_button.setStyleSheet(DELETE_BUTTON_STYLE)
+        self._delete_button.clicked.connect(self._on_delete_doc)
 
         buttons_layout = QHBoxLayout()
-        buttons_layout.addWidget(self.action_button)
-        buttons_layout.addWidget(self.restart_button)
+        buttons_layout.addWidget(self._action_button)
+        buttons_layout.addWidget(self._restart_button)
         buttons_layout.addStretch()
-        buttons_layout.addWidget(self.delete_button)
-        self.page_layout.addLayout(buttons_layout)
+        buttons_layout.addWidget(self._delete_button)
+        page_layout.addLayout(buttons_layout)
 
-        return self.page_document
+        return self._document_page
 
     def set_document(self, document: Optional[Document]):
         """Установка документа в виджет."""
-        self.document = document
-        self.document_view.set_document(document)
+        self._document = document
+        self._document_view.set_document(document)
 
         if document is None:
-            self.stack.setCurrentWidget(self.page_empty)
+            self._stack.setCurrentWidget(self._empty_page)
             return
 
-        self.stack.setCurrentWidget(self.page_document)
+        self._stack.setCurrentWidget(self._document_page)
 
         # Обновляем данные на странице
-        self.title.set_value(document.name)
-        index = self.class_combo.findData(document.doc_class)
+        self._title.set_value(document.name)
+        index = self._class_combo.findData(document.doc_class)
         if index >= 0:
-            self.class_combo.setCurrentIndex(index)
+            self._class_combo.setCurrentIndex(index)
 
-        self.status_widget.set_status(document.status)
-        self.update_buttons()
+        self._status_widget.set_status(document.status)
+        self._update_buttons()
 
-    @require_document
-    def rename_document(self, doc: Document, new_name: str):
-        try:
-            self.doc_manager.rename(doc, new_name)
-        except Exception as e:
-            QMessageBox.warning(self, APP_NAME, str(e))
-            self.title.set_value(doc.name)
-            return
-        self.title.set_value(new_name)
-        self.document_changed.emit()
+    def get_document(self) -> Optional[Document]:
+        """Возвращает текущий документ."""
+        return self._document
 
-    def change_class(self):
-        doc = self.document
+    def _on_rename_doc(self, new_name: str):
+        doc = self._document
         if doc is None:
             return
 
-        new_class = self.class_combo.currentData()
+        try:
+            self._doc_manager.rename(doc, new_name)
+        except Exception as e:
+            QMessageBox.warning(self, APP_NAME, "Не удалось переименовать документ: " + str(e))
+            self._title.set_value(doc.name)
+            return
+
+        self._title.set_value(new_name)
+        self.document_changed.emit(doc)
+
+    def _on_change_class(self):
+        doc = self._document
+        if doc is None:
+            return
+
+        new_class = self._class_combo.currentData()
         if doc.doc_class == new_class:
             return
 
         doc.doc_class = new_class
+
+        # Обновляем статус документа в зависимости от нового класса
         if new_class is not None:
             doc.status = Document.Status.CLASS_DETERMINED
-            doc.template = self.temp_manager.get(new_class)
-        elif int(doc.status) >= int(Document.Status.UDDM_EXTRACTED):
-            doc.status = Document.Status.UDDM_EXTRACTED
+        else:
+            if int(doc.status) >= int(Document.Status.UDDM_EXTRACTED):
+                doc.status = Document.Status.UDDM_EXTRACTED
 
-        self.doc_manager.save_metadata(doc)
+        # Обновляем шаблон документа в зависимости от нового класса
+        if new_class is not None:
+            doc.template = self._temp_manager.get(new_class)
+        else:
+            doc.template = None
 
-        self.status_widget.set_status(doc.status)
-        self.update_buttons()
-        self.document_view.set_document(doc)
-        self.document_changed.emit()
+        self._doc_manager.save_metadata(doc)
 
-    @require_document
-    def run_action(self, doc: Document):
+        self._status_widget.set_status(doc.status)
+        self._update_buttons()
+        self._document_view.set_document(doc)
+        self.document_changed.emit(doc)
+
+    def _on_run_pipeline(self):
+        doc = self._document
+        if doc is None:
+            return
+
         final_status = Document.Status.TRIPLES_BUILT
         if doc.status == final_status:
             final_status = Document.Status.ADDED_TO_MODEL
 
-        res = self.pipeline.run(doc, final_status)
-        self.doc_manager.save_metadata(doc)
+        res = self._pipeline.run(doc, final_status)
+        self._doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status, res.failed_status)
-        self.update_buttons()
-        self.document_view.set_document(doc)
-        self.document_changed.emit()
+        self._status_widget.set_status(doc.status, res.failed_status)
+        self._update_buttons()
+        self._document_view.set_document(doc)
+        self.document_changed.emit(doc)
 
-    @require_document
-    def restart_action(self, doc: Document):
+    def _on_restart_pipeline(self):
+        doc = self._document
+        if doc is None:
+            return
+
         doc.status = Document.Status.UPLOADED
-        res = self.pipeline.run(doc, Document.Status.TRIPLES_BUILT)
-        self.doc_manager.save_metadata(doc)
+        res = self._pipeline.run(doc, Document.Status.TRIPLES_BUILT)
+        self._doc_manager.save_metadata(doc)
 
-        self.status_widget.set_status(doc.status, res.failed_status)
-        self.update_buttons()
-        self.document_view.set_document(doc)
-        self.document_changed.emit()
+        self._status_widget.set_status(doc.status, res.failed_status)
+        self._update_buttons()
+        self._document_view.set_document(doc)
+        self.document_changed.emit(doc)
 
-    @require_document
-    def delete_action(self, doc: Document):
+    def _on_delete_doc(self):
+        doc = self._document
+        if doc is None:
+            return
+
         reply = QMessageBox.question(
-            self,
-            APP_NAME,
+            self, APP_NAME,
             "Вы точно хотите удалить документ?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        self.doc_manager.delete(doc)
+        self._doc_manager.delete(doc)
 
         self.set_document(None)
-        self.document_deleted.emit()
+        self.document_deleted.emit(doc)
 
-    def update_buttons(self):
-        self.update_action_button()
-        self.update_restart_button()
-        self.update_delete_button()
+    def _update_buttons(self):
+        self._update_action_button()
+        self._update_restart_button()
+        self._update_delete_button()
 
-    def update_action_button(self):
-        doc = self.document
+    def _update_action_button(self):
+        doc = self._document
 
         if doc is None:
-            self.action_button.setEnabled(False)
-            self.action_button.setText("Выберите документ")
+            self._action_button.setEnabled(False)
+            self._action_button.setText("Выберите документ")
             return
 
         if doc.doc_class is None:
-            self.action_button.setEnabled(False)
-            self.action_button.setText("Выберите класс документа")
+            self._action_button.setEnabled(False)
+            self._action_button.setText("Выберите класс документа")
             return
 
         if doc.status == Document.Status.ADDED_TO_MODEL:
-            self.action_button.setEnabled(False)
-            self.action_button.setText("Документ добавлен в модель")
+            self._action_button.setEnabled(False)
+            self._action_button.setText("Документ добавлен в модель")
             return
 
-        self.action_button.setEnabled(True)
+        self._action_button.setEnabled(True)
 
-        if doc.status == Document.Status.UPLOADED:
-            self.action_button.setText("Запустить обработку")
+        if doc.status == Document.Status.UPLOADED or doc.status == Document.Status.UDDM_EXTRACTED:
+            self._action_button.setText("Запустить обработку")
         elif doc.status == Document.Status.TRIPLES_BUILT:
-            self.action_button.setText("Добавить в модель")
+            self._action_button.setText("Добавить в модель")
         else:
-            self.action_button.setText("Продолжить обработку")
+            self._action_button.setText("Продолжить обработку")
 
-    def update_restart_button(self):
-        doc = self.document
+    def _update_restart_button(self):
+        doc = self._document
         if doc is None:
-            self.restart_button.setEnabled(False)
+            self._restart_button.setEnabled(False)
         else:
-            self.restart_button.setEnabled(True)
+            self._restart_button.setEnabled(True)
 
-    def update_delete_button(self):
-        doc = self.document
+    def _update_delete_button(self):
+        doc = self._document
         if doc is None:
-            self.delete_button.setEnabled(False)
+            self._delete_button.setEnabled(False)
         else:
-            self.delete_button.setEnabled(True)
+            self._delete_button.setEnabled(True)
 
     def refresh_classes(self):
-        self.class_combo.blockSignals(True)
+        """
+        Обновляет список классов документов.
+        Вызывается из `DocumentsTab.refresh_templates()`.
+        """
+        self._class_combo.blockSignals(True)
+        self._class_combo.clear()
+        self._class_combo.addItem("Класс не определён", None)
 
-        self.class_combo.clear()
-        self.class_combo.addItem("Класс не определён", None)
+        for doc_class in self._temp_manager.doc_classes_list():
+            self._class_combo.addItem(doc_class, doc_class)
 
-        for doc_class in self.temp_manager.doc_classes_list():
-            self.class_combo.addItem(doc_class, doc_class)
-
-        if self.document is not None:
-            index = self.class_combo.findData(self.document.doc_class)
+        if self._document is not None:
+            index = self._class_combo.findData(self._document.doc_class)
             if index >= 0:
-                self.class_combo.setCurrentIndex(index)
+                self._class_combo.setCurrentIndex(index)
 
-        self.class_combo.blockSignals(False)
+        self._class_combo.blockSignals(False)
