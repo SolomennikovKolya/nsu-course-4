@@ -1,20 +1,39 @@
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QListWidget,
-    QPushButton,
-    QInputDialog,
-    QSplitter,
-    QMessageBox,
-)
-from PySide6.QtCore import Signal
 from typing import Optional
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QPushButton,
+    QInputDialog, QSplitter, QMessageBox
+)
 
 from app.context import get_temp_manager
 from app.settings import APP_NAME
 from core.template.template import Template
 from ui.templates.temp_info import TemplateInfoWidget
+
+
+class TemplatesCache:
+    """Кеш шаблонов для быстрого обновления списка без чтения с диска."""
+
+    def __init__(self):
+        self._items: list[Template] = []
+
+    def load(self, templates: list[Template]):
+        self._items = list(templates)
+
+    def items(self) -> list[Template]:
+        return self._items
+
+    def get_by_index(self, index: int) -> Optional[Template]:
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def add_or_update(self, template: Template):
+        self.remove(template)
+        self._items.append(template)
+
+    def remove(self, template: Template):
+        self._items = [t for t in self._items if t is not template and t.name != template.name]
 
 
 class TemplatesTab(QWidget):
@@ -24,9 +43,8 @@ class TemplatesTab(QWidget):
 
     def __init__(self):
         super().__init__()
-
         self._temp_manager = get_temp_manager()
-        self._temps_cache: list[Template] = []
+        self._temps_cache = TemplatesCache()
 
         # --- Список шаблонов ---
         add_button = QPushButton("Добавить шаблон")
@@ -58,15 +76,13 @@ class TemplatesTab(QWidget):
         self._info_widget.template_name_changed.connect(self._on_temp_name_changed)
         self._info_widget.template_deleted.connect(self._on_temp_deleted)
 
+        self._load_temps_cache()
         self._refresh_list()
 
     def _on_temp_added(self):
         name, ok = QInputDialog.getText(self, APP_NAME, "Название шаблона:")
-        if not ok:
-            return
-
         name = name.strip()
-        if not name:
+        if not ok or not name:
             return
 
         if name in self._temp_manager.doc_classes_list():
@@ -74,15 +90,16 @@ class TemplatesTab(QWidget):
             return
 
         temp = self._temp_manager.add(name)
-        self._refresh_list()
-        self._select_temp_by_name(temp.name)
+        self._temps_cache.add_or_update(temp)
+        self._refresh_list(temp_to_select=temp.name)
         self.templates_changed.emit()
 
-    def _refresh_list(self):
+    def _refresh_list(self, temp_to_select: Optional[str] = None):
         self._list.clear()
-        self._temps_cache = self._temp_manager.list()
-        for temp in self._temps_cache:
+        for i, temp in enumerate(self._temps_cache.items()):
             self._list.addItem(temp.name)
+            if temp.name == temp_to_select:
+                self._list.setCurrentRow(i)
 
     def _on_temp_selection_changed(self):
         temp = self._get_selected_temp()
@@ -94,28 +111,22 @@ class TemplatesTab(QWidget):
 
     def _get_selected_temp(self) -> Optional[Template]:
         row = self._list.currentRow()
-        if 0 <= row < len(self._temps_cache):
-            return self._temps_cache[row]
+        return self._temps_cache.get_by_index(row)
 
-        return None
-
-    def _on_temp_name_changed(self):
-        name = self._info_widget.current_template_name()
-        self._refresh_list()
-        if name:
-            self._select_temp_by_name(name)
-
+    def _on_temp_name_changed(self, temp: Template):
+        self._temps_cache.add_or_update(temp)
+        self._refresh_list(temp_to_select=temp.name)
         self.templates_changed.emit()
 
-    def _select_temp_by_name(self, name: str):
-        """Устанавливает выбранный шаблон списка шаблонов по имени."""
-        for i in range(self._list.count()):
-            if self._list.item(i).text() == name:
-                self._list.setCurrentRow(i)
-                return
-
     def _on_temp_deleted(self):
+        selected_temp = self._get_selected_temp()
+        if selected_temp is not None:
+            self._temps_cache.remove(selected_temp)
+
         self._refresh_list()
         self._list.clearSelection()
         self._info_widget.set_template(None)
         self.templates_changed.emit()
+
+    def _load_temps_cache(self):
+        self._temps_cache.load(self._temp_manager.list())

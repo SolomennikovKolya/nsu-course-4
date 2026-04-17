@@ -54,8 +54,8 @@ def _open_template_code_in_editor(code_path: Path):
 class TemplateInfoWidget(QWidget):
     """Правая панель: метаданные шаблона, предпросмотр кода, действия."""
 
-    template_name_changed = Signal()  # Сигнал, что имя шаблона изменилось
-    template_deleted = Signal()       # Сигнал, что шаблон удален
+    template_name_changed = Signal(Template)  # Сигнал, что имя шаблона изменилось
+    template_deleted = Signal()               # Сигнал, что шаблон удален
 
     def __init__(self):
         super().__init__()
@@ -183,9 +183,6 @@ class TemplateInfoWidget(QWidget):
 
         return page
 
-    def current_template_name(self) -> Optional[str]:
-        return self.template.name if self.template else None
-
     def set_template(self, template: Optional[Template]):
         self.template = template
         if template is None:
@@ -232,7 +229,7 @@ class TemplateInfoWidget(QWidget):
                 doc.doc_class = new_name
                 doc.template = self.template
                 get_doc_manager().save_metadata(doc)
-            self.template_name_changed.emit()
+            self.template_name_changed.emit(self.template)
         except Exception as exc:
             QMessageBox.warning(self, APP_NAME, str(exc))
             self.title.set_value(self.template.name)
