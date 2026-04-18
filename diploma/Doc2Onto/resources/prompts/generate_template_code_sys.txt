@@ -125,8 +125,7 @@ class BaseTemplateCode(ABC):
 Доступные операции:
 1. find(element_type: ElementType, predicate: ElementPredicate)
   - Находит элементы заданного типа (например: P, TABLE, CELL и т.д.)
-  - predicate — условие на текст элемента
-  - ElementPredicate = Callable[[Element], bool]
+  - predicate: ElementPredicate = Callable[[Element], bool] — условие на элемент
   - Реализованные предикаты:
     - contains_text(text: str, *, case_sensitive: bool = False)
     - matches_regex(pattern: str | Pattern[str], *, flags: int = 0)
@@ -141,7 +140,7 @@ class BaseTemplateCode(ABC):
   - previous_element() — предыдущий сосед (слева)
   - inner_element(index: int) — вложенный элемент (например, строка в таблице, item в списке)
   - outer_element() — родитель (например, из ячейки → в строку)
-3. Выбор области поиска (плезно, если вконце цепочки остаётся несколько подходящих областей):
+3. Выбор области поиска (полезно, если в конце цепочки остаётся несколько подходящих областей):
   - first()
   - last()
   - at(index: int)
@@ -250,22 +249,26 @@ class BaseTemplateCode(ABC):
 
 #### UDDM
 
-UDDM — это древовидная структура документа, состоящая из блоков: текст, списки и таблицы.
+UDDM (Unified Document Data Model) - унифицированная модель представления документов. 
+- Назначение — зафиксировать текст и минимально необходимую логическую структуру документа, 
+  достаточную для интерпретации данных с использованием шаблонов.
+- Имеет древовидную структуру, состоит из блоков: тексты, списки и таблицы.
+- Хранится в виде xml файла; имеет программную обёртку с одноимёнными элементами. 
 
-Структура:
+Схема вложенности элементов UDDM:
 ```
-Root
-  └── Block*
-Block = (Text|List|Table)
-Text
-  └── P+ (параграфы)
-ListBlock
-  └── Item+
-       └── Block+ (вложенные текст/списки/таблицы)
-Table
-  └── Row+
-       └── Cell+
-            └── Block+
+root                       - корень UDDM (ровно один на весь документ)
+ └── block*
+block = (text|list|table)  - абстрактный строительный блок
+text                       - текстовый блок
+ └── p+                    - параграфы (только они содержат текст в виде строки; являются листьями дерева UDDM)
+list                       - список
+ └── item+                 - элемент списка
+      └── block+ 
+table                      - таблица
+ └── row+                  - строка таблицы
+      └── cell+            - ячейка таблицы
+           └── block+
 ```
 
 Все элементы (Text, P, ListBlock, Item, Table, Row, Cell):

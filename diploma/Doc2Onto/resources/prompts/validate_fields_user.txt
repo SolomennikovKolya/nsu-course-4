@@ -5,7 +5,7 @@
 ### Входные данные
 
 #### 1. Текст документа в формате UDDM
-$document_text
+$document_uddm_text
 
 #### 2. Результаты извлечения и предварительной валидации
 $fields
@@ -32,7 +32,7 @@ $fields
 {
   "field_name": {
     "status": "valid | corrected | invalid",  - статус поля
-    "corrected_value": "строка или null",               - исправленное значение
+    "corrected_value": "строка или null",     - исправленное значение
     "error": "null или сообщение об ошибке"   - текст ошибки
   }
 }

@@ -359,14 +359,15 @@ class TemplateInfoWidget(QWidget):
         example_doc = self._choose_example_document()
         if example_doc is None:
             return
-        example_text = example_doc.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+
+        example_uddm_text = example_doc.uddm_file_path().read_text(encoding="utf-8", errors="strict")
         # unfilled_document_text = self._choose_optional_unfilled_document_text()
 
         system_prompt = read_prompt(GENERATE_DESCR_SYS_PROMPT_PATH)
         user_prompt = read_prompt(
             GENERATE_DESCR_USER_PROMPT_PATH,
             template_name=temp.name,
-            document_example=example_text,
+            example_uddm_text=example_uddm_text,
             # unfilled_document=unfilled_document_text,
         )
 
@@ -398,7 +399,7 @@ class TemplateInfoWidget(QWidget):
         example_doc = self._choose_example_document()
         if example_doc is None:
             return
-        uddm_example = example_doc.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+        example_uddm_text = example_doc.uddm_file_path().read_text(encoding="utf-8", errors="strict")
 
         try:
             code_example = TEMPLATE_CODE_EXAMPLE_PATH.read_text(encoding="utf-8", errors="strict")
@@ -410,7 +411,7 @@ class TemplateInfoWidget(QWidget):
         user_prompt = read_prompt(
             GENERATE_TEMP_USER_PROMPT_PATH,
             template_description=description,
-            uddm_example=uddm_example,
+            example_uddm_text=example_uddm_text,
             code_example=code_example,
         )
 

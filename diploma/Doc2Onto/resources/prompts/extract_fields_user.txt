@@ -5,7 +5,7 @@
 ### Входные данные
 
 #### 1. Документ в формате UDDM
-$document_text
+$document_uddm_text
 
 #### 2. Описание шаблона
 $template_description

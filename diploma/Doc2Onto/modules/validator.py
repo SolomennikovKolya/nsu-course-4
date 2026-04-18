@@ -250,10 +250,10 @@ class Validator(BaseModule):
         try:
             system_prompt = read_prompt(VALIDATE_FIELDS_SYS_PROMPT_PATH)
 
-            uddm_text = document.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+            uddm_text = document.uddm_file_path().read_text(encoding="utf-8", errors="strict")
             user_prompt = read_prompt(
                 VALIDATE_FIELDS_USER_PROMPT_PATH,
-                document_text=uddm_text,
+                document_uddm_text=uddm_text,
                 fields=json.dumps(hard_validation, ensure_ascii=False, indent=2),
             )
 

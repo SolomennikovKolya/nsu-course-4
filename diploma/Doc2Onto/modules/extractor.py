@@ -204,14 +204,14 @@ class Extractor(BaseModule):
         try:
             system_prompt = read_prompt(EXTRACT_FIELDS_SYS_PROMPT_PATH)
 
-            uddm_text = document.uddm_tree_view_file_path().read_text(encoding="utf-8", errors="strict")
+            uddm_text = document.uddm_file_path().read_text(encoding="utf-8", errors="strict")
             fields_desc = "\n".join(
                 f'- "{field.name}": {field.description}'
                 for field in missing_fields
             )
             user_prompt = read_prompt(
                 EXTRACT_FIELDS_USER_PROMPT_PATH,
-                document_text=uddm_text,
+                document_uddm_text=uddm_text,
                 template_description=template.description or "",
                 fields=fields_desc,
             )
