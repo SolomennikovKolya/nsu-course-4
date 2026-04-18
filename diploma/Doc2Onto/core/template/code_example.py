@@ -5,7 +5,7 @@ from core.template.field import Field
 from core.template.field_selector import *
 from core.template.field_extractor import *
 from core.template.field_validator import *
-from core.uddm.model import UDDM
+from core.uddm.model import *
 
 
 class TemplateCode(BaseTemplateCode):

@@ -33,10 +33,7 @@ class FieldExtractor:
         return value or None
 
     def regex(self, pattern: str | Pattern[str], group: int | str = 0, flags: int = 0) -> "FieldExtractor":
-        """
-        Извлекает первое совпадение regex (или указанную группу).
-        Если совпадений нет, возвращает None.
-        """
+        """Извлекает первое совпадение regex (или указанную группу)."""
         compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
 
         def op(text: str) -> Optional[str]:

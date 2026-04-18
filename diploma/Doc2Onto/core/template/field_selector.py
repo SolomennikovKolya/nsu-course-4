@@ -96,7 +96,7 @@ class FieldSelector:
     """
 
     def __init__(self):
-        self._operations: List[Callable[[...], List[Element]]] = []  # Цепочка операций
+        self._operations: List[Callable[[], List[Element]]] = []  # Цепочка операций
         self._scope: List[Element] = []                              # Текущая область поиска
         self._parent_index: dict[Element, tuple[Element, int]] = {}  # Индекс родителей
 
@@ -120,7 +120,7 @@ class FieldSelector:
         if len(self._scope) == 1 and isinstance(self._scope[0], Root):
             return None
 
-        # Вконце должна остаться единственная локальная область поиска. Если это не так, то возвращаем первую
+        # В конце должна остаться единственная локальная область поиска. Если это не так, то возвращаем первую
         result = str(self._scope[0])
         return result
 
