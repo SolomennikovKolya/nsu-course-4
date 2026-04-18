@@ -12,7 +12,7 @@ class TripleBuilder(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            raise NotImplementedError()
+            raise NotImplementedError("Модуль не реализован")
             if not document.doc_class:
                 return ModuleResult.FAILED
 

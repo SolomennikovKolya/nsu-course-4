@@ -73,6 +73,11 @@ def invert(predicate: ElementPredicate) -> ElementPredicate:
     return lambda el: not predicate(el)
 
 
+def always_true() -> ElementPredicate:
+    """Предикат: всегда True (без дополнительной фильтрации)."""
+    return lambda _: True
+
+
 class FieldSelector:
     """
     Селектор полей — инструмент для пошагового отбора нужного текста из структуры документа UDDM с помощью набора операций. 
@@ -119,7 +124,7 @@ class FieldSelector:
         result = str(self._scope[0])
         return result
 
-    def find(self, element_type: ElementType, predicate: ElementPredicate) -> "FieldSelector":
+    def find(self, element_type: ElementType, predicate: ElementPredicate = always_true) -> "FieldSelector":
         """
         Находит все элементы заданного типа в дереве UDDM, удовлетворяющие заданному предикату.
 

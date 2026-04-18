@@ -14,7 +14,7 @@ class Connector(BaseModule):
 
     def execute(self, document: Document) -> ModuleResult:
         try:
-            raise NotImplementedError()
+            raise NotImplementedError("Модуль не реализован")
             triples = self._load_triples(document)
 
             # TODO: вставка в graph (rdflib / triplestore)

@@ -166,7 +166,7 @@ class Extractor(BaseModule):
     def _extract(self, document: Document, template: Template, uddm: UDDM) -> ExtractionResult:
         fields = template.get_fields()
         if not fields:
-            raise ValueError("Can't get fields from template")
+            raise ValueError("Не удалось получить поля из кода шаблона")
 
         result = ExtractionResult()
         self._extract_fields_declarative(fields, uddm, result)
