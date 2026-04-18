@@ -42,6 +42,14 @@ class Document:
     doc_class: Optional[str] = None   # Класс документа (название шаблона)
     template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})  # Ссылка на шаблон извлечения
 
+    # Последняя ошибка пайплайна (не сериализуется в meta.json)
+    pipeline_failed_target: Optional[Status] = field(
+        default=None, repr=False, metadata={"skip_dict": True}
+    )
+    pipeline_error_message: Optional[str] = field(
+        default=None, repr=False, metadata={"skip_dict": True}
+    )
+
     # ----- пути к файлам -----
 
     def original_file_path(self):

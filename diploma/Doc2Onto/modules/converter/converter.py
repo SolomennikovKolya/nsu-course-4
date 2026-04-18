@@ -64,11 +64,11 @@ class Converter(BaseModule):
             UDDMToHTML().save(uddm, document.directory / "uddm_html_view.html")
             UDDMToTree().save(uddm, document.directory / "uddm_tree_view.txt")
 
-            return ModuleResult.OK
+            return ModuleResult.ok()
 
-        except Exception:
+        except Exception as ex:
             self.log_exception()
-            return ModuleResult.FAILED
+            return ModuleResult.failed(message=str(ex))
 
     def _convert(self, file_path: Path) -> UDDM:
         # Нормализация (преобразование без потерь)

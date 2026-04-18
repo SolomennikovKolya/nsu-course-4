@@ -1,43 +1,77 @@
 from typing import Optional
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 
 from core.document import Document
 
 
 class StatusBarWidget(QWidget):
-    """Виджет для отображения прогресса обработки документа по статусу."""
+    """Прогресс обработки документа по статусам и сообщение об ошибке пайплайна."""
 
-    steps = [
+    _STEPS = [
         "Документ загружен",
         "Извлечены данные (UDDM)",
         "Определён класс документа",
         "Извлечены поля",
         "Пройдена валидация",
         "Построены триплеты",
-        "Знания добавлены в модель"
+        "Знания добавлены в модель",
     ]
 
     def __init__(self):
         super().__init__()
 
-        main_layout = QHBoxLayout(self)
-        self.step_labels = []
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(6)
 
-        for step in self.steps:
-            label = QLabel(f"●\n{step}")
-            label.setStyleSheet("color: gray")
+        steps_row = QHBoxLayout()
+        steps_row.setContentsMargins(0, 0, 0, 0)
+        steps_row.setSpacing(0)
+
+        self._step_labels: list[QLabel] = []
+        for text in self._STEPS:
+            label = QLabel(f"●\n{text}")
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            steps_row.addWidget(label, 1)
+            self._step_labels.append(label)
 
-            main_layout.addWidget(label, 1)
-            self.step_labels.append(label)
+        root.addLayout(steps_row)
 
-    def set_status(self, status: Document.Status, failed_status: Optional[Document.Status] = None):
-        for i, label in enumerate(self.step_labels, start=1):
-            if failed_status is not None and i == int(failed_status) + 1:
-                label.setStyleSheet("color: red;font-weight:bold")
-            elif i <= int(status) + 1:
-                label.setStyleSheet("color: green;font-weight:bold")
+        self._error_label = QLabel("")
+        self._error_label.setWordWrap(True)
+        self._error_label.setVisible(False)
+        self._error_label.setStyleSheet("color: #ff8a80;")
+        root.addWidget(self._error_label)
+
+    def set_status(self, document: Optional[Document]):
+        """Отображает текущий статус документа и последнюю ошибку пайплайна (если есть)."""
+        if document is None:
+            for label in self._step_labels:
+                label.setStyleSheet("color: gray")
+            self._error_label.setVisible(False)
+            self._error_label.setText("")
+            return
+
+        status = document.status
+        failed_target = document.pipeline_failed_target
+        error_message = document.pipeline_error_message
+
+        status_idx = int(status)
+        failed_idx: Optional[int] = int(failed_target) if failed_target is not None else None
+
+        for i, label in enumerate(self._step_labels):
+            if failed_idx is not None and i == failed_idx:
+                label.setStyleSheet("color: #ff5252; font-weight: bold")
+            elif i <= status_idx:
+                label.setStyleSheet("color: #4caf50; font-weight: bold")
             else:
                 label.setStyleSheet("color: gray")
+
+        if error_message:
+            self._error_label.setText(error_message)
+            self._error_label.setVisible(True)
+        else:
+            self._error_label.setText("")
+            self._error_label.setVisible(False)

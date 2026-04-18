@@ -4,7 +4,7 @@ from typing import Optional, Self
 from app.context import get_logger
 from core.document import Document
 from modules import Converter, Classifier, Extractor, Validator, TripleBuilder, Connector
-from modules.base import BaseModule, ModuleResult
+from modules.base import BaseModule
 
 
 @dataclass(frozen=True)
@@ -15,15 +15,16 @@ class PipelineResult:
     FAILED = "FAILED"
 
     success: bool
-    failed_status: Optional[Document.Status] = None
+    message: Optional[str] = None
+    failed_status: Optional[Document.Status] = None  # Статус, до которого не удалось дойти
 
     @classmethod
-    def ok(cls) -> Self:
-        return cls(success=True)
+    def ok(cls, *, message: Optional[str] = None) -> Self:
+        return cls(success=True, message=message)
 
     @classmethod
-    def failed(cls, status: Optional[Document.Status] = None) -> Self:
-        return cls(success=False, failed_status=status)
+    def failed(cls, *, message: Optional[str] = None, failed_status: Optional[Document.Status] = None) -> Self:
+        return cls(success=False, message=message, failed_status=failed_status)
 
     def __bool__(self) -> bool:
         return self.success
@@ -98,6 +99,9 @@ class Pipeline:
         if not self.setup_done:
             self.setup()
 
+        document.pipeline_failed_target = None
+        document.pipeline_error_message = None
+
         self.logger.info(f"[Pipeline] started")
         self.logger.info(f'  Document: "{document.name}"')
         self.logger.info(f"  Target status: {document.status} -> {final_stage}")
@@ -112,13 +116,15 @@ class Pipeline:
                 result = stage.module.execute(document)
                 self.logger.info(f"  <{stage.name}> code: {result}")
 
-                if result == ModuleResult.OK:
+                if bool(result):
                     document.status = stage.target_status
                 else:
-                    document.failed_status = stage.target_status
+                    err_msg = getattr(result, "message", None) or "Ошибка обработки"
+                    document.pipeline_failed_target = stage.target_status
+                    document.pipeline_error_message = err_msg
                     self.logger.info(f"  Final status: {document.status}")
                     self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
-                    return PipelineResult.failed(stage.target_status)
+                    return PipelineResult.failed(message=err_msg, failed_status=stage.target_status)
 
             if int(document.status) >= int(final_stage):
                 break

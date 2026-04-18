@@ -22,9 +22,9 @@ class Connector(BaseModule):
             document.status = Document.Status.ADDED_TO_MODEL
             return ModuleResult.OK
 
-        except Exception:
+        except Exception as ex:
             self.log_exception()
-            return ModuleResult.FAILED
+            return ModuleResult.failed(message=str(ex))
 
     def _load_triples(self, document: Document):
         # TODO

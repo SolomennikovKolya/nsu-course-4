@@ -31,9 +31,9 @@ class TripleBuilder(BaseModule):
             document.status = Document.Status.TRIPLES_BUILT
             return ModuleResult.OK
 
-        except Exception:
+        except Exception as ex:
             self.log_exception()
-            return ModuleResult.FAILED
+            return ModuleResult.failed(message=str(ex))
 
     def _load_validation(self, document: Document):
         # TODO

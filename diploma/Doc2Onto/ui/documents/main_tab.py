@@ -123,7 +123,7 @@ class DocumentsTab(QWidget):
             res = self._pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
             if not res:
                 self._doc_manager.delete(doc)
-                QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь данные из документа "{file_name}".')
+                QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь UDDM из документа "{file_name}". {res.message}')
                 continue
 
             self._doc_manager.save_metadata(doc)

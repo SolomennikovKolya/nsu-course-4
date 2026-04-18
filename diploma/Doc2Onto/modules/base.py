@@ -1,22 +1,38 @@
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from enum import Enum
+from typing import Optional, Self
 from logging import ERROR
 
 from app.context import get_logger
 from core.document import Document
 
 
-class ModuleResult(Enum):
+@dataclass(frozen=True)
+class ModuleResult:
     """Результат выполнения модуля."""
 
-    OK = "ok"
-    FAILED = "failed"
+    OK = "OK"
+    FAILED = "FAILED"
 
-    def __str__(self):
-        return self.value
+    success: bool
+    message: Optional[str] = None
 
-    def __int__(self):
-        return int(self.value == ModuleResult.OK)
+    @classmethod
+    def ok(cls, *, message: Optional[str] = None) -> Self:
+        return cls(success=True, message=message)
+
+    @classmethod
+    def failed(cls, *, message: Optional[str] = None) -> Self:
+        return cls(success=False, message=message)
+
+    def __bool__(self) -> bool:
+        return self.success
+
+    def __str__(self) -> str:
+        return self.OK if self.success else self.FAILED
+
+    def __int__(self) -> int:
+        return int(self.success)
 
 
 class BaseModule(ABC):

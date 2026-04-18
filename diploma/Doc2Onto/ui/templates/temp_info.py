@@ -332,11 +332,11 @@ class TemplateInfoWidget(QWidget):
 
             temp_doc = Document(name=source_path.name, directory=temp_dir)
             res = pipeline.run(temp_doc, Document.Status.UDDM_EXTRACTED)
-            if int(temp_doc.status) < int(Document.Status.UDDM_EXTRACTED):
+            if not res:
                 QMessageBox.warning(
                     self,
                     APP_NAME,
-                    f"Не удалось извлечь UDDM для выбранного файла (результат пайплайна: {res}).",
+                    f"Не удалось извлечь UDDM для выбранного файла. {res.message}.",
                 )
                 return ""
 

@@ -111,7 +111,7 @@ class DocumentInfoWidget(QWidget):
         if index >= 0:
             self._class_combo.setCurrentIndex(index)
 
-        self._status_widget.set_status(document.status)
+        self._status_widget.set_status(document)
         self._update_buttons()
 
     def get_document(self) -> Optional[Document]:
@@ -157,9 +157,11 @@ class DocumentInfoWidget(QWidget):
         else:
             doc.template = None
 
+        doc.pipeline_failed_target = None
+        doc.pipeline_error_message = None
         self._doc_manager.save_metadata(doc)
 
-        self._status_widget.set_status(doc.status)
+        self._status_widget.set_status(doc)
         self._update_buttons()
         self._document_view.set_document(doc)
         self.document_changed.emit(doc)
@@ -176,7 +178,7 @@ class DocumentInfoWidget(QWidget):
         res = self._pipeline.run(doc, final_status)
         self._doc_manager.save_metadata(doc)
 
-        self._status_widget.set_status(doc.status, res.failed_status)
+        self._status_widget.set_status(doc)
         self._update_buttons()
         self._document_view.set_document(doc)
         self.document_changed.emit(doc)
@@ -190,7 +192,7 @@ class DocumentInfoWidget(QWidget):
         res = self._pipeline.run(doc, Document.Status.TRIPLES_BUILT)
         self._doc_manager.save_metadata(doc)
 
-        self._status_widget.set_status(doc.status, res.failed_status)
+        self._status_widget.set_status(doc)
         self._update_buttons()
         self._document_view.set_document(doc)
         self.document_changed.emit(doc)

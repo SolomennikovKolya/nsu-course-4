@@ -161,20 +161,20 @@ class Validator(BaseModule):
         try:
             if not document.doc_class or not document.template:
                 self.log(WARNING, f"No template found")
-                return ModuleResult.FAILED
+                return ModuleResult.failed(message="Не удалось загрузить шаблон")
 
             if not document.template.code:
                 self.log(WARNING, f"Template {document.template.name} has no code")
-                return ModuleResult.FAILED
+                return ModuleResult.failed(message=f"Шаблон {document.template.name} не имеет кода")
 
             extraction_res = ExtractionResult.load(document.extraction_result_file_path())
             validation_res = self._validate(document, document.template, extraction_res)
             validation_res.save(document.validation_result_file_path())
-            return ModuleResult.OK
+            return ModuleResult.ok()
 
-        except Exception:
+        except Exception as ex:
             self.log_exception()
-            return ModuleResult.FAILED
+            return ModuleResult.failed(message=str(ex))
 
     def _validate(self, document: Document, template: Template, extraction_res: ExtractionResult) -> ValidationResult:
         fields = template.get_fields()
