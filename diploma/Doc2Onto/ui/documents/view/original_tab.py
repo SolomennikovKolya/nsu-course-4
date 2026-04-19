@@ -8,6 +8,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QTextBrowser, QVBoxLayout, QWidget
 
 from core.document import Document
+from ui.common.design import UI_COLOR_RED
 
 
 def _docx_to_html_fragment(path: Path) -> str:
@@ -192,7 +193,7 @@ class _DocxPreviewWorker(QRunnable):
                 return
             except Exception as exc2:
                 html = (
-                    "<p style='color:#ff8a80;'>Не удалось открыть DOCX.</p>"
+                    f"<p style='color:{UI_COLOR_RED};'>Не удалось открыть DOCX.</p>"
                     f"<pre style='color:#eeeeee;'>{escape(str(exc2))}</pre>"
                 )
                 self.signals.finished.emit(self.req_id, "html", html, cache_key)

@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 
 from core.document import Document
+from ui.common.design import UI_COLOR_GREEN, UI_COLOR_RED
 
 
 class StatusBarWidget(QWidget):
@@ -41,7 +42,7 @@ class StatusBarWidget(QWidget):
 
         self._error_label = QLabel("")
         self._error_label.setWordWrap(True)
-        self._error_label.setStyleSheet("color: #ff8a80;")
+        self._error_label.setStyleSheet(f"color: {UI_COLOR_RED};")
         self._error_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(self._error_label)
 
@@ -62,9 +63,9 @@ class StatusBarWidget(QWidget):
 
         for i, label in enumerate(self._step_labels):
             if failed_idx is not None and i == failed_idx:
-                label.setStyleSheet("color: #ff5252; font-weight: bold")
+                label.setStyleSheet(f"color: {UI_COLOR_RED}; font-weight: bold")
             elif i <= status_idx:
-                label.setStyleSheet("color: #4caf50; font-weight: bold")
+                label.setStyleSheet(f"color: {UI_COLOR_GREEN}; font-weight: bold")
             else:
                 label.setStyleSheet("color: gray")
 

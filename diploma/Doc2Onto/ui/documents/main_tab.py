@@ -11,6 +11,7 @@ from app.context import get_pipeline, get_doc_manager
 from app.settings import APP_NAME
 from core.document import Document
 from modules.converter.converter import ConverterRegistry
+from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW
 from ui.documents.doc_info import DocumentInfoWidget
 
 
@@ -191,9 +192,9 @@ class DocumentsTab(QWidget):
         if doc_status == Document.Status.UPLOADED or doc_status == Document.Status.UDDM_EXTRACTED:
             return QColor("white")
         elif doc_status == Document.Status.ADDED_TO_MODEL:
-            return QColor("#4CAF50")
+            return QColor(UI_COLOR_GREEN)
         else:
-            return QColor("#FFC107")
+            return QColor(UI_COLOR_YELLOW)
 
     def _on_doc_deleted(self, deleted_doc: Document):
         self._docs_cache.remove(deleted_doc)

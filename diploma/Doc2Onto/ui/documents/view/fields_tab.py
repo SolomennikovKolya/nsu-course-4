@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 
 from app.context import get_doc_manager
 from core.document import Document, document_context
+from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW, UI_COLOR_RED, UI_COLOR_GRAY
 from modules.extractor import ExtractionResult, FieldExtractionData
 from modules.validator import ValidationResult, FieldValidationData
 
@@ -161,7 +162,8 @@ class DocumentViewFieldsTab(QWidget):
             item = self._list_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
-                widget.setParent(None)
+                # Не вызывать setParent(None): на Windows виджет на мгновение становится
+                # отдельным top-level окном (заголовок «python») до deleteLater().
                 widget.deleteLater()
             else:
                 del item
@@ -213,11 +215,6 @@ class DocumentViewFieldsTab(QWidget):
 
 class FieldRowWidget(QFrame):
     """Одна строка поля: заголовок, значение, поясняющая строка состояния."""
-
-    _COLOR_GREEN = "#66bb6a"
-    _COLOR_YELLOW = "#ffca28"
-    _COLOR_GRAY = "#9e9e9e"
-    _COLOR_RED = "#ef5350"
 
     def __init__(
         self,
@@ -299,7 +296,7 @@ class FieldRowWidget(QFrame):
         if desc_html:
             title_html = (
                 f'<span style="font-weight:600;">{escape(self._name)}</span>'
-                f'<span style="color:{self._COLOR_GRAY};"> • {desc_html}</span>'
+                f'<span style="color:{UI_COLOR_GRAY};"> • {desc_html}</span>'
             )
         else:
             title_html = f'<span style="font-weight:600;">{escape(self._name)}</span>'
@@ -335,22 +332,22 @@ class FieldRowWidget(QFrame):
         if valid:
             if self._value_edit.text().strip() != self._init_displayed_value:
                 text = "Исправлено вручную"
-                color = self._COLOR_GREEN
+                color = UI_COLOR_GREEN
             elif self._corrected_value_llm:
                 text = "Исправлено LLM"
-                color = self._COLOR_YELLOW
+                color = UI_COLOR_YELLOW
             else:
                 if self._value_llm:
                     text = "Извлечено LLM"
-                    color = self._COLOR_YELLOW
+                    color = UI_COLOR_YELLOW
                 else:
                     text = "Извлечено шаблоном"
-                    color = self._COLOR_GREEN
+                    color = UI_COLOR_GREEN
             self._info_label.setText(f'<span style="color:{color};">{escape(text)}</span>')
         else:
             parts = [p for p in (self._val_err_temp, self._val_err_llm) if p]
             msg = ". ".join(parts) if parts else "Поле отмечено как невалидное"
-            self._info_label.setText(f'<span style="color:{self._COLOR_RED};">{escape(msg)}</span>')
+            self._info_label.setText(f'<span style="color:{UI_COLOR_RED};">{escape(msg)}</span>')
 
     def _emit_change(self):
         if self._is_updating:
