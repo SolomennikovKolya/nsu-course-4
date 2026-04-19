@@ -22,8 +22,7 @@ from app.settings import (
     TEMPLATE_CODE_EXAMPLE_PATH,
 )
 from core.document import Document
-from core.template.template import Template
-from infrastructure.storage.template_loader import TemplateLoader
+from core.template.template import Template, TemplateCodeLoader
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from ui.common.design import DELETE_BUTTON_STYLE
@@ -227,7 +226,6 @@ class TemplateInfoWidget(QWidget):
             self.temp_manager.rename(self.template, new_name)
             for doc in docs_with_old_name:
                 doc.doc_class = new_name
-                doc.template = self.template
                 get_doc_manager().save_metadata(doc)
             self.template_name_changed.emit(self.template)
         except Exception as exc:
@@ -423,7 +421,7 @@ class TemplateInfoWidget(QWidget):
 
             code_path = temp.code_file_path()
             code_path.write_text(generated_code + "\n", encoding="utf-8")
-            temp.code = TemplateLoader.load(temp)
+            temp.code = TemplateCodeLoader.load(temp)
 
             self._set_code_preview(temp)
             QMessageBox.information(self, APP_NAME, "Код шаблона успешно сгенерирован.")
@@ -458,7 +456,7 @@ class TemplateInfoWidget(QWidget):
             return
 
         try:
-            TemplateLoader.validate_code(code)
+            TemplateCodeLoader.validate(code)
             QMessageBox.information(self, APP_NAME, "Шаблон успешно проверен.")
         except Exception as e:
             QMessageBox.critical(self, APP_NAME, str(e))

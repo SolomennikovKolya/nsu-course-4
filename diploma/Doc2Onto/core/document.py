@@ -1,16 +1,19 @@
 from dataclasses import dataclass, field
+from contextlib import contextmanager
 from typing import Optional
 from pathlib import Path
 from enum import StrEnum, auto
 
-from core.template.template import Template
+from app.context import get_temp_manager
+from core.template.template import TemplateContext
+from core.uddm.model import UDDM
 
 
 @dataclass
 class Document:
     """
-    Легковесная модель документа в системе. Предоставляет всю необходимую информацию для работы с документом.
-    Не хранит в себе промежуточных данных обработки (UDDM, полный текст, триплеты и т.д.), а только ссылки на них.
+    Легковесная модель документа в системе (Data Transfer Object).
+    Не хранит в себе промежуточные данные обработки (UDDM, полный текст, триплеты и т.д.).
     """
 
     class Status(StrEnum):
@@ -40,17 +43,13 @@ class Document:
     directory: Path                   # Директория с документом и его данными
     status: Status = Status.UPLOADED  # Статус обработки документа
     doc_class: Optional[str] = None   # Класс документа (название шаблона)
-    template: Optional[Template] = field(default=None, repr=False, metadata={'skip_dict': True})  # Ссылка на шаблон извлечения
 
-    # Последняя ошибка пайплайна (не сериализуется в meta.json)
-    pipeline_failed_target: Optional[Status] = field(
-        default=None, repr=False, metadata={"skip_dict": True}
-    )
-    pipeline_error_message: Optional[str] = field(
-        default=None, repr=False, metadata={"skip_dict": True}
-    )
+    pipeline_failed_target: Optional[Status] = field(            # Последний статус, на котором пайплайн завершился с ошибкой
+        default=None, repr=False, metadata={"skip_dict": True})  # Не сохраняется между запусками приложения; используется только в UI
+    pipeline_error_message: Optional[str] = field(               # Последнее сообщение об ошибке пайплайна
+        default=None, repr=False, metadata={"skip_dict": True})  # Не сохраняется между запусками приложения; используется только в UI
 
-    # ----- пути к файлам -----
+    # --- пути до промежуточных данных ---
 
     def original_file_path(self):
         return self.directory / self.name
@@ -75,3 +74,85 @@ class Document:
 
     def rdf_file_path(self):
         return self.directory / "rdf.xml"
+
+
+class DocumentContext:
+    """
+    Контекст документа, предоставляющий доступ к тяжеловесным данным.
+    Используется для оптимальной работы с документами в рамках пайплайна.
+
+    Принцип работы:
+    - При первом обращении к данным, они загружаются из соответствующего файла.
+    - При последующих обращениях к данным, они берутся из кеша.
+    - Данные можно перезаписать путём обычным присваиванием.
+    - Данные можно удалить путём вызова метода unload().
+    """
+
+    def __init__(self, doc: Document):
+        self.document: Document = doc                         # DTO документа
+        self._uddm: Optional[UDDM] = None                     # UDDM документа
+        self._template_ctx: Optional[TemplateContext] = None  # Вложенный контекст шаблона
+
+    @property
+    def uddm(self) -> Optional[UDDM]:
+        if self._uddm is not None:
+            return self._uddm
+        try:
+            self._uddm = UDDM.load(self.document.uddm_file_path())
+            return self._uddm
+        except Exception as exc:
+            # raise RuntimeError(f"Failed to load UDDM into document context: {exc}") from exc
+            return None
+
+    @uddm.setter
+    def uddm(self, uddm: Optional[UDDM]):
+        self._uddm = uddm
+
+    @property
+    def template_ctx(self) -> Optional[TemplateContext]:
+        if self._template_ctx:
+            return self._template_ctx
+
+        if self.document.doc_class is None:
+            # raise ValueError("Template context is not available for document without class")
+            return None
+
+        temp = get_temp_manager().get(self.document.doc_class)
+        if temp is None:
+            # raise ValueError(f"Template not found for class {self.document.doc_class}")
+            return None
+
+        self._template_ctx = TemplateContext(temp)
+        return self._template_ctx
+
+    @template_ctx.setter
+    def template_ctx(self, template_ctx: Optional[TemplateContext]):
+        self._template_ctx = template_ctx
+
+    def unload(self):
+        self._uddm = None
+        if self._template_ctx:
+            self._template_ctx.unload()
+            self._template_ctx = None
+
+
+@contextmanager
+def document_context(doc: Document):
+    """
+    Менеджер контекста документа. По сути это единая точка доступа ко всему runtime-состоянию.
+    Используется в связке с ``with`` для автоматического освобождения ресурсов.
+
+    Структура зависимостей:
+    DocumentContext
+        ├── document
+        ├── uddm
+        └── template_ctx
+                ├── template
+                ├── code
+                └── fields
+    """
+    ctx = DocumentContext(doc)
+    try:
+        yield ctx
+    finally:
+        ctx.unload()

@@ -151,12 +151,6 @@ class DocumentInfoWidget(QWidget):
             if int(doc.status) >= int(Document.Status.UDDM_EXTRACTED):
                 doc.status = Document.Status.UDDM_EXTRACTED
 
-        # Обновляем шаблон документа в зависимости от нового класса
-        if new_class is not None:
-            doc.template = self._temp_manager.get(new_class)
-        else:
-            doc.template = None
-
         doc.pipeline_failed_target = None
         doc.pipeline_error_message = None
         self._doc_manager.save_metadata(doc)

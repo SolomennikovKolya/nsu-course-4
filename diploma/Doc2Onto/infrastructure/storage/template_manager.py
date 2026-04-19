@@ -6,7 +6,6 @@ from app.settings import TEMPLATES_BASE_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
 from core.template.template import Template
 from infrastructure.storage.base_manager import BaseManager
-from infrastructure.storage.template_loader import TemplateLoader
 
 
 class TemplateManager(BaseManager[Template, str]):
@@ -44,15 +43,8 @@ class TemplateManager(BaseManager[Template, str]):
         temp = Template(
             name=str(meta.get("name")),
             directory=Path(meta["directory"]),
-            description=str(meta["description"]) if meta.get("description") else None,
-            fields=None
+            description=str(meta["description"]) if meta.get("description") else None
         )
-
-        temp.code = TemplateLoader.load(temp)
-        # if temp.code is None:
-        #     self.logger.error(f"[TemplateManager] Template {temp.name} does not have code.")
-        #     return None
-
         return temp
 
     def add(self, name: str) -> Template:

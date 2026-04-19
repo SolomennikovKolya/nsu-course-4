@@ -4,7 +4,7 @@ from typing import Optional, Self
 from logging import ERROR
 
 from app.context import get_logger
-from core.document import Document
+from core.document import DocumentContext
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class BaseModule(ABC):
         self._logger = get_logger()
 
     @abstractmethod
-    def execute(self, document: Document) -> ModuleResult:
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
         pass
 
     def log(self, level: int, message: str, exc_info: bool = False):

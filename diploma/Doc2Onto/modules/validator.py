@@ -5,8 +5,9 @@ from pathlib import Path
 
 from app.agents import ask_gpt, read_prompt
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
-from core.document import Document
-from core.template.template import Template, Field
+from core.document import Document, DocumentContext
+from core.template.field import Field
+from core.template.template import Template
 from modules.base import BaseModule, ModuleResult
 from modules.extractor import ExtractionResult
 
@@ -157,50 +158,48 @@ class Validator(BaseModule):
     def __init__(self):
         super().__init__()
 
-    def execute(self, document: Document) -> ModuleResult:
-        try:
-            if not document.doc_class or not document.template:
-                self.log(WARNING, f"No template found")
-                return ModuleResult.failed(message="Не удалось загрузить шаблон")
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
+        doc = ctx.document
 
-            if not document.template.code:
-                self.log(WARNING, f"Template {document.template.name} has no code")
-                return ModuleResult.failed(message=f"Шаблон {document.template.name} не имеет кода")
+        tctx = ctx.template_ctx
+        if not tctx:
+            self.log(WARNING, f"No template found")
+            return ModuleResult.failed(message="Не удалось загрузить шаблон")
 
-            extraction_res = ExtractionResult.load(document.extraction_result_file_path())
-            validation_res = self._validate(document, document.template, extraction_res)
-            validation_res.save(document.validation_result_file_path())
-            return ModuleResult.ok()
+        code = tctx.code
+        if not code:
+            self.log(WARNING, f"Template {tctx.template.name} has no code")
+            return ModuleResult.failed(message=f"Шаблон {tctx.template.name} не имеет кода")
 
-        except Exception as ex:
-            self.log_exception()
-            return ModuleResult.failed(message=str(ex))
-
-    def _validate(self, document: Document, template: Template, extraction_res: ExtractionResult) -> ValidationResult:
-        fields = template.get_fields()
-        if not fields:
+        fields = tctx.fields
+        if fields is None or len(fields) == 0:
             raise ValueError("Can't get fields from template")
 
-        if not self._check_field_names_consistency(fields, extraction_res):
+        extr_res = ExtractionResult.load(doc.extraction_result_file_path())
+        if not self._check_field_names_consistency(fields, extr_res):
             raise ValueError("Field names consistency check failed")
 
+        valid_res = self._validate(doc, fields, extr_res)
+        valid_res.save(doc.validation_result_file_path())
+        return ModuleResult.ok()
+
+    def _validate(self, doc: Document, fields: List[Field], extraction_res: ExtractionResult) -> ValidationResult:
         result = ValidationResult()
         for field in fields:
             result.set_extracted_value(field.name, extraction_res.get_value(field.name))
 
         hard_validation = self._hard_validate(fields, extraction_res, result)
-
-        self._validate_with_llm(document, hard_validation, result)
+        self._validate_with_llm(doc, hard_validation, result)
 
         self._log_result(result)
         return result
 
-    def _hard_validate(self, fields: List[Field], extraction_res: ExtractionResult, result: ValidationResult) -> HardValidationResult:
+    def _hard_validate(self, fields: List[Field], extr_res: ExtractionResult, result: ValidationResult) -> HardValidationResult:
         """Жёсткая валидация полей декларативным методом."""
         hard_validation: HardValidationResult = {}
 
         for field in fields:
-            extracted_value = extraction_res.get_value(field.name)
+            extracted_value = extr_res.get_value(field.name)
             hard_validation[field.name] = self._hard_validate_field(field, extracted_value, result)
 
         return hard_validation
@@ -245,12 +244,12 @@ class Validator(BaseModule):
                 "error": error_text,
             }
 
-    def _validate_with_llm(self, document: Document, hard_validation: HardValidationResult, result: ValidationResult):
+    def _validate_with_llm(self, doc: Document, hard_validation: HardValidationResult, result: ValidationResult):
         """Валидация и коррекция полей с использованием LLM."""
         try:
             system_prompt = read_prompt(VALIDATE_FIELDS_SYS_PROMPT_PATH)
 
-            uddm_text = document.uddm_file_path().read_text(encoding="utf-8", errors="strict")
+            uddm_text = doc.uddm_file_path().read_text(encoding="utf-8", errors="strict")
             user_prompt = read_prompt(
                 VALIDATE_FIELDS_USER_PROMPT_PATH,
                 document_uddm_text=uddm_text,

@@ -1,7 +1,5 @@
-import logging
-
 from modules.base import BaseModule, ModuleResult
-from core.document import Document
+from core.document import Document, DocumentContext
 
 
 class Connector(BaseModule):
@@ -12,20 +10,20 @@ class Connector(BaseModule):
         # TODO: подключение к RDF-хранилищу
         pass
 
-    def execute(self, document: Document) -> ModuleResult:
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
+        document = ctx.document
         try:
             raise NotImplementedError("Модуль не реализован")
             triples = self._load_triples(document)
 
             # TODO: вставка в graph (rdflib / triplestore)
 
-            document.status = Document.Status.ADDED_TO_MODEL
-            return ModuleResult.OK
+            return ModuleResult.ok()
 
         except Exception as ex:
             self.log_exception()
             return ModuleResult.failed(message=str(ex))
 
     def _load_triples(self, document: Document):
-        # TODO
+        # TODO: загрузка из document.rdf_file_path()
         return []

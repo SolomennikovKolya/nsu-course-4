@@ -1,5 +1,4 @@
-from app.context import get_temp_manager
-from core.document import Document
+from core.document import Document, DocumentContext
 from modules.base import BaseModule, ModuleResult
 
 
@@ -8,28 +7,22 @@ class TripleBuilder(BaseModule):
 
     def __init__(self):
         super().__init__()
-        self.temp_manager = get_temp_manager()
 
-    def execute(self, document: Document) -> ModuleResult:
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
+        document = ctx.document
         try:
             raise NotImplementedError("Модуль не реализован")
-            if not document.doc_class:
-                return ModuleResult.FAILED
-
-            template = self.temp_manager.get(document.doc_class)
-            if not template:
-                return ModuleResult.FAILED
+            if not document.doc_class or ctx.template_ctx is None:
+                return ModuleResult.failed(message="Шаблон не найден")
 
             validation = self._load_validation(document)
 
-            # TODO: реальное построение триплетов
-            # triples = template.build_triples(validation)
+            # TODO: реальное построение триплетов (ctx.template_ctx.code.build_triples(...))
             triples = None
 
             self._save_triples(document, triples)
 
-            document.status = Document.Status.TRIPLES_BUILT
-            return ModuleResult.OK
+            return ModuleResult.ok()
 
         except Exception as ex:
             self.log_exception()
@@ -40,5 +33,5 @@ class TripleBuilder(BaseModule):
         return None
 
     def _save_triples(self, document: Document, triples):
-        # TODO: сохранить RDF (ttl/jsonld)
+        # TODO: сохранить RDF (ttl/jsonld), например document.rdf_file_path()
         pass

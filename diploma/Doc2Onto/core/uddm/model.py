@@ -104,16 +104,16 @@ class UDDM:
             return UDDM(blocks)
 
         except FileNotFoundError as e:
-            raise FileNotFoundError(f"XML файл не найден: {path}") from e
+            raise FileNotFoundError(f"XML file not found: {path}") from e
 
         except ET.ParseError as e:
-            raise ET.ParseError(f"Ошибка парсинга XML файла {path}: {e}") from e
+            raise ET.ParseError(f"Error parsing XML file {path}: {e}") from e
 
         except ValueError as e:
-            raise ValueError(f"Ошибка при десериализации блока: {e}") from e
+            raise ValueError(f"Error during block deserialization: {e}") from e
 
         except Exception as e:
-            raise RuntimeError(f"Неожиданная ошибка при загрузке UDDM из {path}: {e}") from e
+            raise RuntimeError(f"Unexpected error loading UDDM from {path}: {e}") from e
 
     def save(self, path: Path):
         """Сериализация в xml-файл."""

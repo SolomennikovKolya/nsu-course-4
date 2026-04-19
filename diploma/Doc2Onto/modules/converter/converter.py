@@ -1,7 +1,7 @@
 from typing import Dict, Type, List, Optional
 from pathlib import Path
 
-from core.document import Document
+from core.document import DocumentContext
 from core.uddm.model import UDDM
 from modules.base import BaseModule, ModuleResult
 from modules.converter.normalizers.base import BaseNormalizer
@@ -54,15 +54,17 @@ class Converter(BaseModule):
     def __init__(self):
         super().__init__()
 
-    def execute(self, document: Document) -> ModuleResult:
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
         try:
-            uddm = self._convert(document.original_file_path())
-            uddm.save(document.uddm_file_path())
+            doc = ctx.document
+            uddm = self._convert(doc.original_file_path())
+            uddm.save(doc.uddm_file_path())
+            ctx.uddm = uddm
 
             # Различные визуальные представления UDDM
-            UDDMToText().save(uddm, document.directory / "plain_text.txt")
-            UDDMToHTML().save(uddm, document.directory / "uddm_html_view.html")
-            UDDMToTree().save(uddm, document.directory / "uddm_tree_view.txt")
+            UDDMToText().save(uddm, doc.directory / "plain_text.txt")
+            UDDMToHTML().save(uddm, doc.directory / "uddm_html_view.html")
+            UDDMToTree().save(uddm, doc.directory / "uddm_tree_view.txt")
 
             return ModuleResult.ok()
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional, Self
 
 from app.context import get_logger
-from core.document import Document
+from core.document import Document, DocumentContext, document_context
 from modules import Converter, Classifier, Extractor, Validator, TripleBuilder, Connector
 from modules.base import BaseModule
 
@@ -94,41 +94,45 @@ class Pipeline:
 
         self.setup_done = True
 
-    def run(self, document: Document, final_stage: Document.Status = Document.Status.ADDED_TO_MODEL) -> PipelineResult:
+    def run(self, doc: Document, final_stage: Document.Status = Document.Status.ADDED_TO_MODEL) -> PipelineResult:
         """Начинает / продолжает обработку докумнта до достижения final_stage."""
         if not self.setup_done:
             self.setup()
 
-        document.pipeline_failed_target = None
-        document.pipeline_error_message = None
+        doc.pipeline_failed_target = None
+        doc.pipeline_error_message = None
 
         self.logger.info(f"[Pipeline] started")
-        self.logger.info(f'  Document: "{document.name}"')
-        self.logger.info(f"  Target status: {document.status} -> {final_stage}")
+        self.logger.info(f'  Document: "{doc.name}"')
+        self.logger.info(f"  Target status: {doc.status} -> {final_stage}")
 
-        if int(document.status) >= int(final_stage):
-            self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {document.status})")
+        if int(doc.status) >= int(final_stage):
+            self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {doc.status})")
             return PipelineResult.ok()
 
+        with document_context(doc) as ctx:
+            return self._full_run(ctx, final_stage)
+
+    def _full_run(self, ctx: DocumentContext, final_stage: Document.Status):
         for stage in self.stages:
-            if document.status == stage.start_status:
+            if ctx.document.status == stage.start_status:
                 self.logger.info(f"  <{stage.name}> started")
-                result = stage.module.execute(document)
+                result = stage.module.execute(ctx)
                 self.logger.info(f"  <{stage.name}> code: {result}")
 
                 if bool(result):
-                    document.status = stage.target_status
+                    ctx.document.status = stage.target_status
                 else:
                     err_msg = getattr(result, "message", None) or "Ошибка обработки"
-                    document.pipeline_failed_target = stage.target_status
-                    document.pipeline_error_message = err_msg
-                    self.logger.info(f"  Final status: {document.status}")
+                    ctx.document.pipeline_failed_target = stage.target_status
+                    ctx.document.pipeline_error_message = err_msg
+                    self.logger.info(f"  Final status: {ctx.document.status}")
                     self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
                     return PipelineResult.failed(message=err_msg, failed_status=stage.target_status)
 
-            if int(document.status) >= int(final_stage):
+            if int(ctx.document.status) >= int(final_stage):
                 break
 
-        self.logger.info(f"  Final status: {document.status}")
+        self.logger.info(f"  Final status: {ctx.document.status}")
         self.logger.info(f"[Pipeline] code: {PipelineResult.OK}")
         return PipelineResult.ok()

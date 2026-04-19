@@ -43,16 +43,6 @@ class DocumentManager(BaseManager[Document, Path]):
             status=Document.Status(meta.get("status", Document.Status.UPLOADED)),
             doc_class=meta.get("doc_class")
         )
-
-        # Загрузка шаблона
-        if doc.doc_class:
-            doc.template = get_temp_manager().get(doc.doc_class)
-            if not doc.template:
-                get_logger().warning(
-                    f"[DocumentManager] Document {doc.name} has class {doc.doc_class} but no corresponding template found")
-                doc.status = max(doc.status, Document.Status.UDDM_EXTRACTED)
-                doc.doc_class = None
-
         return doc
 
     def add(self, file_path: Path) -> Document:

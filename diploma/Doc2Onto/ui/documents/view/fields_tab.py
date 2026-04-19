@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QScrollArea, QStackedLayout, QVBoxLayout, QWidget
 )
 
-from core.document import Document
+from core.document import Document, document_context
 from modules.extractor import ExtractionResult, FieldExtractionData
 from modules.validator import ValidationResult, FieldValidationData
 
@@ -55,8 +55,12 @@ class DocumentViewFieldsTab(QWidget):
         self._document = document
         self._clear_rows()
 
-        if document is None or document.template is None:
-            self._show_empty("Выберите класс документа и запустите обработку")
+        if document is None:
+            self._show_empty("Выберите документ")
+            return True
+
+        if int(document.status) < int(Document.Status.FIELDS_VALIDATED):
+            self._show_empty("Документ ещё не прошёл экстракцию и валидацию")
             return True
 
         extraction_path = document.extraction_result_file_path()
@@ -65,8 +69,8 @@ class DocumentViewFieldsTab(QWidget):
             return True
         try:
             extraction_res = ExtractionResult.load(extraction_path)
-        except Exception as exc:
-            self._show_empty(f"Не удалось прочитать результаты экстракции: {exc}")
+        except Exception:
+            self._show_empty("Не удалось прочитать результаты экстракции")
             return True
 
         validation_path = document.validation_result_file_path()
@@ -75,49 +79,66 @@ class DocumentViewFieldsTab(QWidget):
             return True
         try:
             validation_res = ValidationResult.load(validation_path)
-        except Exception as exc:
-            self._show_empty(f"Не удалось прочитать результаты валидации: {exc}")
+        except Exception:
+            self._show_empty("Не удалось прочитать результаты валидации")
             return True
 
-        fields = document.template.get_fields()
-        if not fields:
-            self._show_empty("Не удалось загрузить поля из шаблона")
-            return True
-
-        field_names_template = {field.name for field in fields}
         field_names_extraction = set(extraction_res.fields.keys())
         field_names_validation = set(validation_res.fields.keys())
+        field_names_code = list()
+        field_descriptions = dict()
 
-        if field_names_template != field_names_extraction:
+        with document_context(document) as ctx:
+            if document.doc_class is None:
+                self._show_empty("Выберите класс документа и запустите обработку")
+                return True
+
+            tctx = ctx.template_ctx
+            if tctx is None:
+                self._show_empty("Шаблон для выбранного класса не найден")
+                return True
+
+            fields = tctx.fields
+            if fields is None:
+                self._show_empty("Не удалось получить поля из кода шаблона")
+                return True
+            elif len(fields) == 0:
+                self._show_empty("Шаблон для выбранного класса не содержит полей")
+                return True
+
+            field_names_code = [field.name for field in fields]
+            field_descriptions = {field.name: field.description for field in fields}
+
+        if set(field_names_code) != field_names_extraction:
             self._show_empty(
-                f"Неконсистентность структур: поля шаблона не совпадают с результатами экстракции. "
-                f"В шаблоне: {sorted(field_names_template)}, в экстракции: {sorted(field_names_extraction)}. "
+                f"Неконсистентность структур: поля из кода шаблона не совпадают с результатами экстракции. "
+                f"В коде: {sorted(field_names_code)}, в экстракции: {sorted(field_names_extraction)}. "
                 f"Перезапустите обработку"
             )
             return True
 
-        if field_names_template != field_names_validation:
+        if set(field_names_code) != field_names_validation:
             self._show_empty(
-                f"Неконсистентность структур: поля шаблона не совпадают с результатами валидации. "
-                f"В шаблоне: {sorted(field_names_template)}, в валидации: {sorted(field_names_validation)}. "
+                f"Неконсистентность структур: поля из кода шаблона не совпадают с результатами валидации. "
+                f"В коде: {sorted(field_names_code)}, в валидации: {sorted(field_names_validation)}. "
                 f"Перезапустите обработку"
             )
             return True
 
-        for field in fields:
-            extraction_data = extraction_res.fields.get(field.name)
-            validation_data = validation_res.fields.get(field.name)
+        for field_name in field_names_code:
+            extraction_data = extraction_res.fields[field_name]
+            validation_data = validation_res.fields[field_name]
 
             row = FieldRowWidget(
                 parent=self._list_widget,
-                field_name=field.name,
-                field_description=field.description,
+                field_name=field_name,
+                field_description=field_descriptions[field_name],
                 extraction_data=extraction_data,
                 validation_data=validation_data,
                 on_change=self._handle_row_change,
             )
 
-            self._rows[field.name] = row
+            self._rows[field_name] = row
             self._list_layout.insertWidget(self._list_layout.count() - 1, row)
 
         if self._rows:

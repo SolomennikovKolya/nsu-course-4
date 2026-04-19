@@ -6,7 +6,7 @@ from pathlib import Path
 from app.agents import ask_gpt, read_prompt
 from app.settings import EXTRACT_FIELDS_SYS_PROMPT_PATH, EXTRACT_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from modules.base import BaseModule, ModuleResult
-from core.document import Document
+from core.document import Document, DocumentContext
 from core.template.field import Field
 from core.template.template import Template
 from core.uddm.model import UDDM
@@ -140,34 +140,33 @@ class Extractor(BaseModule):
     def __init__(self):
         super().__init__()
 
-    def execute(self, document: Document) -> ModuleResult:
-        try:
-            uddm = UDDM.load(document.uddm_file_path())
-            if not uddm:
-                self.log(WARNING, f"No UDDM found")
-                return ModuleResult.failed(message="Не удалось загрузить UDDM")
+    def execute(self, ctx: DocumentContext) -> ModuleResult:
+        doc = ctx.document
 
-            if not document.doc_class or not document.template:
-                self.log(WARNING, f"No template found")
-                return ModuleResult.failed(message="Не удалось загрузить шаблон")
+        uddm = ctx.uddm
+        if not uddm:
+            self.log(WARNING, f"No UDDM found")
+            return ModuleResult.failed(message="Не удалось загрузить UDDM")
 
-            if not document.template.code:
-                self.log(WARNING, f"Template {document.template.name} has no code")
-                return ModuleResult.failed(message=f"Шаблон {document.template.name} не имеет кода")
+        tctx = ctx.template_ctx
+        if not tctx:
+            self.log(WARNING, f"No template found")
+            return ModuleResult.failed(message="Не удалось загрузить шаблон")
 
-            extraction_result = self._extract(document, document.template, uddm)
-            extraction_result.save(document.extraction_result_file_path())
-            return ModuleResult.ok()
-
-        except Exception as ex:
-            self.log_exception()
-            return ModuleResult.failed(message=str(ex))
-
-    def _extract(self, document: Document, template: Template, uddm: UDDM) -> ExtractionResult:
-        fields = template.get_fields()
+        fields = tctx.fields
         if not fields:
-            raise ValueError("Не удалось получить поля из кода шаблона")
+            self.log(WARNING, f"No fields found")
+            return ModuleResult.failed(message="Не удалось получить поля из кода шаблона")
 
+        extr_res = self._extract(doc, tctx.template, fields, uddm)
+        if self._all_fields_failed(extr_res):
+            self.log(WARNING, "All fields failed")
+            return ModuleResult.failed(message="Не удалось извлечь ни одного поля")
+
+        extr_res.save(doc.extraction_result_file_path())
+        return ModuleResult.ok()
+
+    def _extract(self, document: Document, template: Template, fields: List[Field], uddm: UDDM) -> ExtractionResult:
         result = ExtractionResult()
         self._extract_fields_declarative(fields, uddm, result)
 
@@ -262,3 +261,6 @@ class Extractor(BaseModule):
                 temp_part = f'temp="{value_temp}"' if value_temp is not None else "temp=null"
                 llm_part = f'llm="{value_llm}"' if value_llm is not None else "llm=null"
                 self.log(WARNING, f"{field_label} None ({'; '.join(err_parts)}; {temp_part}; {llm_part})")
+
+    def _all_fields_failed(self, result: ExtractionResult) -> bool:
+        return all(not result.is_extracted(field_name) for field_name in result.fields.keys())
