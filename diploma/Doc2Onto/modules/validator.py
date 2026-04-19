@@ -181,6 +181,10 @@ class Validator(BaseModule):
 
         valid_res = self._validate(doc, fields, extr_res)
         valid_res.save(doc.validation_result_file_path())
+
+        if not self._all_fields_validated(valid_res):
+            return ModuleResult.failed(message="Не все поля валидны")
+
         return ModuleResult.ok()
 
     def _validate(self, doc: Document, fields: List[Field], extraction_res: ExtractionResult) -> ValidationResult:
@@ -337,3 +341,6 @@ class Validator(BaseModule):
                 if not parts:
                     parts.append("error not specified")
                 self.log(WARNING, f"{field_label} invalid ({'; '.join(parts)})")
+
+    def _all_fields_validated(self, result: ValidationResult) -> bool:
+        return all(result.is_valid(field_name) for field_name in result.fields.keys())

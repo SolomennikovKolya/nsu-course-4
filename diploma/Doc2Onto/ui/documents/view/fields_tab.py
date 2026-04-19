@@ -1,11 +1,12 @@
 from html import escape
 from typing import Callable, Dict, Optional
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QScrollArea, QStackedLayout, QVBoxLayout, QWidget
 )
 
+from app.context import get_doc_manager
 from core.document import Document, document_context
 from modules.extractor import ExtractionResult, FieldExtractionData
 from modules.validator import ValidationResult, FieldValidationData
@@ -14,16 +15,20 @@ from modules.validator import ValidationResult, FieldValidationData
 class DocumentViewFieldsTab(QWidget):
     """Вкладка для отображения извлечённых и валидированных полей документа с возможностью их корректировки."""
 
+    validation_result_changed = Signal(Document)
+
     def __init__(self):
         super().__init__()
         self._document: Optional[Document] = None
         self._rows: Dict[str, FieldRowWidget] = {}
+        self._doc_manager = get_doc_manager()
         self._build_tab()
 
     def _build_tab(self):
         """Инициализация элементов вкладки."""
         self._empty_label = QLabel("")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_label.setWordWrap(True)
 
         self._list_widget = QWidget()
         self._list_widget.setStyleSheet("background: transparent;")
@@ -59,13 +64,9 @@ class DocumentViewFieldsTab(QWidget):
             self._show_empty("Выберите документ")
             return True
 
-        if int(document.status) < int(Document.Status.FIELDS_VALIDATED):
-            self._show_empty("Документ ещё не прошёл экстракцию и валидацию")
-            return True
-
         extraction_path = document.extraction_result_file_path()
         if not extraction_path.exists():
-            self._show_empty("Результаты экстракции пока отсутствуют")
+            self._show_empty("Документ ещё не прошёл экстракцию")
             return True
         try:
             extraction_res = ExtractionResult.load(extraction_path)
@@ -75,7 +76,7 @@ class DocumentViewFieldsTab(QWidget):
 
         validation_path = document.validation_result_file_path()
         if not validation_path.exists():
-            self._show_empty("Результаты валидации пока отсутствуют")
+            self._show_empty("Документ ещё не прошёл валидацию")
             return True
         try:
             validation_res = ValidationResult.load(validation_path)
@@ -169,11 +170,11 @@ class DocumentViewFieldsTab(QWidget):
 
     def _handle_row_change(self, field_name: str, new_value: str, new_valid: bool):
         """Обработка изменения значения или флага валидности поля."""
-        document = self._document
-        if document is None:
+        doc = self._document
+        if doc is None:
             return
 
-        validation_path = document.validation_result_file_path()
+        validation_path = doc.validation_result_file_path()
         if not validation_path.exists():
             return
         try:
@@ -193,7 +194,21 @@ class DocumentViewFieldsTab(QWidget):
         try:
             validation_res.save(validation_path)
         except OSError:
-            pass
+            return
+
+        if all(validation_res.is_valid(fn) for fn in validation_res.fields.keys()):
+            if int(doc.status) < int(Document.Status.FIELDS_VALIDATED):
+                doc.status = Document.Status.FIELDS_VALIDATED
+                doc.pipeline_failed_target = None
+                doc.pipeline_error_message = None
+                self._doc_manager.save_metadata(doc)
+        else:
+            doc.status = Document.Status.FIELDS_EXTRACTED
+            doc.pipeline_failed_target = Document.Status.FIELDS_VALIDATED
+            doc.pipeline_error_message = "Не все поля валидны"
+            self._doc_manager.save_metadata(doc)
+
+        self.validation_result_changed.emit(doc)
 
 
 class FieldRowWidget(QFrame):
@@ -292,7 +307,7 @@ class FieldRowWidget(QFrame):
         self._title_label = QLabel()
         self._title_label.setTextFormat(Qt.TextFormat.RichText)
         self._title_label.setText(title_html)
-        self._title_label.setWordWrap(False)
+        self._title_label.setWordWrap(True)
         header.addWidget(self._title_label, stretch=1)
 
         self._valid_checkbox = QCheckBox("Валидно")

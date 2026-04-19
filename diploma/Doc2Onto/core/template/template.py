@@ -46,8 +46,7 @@ class TemplateContext:
         try:
             self._code = TemplateCodeLoader.load(self.template)
             return self._code
-        except Exception as exc:
-            # raise RuntimeError(f"Failed to load code into template context: {exc}") from exc
+        except Exception:
             return None
 
     @code.setter
@@ -61,8 +60,7 @@ class TemplateContext:
         try:
             self._fields = self.code.fields()
             return self._fields
-        except Exception as exc:
-            # raise RuntimeError(f"Failed to load fields into template context: {exc}") from exc
+        except Exception:
             return None
 
     @fields.setter

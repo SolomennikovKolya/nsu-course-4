@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 from typing import Optional, Tuple
 
-from app.context import get_temp_manager, get_logger
 from app.settings import DOCUMENTS_BASE_DIR
 from core.document import Document
 from infrastructure.storage.base_manager import BaseManager
@@ -41,7 +40,10 @@ class DocumentManager(BaseManager[Document, Path]):
             name=directory.name,
             directory=directory,
             status=Document.Status(meta.get("status", Document.Status.UPLOADED)),
-            doc_class=meta.get("doc_class")
+            doc_class=meta.get("doc_class"),
+            pipeline_failed_target=Document.Status(
+                meta.get("pipeline_failed_target")) if meta.get("pipeline_failed_target") else None,
+            pipeline_error_message=meta.get("pipeline_error_message"),
         )
         return doc
 

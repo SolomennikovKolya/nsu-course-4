@@ -41,8 +41,8 @@ class StatusBarWidget(QWidget):
 
         self._error_label = QLabel("")
         self._error_label.setWordWrap(True)
-        self._error_label.setVisible(False)
         self._error_label.setStyleSheet("color: #ff8a80;")
+        self._error_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(self._error_label)
 
     def set_status(self, document: Optional[Document]):
@@ -50,7 +50,6 @@ class StatusBarWidget(QWidget):
         if document is None:
             for label in self._step_labels:
                 label.setStyleSheet("color: gray")
-            self._error_label.setVisible(False)
             self._error_label.setText("")
             return
 
@@ -71,7 +70,5 @@ class StatusBarWidget(QWidget):
 
         if error_message:
             self._error_label.setText(error_message)
-            self._error_label.setVisible(True)
         else:
             self._error_label.setText("")
-            self._error_label.setVisible(False)

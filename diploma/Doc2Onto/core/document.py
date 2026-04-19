@@ -44,10 +44,8 @@ class Document:
     status: Status = Status.UPLOADED  # Статус обработки документа
     doc_class: Optional[str] = None   # Класс документа (название шаблона)
 
-    pipeline_failed_target: Optional[Status] = field(            # Последний статус, на котором пайплайн завершился с ошибкой
-        default=None, repr=False, metadata={"skip_dict": True})  # Не сохраняется между запусками приложения; используется только в UI
-    pipeline_error_message: Optional[str] = field(               # Последнее сообщение об ошибке пайплайна
-        default=None, repr=False, metadata={"skip_dict": True})  # Не сохраняется между запусками приложения; используется только в UI
+    pipeline_failed_target: Optional[Status] = None  # Статус шага, на котором пайплайн остановился с ошибкой
+    pipeline_error_message: Optional[str] = None     # Сообщение об ошибке пайплайна
 
     # --- пути до промежуточных данных ---
 
@@ -101,7 +99,6 @@ class DocumentContext:
             self._uddm = UDDM.load(self.document.uddm_file_path())
             return self._uddm
         except Exception as exc:
-            # raise RuntimeError(f"Failed to load UDDM into document context: {exc}") from exc
             return None
 
     @uddm.setter
@@ -114,12 +111,10 @@ class DocumentContext:
             return self._template_ctx
 
         if self.document.doc_class is None:
-            # raise ValueError("Template context is not available for document without class")
             return None
 
         temp = get_temp_manager().get(self.document.doc_class)
         if temp is None:
-            # raise ValueError(f"Template not found for class {self.document.doc_class}")
             return None
 
         self._template_ctx = TemplateContext(temp)

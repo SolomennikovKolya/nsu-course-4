@@ -31,6 +31,9 @@ class DocumentInfoWidget(QWidget):
         self._stack.addWidget(self._build_empty_page())
         self._stack.addWidget(self._build_document_page())
 
+        # --- Сигналы ---
+        self._document_view.validation_result_changed.connect(self._on_validation_result_changed)
+
     def _build_empty_page(self) -> QWidget:
         self._empty_page = QWidget()
         empty_layout = QVBoxLayout(self._empty_page)
@@ -209,6 +212,10 @@ class DocumentInfoWidget(QWidget):
         self.set_document(None)
         self.document_deleted.emit(doc)
 
+    def _on_validation_result_changed(self, document: Document):
+        self._status_widget.set_status(document)
+        self._update_buttons()
+
     def _update_buttons(self):
         self._update_action_button()
         self._update_restart_button()
@@ -220,11 +227,6 @@ class DocumentInfoWidget(QWidget):
         if doc is None:
             self._action_button.setEnabled(False)
             self._action_button.setText("Выберите документ")
-            return
-
-        if doc.doc_class is None:
-            self._action_button.setEnabled(False)
-            self._action_button.setText("Выберите класс документа")
             return
 
         if doc.status == Document.Status.ADDED_TO_MODEL:

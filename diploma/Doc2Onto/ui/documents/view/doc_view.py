@@ -1,4 +1,5 @@
 from typing import Optional
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
 from core.document import Document
@@ -11,6 +12,8 @@ from ui.documents.view.uddm_tab import DocumentViewUddmTab
 
 class DocumentViewWidget(QWidget):
     """Вкладки предпросмотра документа и его промежуточных данных."""
+
+    validation_result_changed = Signal(Document)
 
     def __init__(self):
         super().__init__()
@@ -32,6 +35,9 @@ class DocumentViewWidget(QWidget):
         self._tabs.addTab(wrap_tab_page_content(self._rdf_tab), "RDF")
         self._apply_no_document_state()
 
+        # --- Сигналы ---
+        self._fields_tab.validation_result_changed.connect(self._on_validation_result_changed)
+
     def set_document(self, document: Optional[Document]):
         """Установка текущего документа в виджет."""
         self._document = document
@@ -45,3 +51,6 @@ class DocumentViewWidget(QWidget):
     def _apply_no_document_state(self):
         """Установка текста по умолчанию при отсутствии документа."""
         self.set_document(None)
+
+    def _on_validation_result_changed(self, document: Document):
+        self.validation_result_changed.emit(document)
