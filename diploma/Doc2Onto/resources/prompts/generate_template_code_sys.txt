@@ -144,27 +144,37 @@ class BaseTemplateCode(ABC):
         pass
 
     @abstractmethod
-    def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
+    def build_triples(self, g: Graph, f: FieldsAccessor) -> None:
         """
-        Построение RDF-триплетов на основе извлечённых значений полей.
+        Построение графа RDF на основе извлечённых значений полей.
 
         Аргументы:
-            fields_values (Dict[str, str]): Словарь "имя поля -> извлечённое значение", полученный после распознавания всех полей в документе.
+            g (Graph): Граф RDF, в который будут добавлены триплеты.
+            f (FieldsAccessor): Аксессор к извлечённым значениям полей.
 
-        Возвращает:
-            List[Dict]: Список триплетов (например, в виде словарей, каждый из которых содержит субъект, предикат и объект),
-                которые затем будут сериализованы в RDF или другой нужный формат.
+        Пример:
+        ```
+        DOC = URIRef("doc:current")
+
+        student = f.uri("student_name", "onto:Student/")
+        course = f.literal("course_number")
+
+        g.add((DOC, RDF.type, URIRef("onto:PracticeApplication")))
+
+        if student:
+            g.add((DOC, URIRef("onto:hasStudent"), student))
+            g.add((student, RDF.type, URIRef("onto:Student")))
+
+        if course:
+            g.add((DOC, URIRef("onto:courseNumber"), course))
+        ```
         """
         pass
 
 #### Поле шаблона
 
 class Field:
-    class Type(StrEnum):
-        INDIVIDUAL = "individual"
-        LITERAL = "literal"
-
-    def __init__(self, name: str, description: str, field_type: Type,
+    def __init__(self, name: str, description: str,
                  selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator):
         """
         Args:
@@ -173,11 +183,9 @@ class Field:
             selector: Где искать? (поиск текста, содержащего значение поля)
             extractor: Как извлекать? (логика извлечения значения поля из текста, найденного селектором)
             validator: Как валидировать? (правила проверки корректности извлечённого значения поля)
-            field_type: Чем является? (тип поля: индивидуум или литерал)
         """
         self.name: str = name
         self.description: str = description
-        self.field_type: Field.Type = field_type
         self.selector: FieldSelector = selector
         self.extractor: FieldExtractor = extractor
         self.validator: FieldValidator = validator
@@ -390,3 +398,27 @@ operation - пользовательская функция, которая по
   validate().numeric().in_range(0, 100)
 - Проверка даты:
   validate().regex(r"\d{2}\.\d{2}\.\d{4}", full_match=True)
+
+#### FieldsAccessor
+
+class FieldsAccessor:
+    """Аксессор к извлечённым значениям полей."""
+
+    def __init__(self, values: Dict[str, str]):
+        self._values = values
+
+    def value(self, name: str) -> Optional[str]:
+        return self._values.get(name)
+
+    def literal(self, name: str, value_type: type = str) -> Literal:
+        val = self.value(name)
+        if val is not None and value_type is not str:
+            try:
+                val = value_type(val)
+            except (ValueError, TypeError):
+                pass
+        return Literal(val)
+
+    def uri(self, name: str, prefix: str) -> URIRef:
+        val = self.value(name)
+        return URIRef(prefix + sanitize_camel(val))

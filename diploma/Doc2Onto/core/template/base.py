@@ -1,8 +1,10 @@
+from rdflib import Graph
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from core.template.field import Field
 from core.uddm.model import UDDM
+from core.template.field_accessor import FieldsAccessor
 
 
 class BaseTemplateCode(ABC):
@@ -43,26 +45,29 @@ class BaseTemplateCode(ABC):
         pass
 
     @abstractmethod
-    def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
+    def build_triples(self, g: Graph, f: FieldsAccessor) -> None:
         """
-        Построение RDF-триплетов на основе извлечённых значений полей.
+        Построение графа RDF на основе извлечённых значений полей.
 
         Аргументы:
-            fields_values (Dict[str, str]): Словарь "имя поля -> извлечённое значение", полученный после распознавания всех полей в документе.
-
-        Возвращает:
-            List[Dict]: Список триплетов (например, в виде словарей, каждый из которых содержит субъект, предикат и объект),
-                которые затем будут сериализованы в RDF или другой нужный формат.
-
-        Что нужно сделать:
-            - На базе значений из fields_values сформировать RDF-триплеты согласно онтологии (или спецификации задач).
-            - Для каждого триплета указывать субъект, предикат и объект (или соответствующую структуру).
-            - Можно использовать значения полей как части URI, литералы и т.д.
+            g (Graph): Граф RDF, в который будут добавлены триплеты.
+            f (FieldsAccessor): Аксессор к извлечённым значениям полей.
 
         Пример:
-            return [
-                {"subject": "...", "predicate": "...", "object": "..."},
-                ...
-            ]
+        ```
+        DOC = URIRef("doc:current")
+
+        student = f.uri("student_name", "onto:Student/")
+        course = f.literal("course_number")
+
+        g.add((DOC, RDF.type, URIRef("onto:PracticeApplication")))
+
+        if student:
+            g.add((DOC, URIRef("onto:hasStudent"), student))
+            g.add((student, RDF.type, URIRef("onto:Student")))
+
+        if course:
+            g.add((DOC, URIRef("onto:courseNumber"), course))
+        ```
         """
         pass

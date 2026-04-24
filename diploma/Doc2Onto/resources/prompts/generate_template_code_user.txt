@@ -35,10 +35,11 @@ $code_example
 - validator — максимально строгие, но при этом логичные проверки (чтобы не отбросить на самом деле валидное значение поля) 
 
 #### 3. Требования к build_triples
-- Используй fields_values
-- Формируй триплеты в виде: {"subject": ..., "predicate": ..., "object": ...}
-- Используй осмысленные URI/предикаты
-- Не усложняй
+- Используй все необходиные возможности rdflib
+- Главное - построить граф RDF со всеми необходимыми знаниями
+- Опирайся на переданную онтологию, чтобы согласовать ресурсы
+- Используй FieldsAccessor для создания Literal или URIRef из полей шаблона
+- Базовый namespace: @prefix : <http://doc2onto.org/ontology#> .
 
 #### Примечание
 В случае, если описание шаблона пустое или не содержит четкого описания извлекаемых полей, сам придумай, какие поля извлекать.
@@ -86,7 +87,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="student_name",
                 description="ФИО обучающегося",
-                field_type=Field.Type.INDIVIDUAL,
                 selector=select().find(ElementType.P, contains_text("(Ф.И.О.)")),
                 extractor=extract().before("(Ф.И.О.)"),
                 validator=validate().alphabetic().word_count(exact=3),
@@ -94,7 +94,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="course_number",
                 description="Номер курса обучения",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("курса")),
                 extractor=extract().regex(r"(\d+)\s*курса", group=1),
                 validator=validate().integer().in_range(1, 4),
@@ -102,7 +101,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="group_number",
                 description="Номер учебной группы",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("группы №")),
                 extractor=extract().regex(r"группы\s*№\s*([0-9]+)", group=1),
                 validator=validate().integer(),
@@ -110,7 +108,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="direction_code",
                 description="Код направления подготовки",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("направление")),
                 extractor=extract().regex(r"(\d{2}\.\d{2}\.\d{2})", group=1),
                 validator=validate().regex(r"\d{2}\.\d{2}\.\d{2}", full_match=True),
@@ -118,7 +115,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="direction_name",
                 description="Наименование направления подготовки",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("(код и наименование направления)")).previous_element(),
                 extractor=extract().after("направление ").after(" ").trim(),
                 validator=validate().alphabetic(),
@@ -126,7 +122,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="profile_name",
                 description="Наименование профиля подготовки",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("направленность (профиль)")),
                 extractor=extract().after("направленность (профиль)").trim(),
                 validator=validate().alphabetic(),
@@ -134,7 +129,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="organization_full_name",
                 description="Полное наименование организации места практики",
-                field_type=Field.Type.INDIVIDUAL,
                 selector=select().find(ElementType.P, contains_text("(полное название организации")).previous_element(),
                 extractor=extract(),
                 validator=validate(),
@@ -142,7 +136,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="application_date",
                 description="Дата заявления",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("Дата:")),
                 extractor=extract().after("Дата: ").regex(r"«?\s*(\d{1,2})\s*»?\s*([А-Яа-яЁё]+)\s*(\d{4}\s*г\.)", group=0),
                 validator=validate(),
@@ -150,7 +143,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="supervisor_name",
                 description="ФИО руководителя ВКР",
-                field_type=Field.Type.INDIVIDUAL,
                 selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
                 extractor=extract().regex(r"Руководитель ВКР.*?(?:\(?Ф\.И\.О\. полностью\)?\s*)?(.*?)(?:\s+зав\. кафедрой|\s+\(должность\)|$)",
                                           group=1).keep_letters_and_spaces().normalize_spaces(),
@@ -159,7 +151,6 @@ class TemplateCode(BaseTemplateCode):
             Field(
                 name="supervisor_position",
                 description="Должность руководителя ВКР",
-                field_type=Field.Type.LITERAL,
                 selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
                 extractor=extract().regex(r"Руководитель ВКР.*?(?P<position>зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)", group="position"),
                 validator=validate(),
@@ -167,24 +158,4 @@ class TemplateCode(BaseTemplateCode):
         ]
 
     def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
-        subject = "urn:document:application"
-        triples = []
-        mapping = {
-            "student_name": "urn:predicate:student_name",
-            "course_number": "urn:predicate:course_number",
-            "group_number": "urn:predicate:group_number",
-            "direction_code": "urn:predicate:direction_code",
-            "direction_name": "urn:predicate:direction_name",
-            "profile_name": "urn:predicate:profile_name",
-            "practice_type": "urn:predicate:practice_type",
-            "organization_full_name": "urn:predicate:organization_full_name",
-            "organization_address": "urn:predicate:organization_address",
-            "application_date": "urn:predicate:application_date",
-            "supervisor_name": "urn:predicate:supervisor_name",
-            "supervisor_position": "urn:predicate:supervisor_position",
-        }
-        for key, predicate in mapping.items():
-            value = fields_values.get(key)
-            if value:
-                triples.append({"subject": subject, "predicate": predicate, "object": value})
-        return triples
+        raise NotImplementedError()  # Примера пока нет

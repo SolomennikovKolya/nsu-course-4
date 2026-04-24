@@ -71,7 +71,7 @@ class Document:
         return self.directory / "validation_result.json"
 
     def rdf_file_path(self):
-        return self.directory / "rdf.xml"
+        return self.directory / "rdf.ttl"
 
 
 class DocumentContext:

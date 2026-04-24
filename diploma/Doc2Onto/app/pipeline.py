@@ -3,7 +3,7 @@ from typing import Optional, Self
 
 from app.context import get_logger
 from core.document import Document, DocumentContext, document_context
-from modules import Converter, Classifier, Extractor, Validator, TripleBuilder, Connector
+from modules import Converter, Classifier, Extractor, Validator, GraphBuilder, Connector
 from modules.base import BaseModule
 
 
@@ -77,10 +77,10 @@ class Pipeline:
                 module=Validator()
             ),
             Pipeline.Stage(
-                name="triple_building",
+                name="graph_building",
                 start_status=Document.Status.FIELDS_VALIDATED,
                 target_status=Document.Status.TRIPLES_BUILT,
-                module=TripleBuilder()
+                module=GraphBuilder()
             ),
             Pipeline.Stage(
                 name="model_insertion",

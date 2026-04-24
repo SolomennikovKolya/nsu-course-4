@@ -7,7 +7,6 @@ from app.agents import ask_gpt, read_prompt
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from core.document import Document, DocumentContext
 from core.template.field import Field
-from core.template.template import Template
 from modules.base import BaseModule, ModuleResult
 from modules.extractor import ExtractionResult
 
@@ -163,26 +162,31 @@ class Validator(BaseModule):
 
         tctx = ctx.template_ctx
         if not tctx:
-            self.log(WARNING, f"No template found")
-            return ModuleResult.failed(message="Не удалось загрузить шаблон")
+            self.log(WARNING, f'Template "{doc.doc_class}" not found')
+            return ModuleResult.failed(message=f"Не удалось загрузить шаблон")
 
         code = tctx.code
         if not code:
-            self.log(WARNING, f"Template {tctx.template.name} has no code")
-            return ModuleResult.failed(message=f"Шаблон {tctx.template.name} не имеет кода")
+            self.log(WARNING, f'Template "{tctx.template.name}" has no code')
+            return ModuleResult.failed(message=f"Шаблон не имеет кода")
 
         fields = tctx.fields
         if fields is None or len(fields) == 0:
-            raise ValueError("Can't get fields from template")
+            self.log(WARNING, f'Template "{tctx.template.name}" has no fields')
+            return ModuleResult.failed(message=f"Шаблон не имеет полей")
 
         extr_res = ExtractionResult.load(doc.extraction_result_file_path())
         if not self._check_field_names_consistency(fields, extr_res):
-            raise ValueError("Field names consistency check failed")
+            self.log(WARNING, f'Field names consistency check failed for template "{tctx.template.name}"')
+            return ModuleResult.failed(message="Неконсистентность структур: "
+                                       "набор полей после экстракции и в шаблоне не совпадает."
+                                       "Перезапустите обработку")
 
         valid_res = self._validate(doc, fields, extr_res)
         valid_res.save(doc.validation_result_file_path())
 
         if not self._all_fields_validated(valid_res):
+            self.log(WARNING, f'Not all fields are validated for template "{tctx.template.name}"')
             return ModuleResult.failed(message="Не все поля валидны")
 
         return ModuleResult.ok()

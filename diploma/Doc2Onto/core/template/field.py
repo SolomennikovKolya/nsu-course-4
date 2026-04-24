@@ -8,11 +8,7 @@ from core.template.field_validator import FieldValidator
 class Field:
     """Содержит описание поля документа и информацию о том, как его извлекать и валидировать."""
 
-    class Type(StrEnum):
-        INDIVIDUAL = "individual"
-        LITERAL = "literal"
-
-    def __init__(self, name: str, description: str, field_type: Type,
+    def __init__(self, name: str, description: str,
                  selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator):
         """
         Args:
@@ -21,11 +17,9 @@ class Field:
             selector: Где искать? (поиск текста, содержащего значение поля)
             extractor: Как извлекать? (логика извлечения значения поля из текста, найденного селектором)
             validator: Как валидировать? (правила проверки корректности извлечённого значения поля)
-            field_type: Чем является? (тип поля: индивидуум или литерал)
         """
         self.name: str = name
         self.description: str = description
-        self.field_type: Field.Type = field_type
         self.selector: FieldSelector = selector
         self.extractor: FieldExtractor = extractor
         self.validator: FieldValidator = validator

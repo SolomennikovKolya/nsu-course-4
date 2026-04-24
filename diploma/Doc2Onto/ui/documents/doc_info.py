@@ -31,9 +31,6 @@ class DocumentInfoWidget(QWidget):
         self._stack.addWidget(self._build_empty_page())
         self._stack.addWidget(self._build_document_page())
 
-        # --- Сигналы ---
-        self._document_view.validation_result_changed.connect(self._on_validation_result_changed)
-
     def _build_empty_page(self) -> QWidget:
         self._empty_page = QWidget()
         empty_layout = QVBoxLayout(self._empty_page)
@@ -75,6 +72,7 @@ class DocumentInfoWidget(QWidget):
         # --- Отображение документа ---
         self._document_view = DocumentViewWidget()
         self._document_view.setMinimumHeight(240)
+        self._document_view.validation_result_changed.connect(self._on_validation_result_changed)
         page_layout.addWidget(self._document_view, 1)
 
         # --- Кнопки ---
@@ -172,7 +170,7 @@ class DocumentInfoWidget(QWidget):
         if doc.status == final_status:
             final_status = Document.Status.ADDED_TO_MODEL
 
-        res = self._pipeline.run(doc, final_status)
+        self._pipeline.run(doc, final_status)
         self._doc_manager.save_metadata(doc)
 
         self._status_widget.set_status(doc)
@@ -212,8 +210,8 @@ class DocumentInfoWidget(QWidget):
         self.set_document(None)
         self.document_deleted.emit(doc)
 
-    def _on_validation_result_changed(self, document: Document):
-        self._status_widget.set_status(document)
+    def _on_validation_result_changed(self, doc: Document):
+        self._status_widget.set_status(doc)
         self._update_buttons()
 
     def _update_buttons(self):
@@ -231,17 +229,18 @@ class DocumentInfoWidget(QWidget):
 
         if doc.status == Document.Status.ADDED_TO_MODEL:
             self._action_button.setEnabled(False)
-            self._action_button.setText("Документ добавлен в модель")
-            return
-
-        self._action_button.setEnabled(True)
-
-        if doc.status == Document.Status.UPLOADED or doc.status == Document.Status.UDDM_EXTRACTED:
-            self._action_button.setText("Запустить обработку")
-        elif doc.status == Document.Status.TRIPLES_BUILT:
-            self._action_button.setText("Добавить в модель")
         else:
-            self._action_button.setText("Продолжить обработку")
+            self._action_button.setEnabled(True)
+
+        match doc.status:
+            case Document.Status.UPLOADED | Document.Status.UDDM_EXTRACTED:
+                self._action_button.setText("Запустить обработку")
+            case Document.Status.CLASS_DETERMINED | Document.Status.FIELDS_EXTRACTED | Document.Status.FIELDS_VALIDATED:
+                self._action_button.setText("Продолжить обработку")
+            case Document.Status.TRIPLES_BUILT:
+                self._action_button.setText("Добавить в модель")
+            case Document.Status.ADDED_TO_MODEL:
+                self._action_button.setText("Документ добавлен в модель")
 
     def _update_restart_button(self):
         doc = self._document
