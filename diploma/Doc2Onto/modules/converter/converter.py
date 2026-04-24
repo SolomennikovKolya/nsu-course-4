@@ -27,7 +27,6 @@ class ConverterRegistry:
     normalizers["doc"] = DocToDocx
     normalizers["pdf"] = PdfToDocx
     internal_converters["docx"] = DocxToUDDM
-    # external_converters["pdf"] = PdfConverter
 
     @staticmethod
     def get_normalizer(format_name: str) -> Optional[Type[BaseNormalizer]]:

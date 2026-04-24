@@ -1,14 +1,33 @@
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
 import mammoth
-from html import escape
 from docx import Document as DocxDocument
+from html import escape
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QTextBrowser, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QLabel,
+    QPushButton,
+    QStackedWidget,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core.document import Document
 from ui.common.design import UI_COLOR_RED
+
+try:
+    from PySide6.QtPdf import QPdfDocument
+    from PySide6.QtPdfWidgets import QPdfView
+
+    _QT_PDF = True
+except ImportError:
+    QPdfDocument = None  # type: ignore[misc, assignment]
+    QPdfView = None  # type: ignore[misc, assignment]
+    _QT_PDF = False
 
 
 def _docx_to_html_fragment(path: Path) -> str:
@@ -46,40 +65,46 @@ class DocumentViewOriginalTab(QWidget):
         self._document: Optional[Document] = None
         self._pool = QThreadPool.globalInstance()
         self._request_id = 0
-        # cache_key: (abs_path, mtime_ns) -> (mode, content)
         self._cache: Dict[Tuple[str, int], Tuple[str, str]] = {}
 
-        self._docx_bar = QWidget()
-        docx_bar_layout = QVBoxLayout(self._docx_bar)
-        docx_bar_layout.setContentsMargins(0, 0, 0, 8)
+        self._toolbar = QWidget()
+        toolbar_layout = QVBoxLayout(self._toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 8)
 
-        disclaimer = QLabel(" Предпросмотр документа может отличаться от реального вида документа")
+        disclaimer = QLabel("Предпросмотр может отличаться от реального вида документа")
         disclaimer.setWordWrap(True)
         disclaimer.setStyleSheet("QLabel { color: #8a8a8a; }")
 
-        self._open_word_btn = QPushButton("Посмотреть в Word")
-        self._open_word_btn.clicked.connect(self._open_original_in_word)
+        self._open_external_btn = QPushButton()
+        self._open_external_btn.clicked.connect(self._open_original_externally)
 
-        docx_bar_layout.addWidget(disclaimer)
-        docx_bar_layout.addWidget(self._open_word_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+        toolbar_layout.addWidget(disclaimer)
+        toolbar_layout.addWidget(self._open_external_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
+        self._stack = QStackedWidget()
         self._view = QTextBrowser()
         self._view.setReadOnly(True)
         self._view.setOpenExternalLinks(True)
         self._view.setFrameShape(QFrame.Shape.NoFrame)
+        self._stack.addWidget(self._view)
+
+        self._pdf_view: Optional["QPdfView"] = None
+        self._pdf_doc: Optional["QPdfDocument"] = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._docx_bar)
-        layout.addWidget(self._view, 1)
-        self._docx_bar.setVisible(False)
+        layout.addWidget(self._toolbar)
+        layout.addWidget(self._stack, 1)
+        self._toolbar.setVisible(False)
 
     def set_document(self, document: Optional[Document]) -> bool:
         self._document = document
         self._view.clear()
         self._view.setPlaceholderText("")
-        self._docx_bar.setVisible(False)
+        self._toolbar.setVisible(False)
+        self._stack.setCurrentWidget(self._view)
+        self._release_pdf()
 
         path = self._original_path()
         if path is None:
@@ -90,32 +115,31 @@ class DocumentViewOriginalTab(QWidget):
             return False
 
         ext = path.suffix.lower()
-        if ext == ".docx":
-            self._docx_bar.setVisible(True)
-            self._open_word_btn.setEnabled(True)
-            cache_key = self._cache_key(path)
-            cached = self._cache.get(cache_key) if cache_key is not None else None
-            if cached is not None:
-                mode, content = cached
-                self._apply_preview(mode, content)
-                return True
 
-            # Дорого: строим предпросмотр в фоне, UI не блокируем.
-            self._view.setPlainText("Загрузка предпросмотра…")
-            self._request_id += 1
-            req_id = self._request_id
-            worker = _DocxPreviewWorker(req_id=req_id, path=path)
-            worker.signals.finished.connect(self._on_preview_ready)
-            self._pool.start(worker)
-            self._docx_bar.setVisible(True)
-            self._open_word_btn.setEnabled(True)
+        if ext == ".pdf":
+            self._toolbar.setVisible(True)
+            self._open_external_btn.setText("Открыть в программе по умолчанию")
+            self._show_pdf(path)
+            return True
+
+        if ext == ".docx":
+            self._toolbar.setVisible(True)
+            self._open_external_btn.setText("Открыть в Word")
+            self._start_docx_preview(path)
             return True
 
         if ext == ".doc":
-            self._view.setPlainText(
-                "Предпросмотр файлов формата .doc (Word 97–2003) не поддерживается.\n"
-                "Откройте документ во внешнем приложении или сохраните копию в .docx."
-            )
+            self._toolbar.setVisible(True)
+            self._open_external_btn.setText("Открыть в Word")
+            sidecar = path.with_suffix(".docx")
+            if sidecar.is_file():
+                self._start_docx_preview(sidecar)
+            else:
+                self._view.setPlainText(
+                    "Предпросмотр .doc появится после конвертации в .docx "
+                    "(рядом с файлом будет создана копия с расширением .docx). "
+                    "Запустите обработку документа или откройте файл во внешнем приложении."
+                )
             return True
 
         self._view.setPlainText(
@@ -128,7 +152,86 @@ class DocumentViewOriginalTab(QWidget):
             return None
         return self._document.original_file_path()
 
-    def _open_original_in_word(self):
+    def _start_docx_preview(self, path: Path):
+        cache_key = self._cache_key(path)
+        cached = self._cache.get(cache_key) if cache_key is not None else None
+        if cached is not None:
+            mode, content = cached
+            self._apply_preview(mode, content)
+            return
+
+        self._view.setPlainText("Загрузка предпросмотра…")
+        self._request_id += 1
+        req_id = self._request_id
+        worker = _DocxPreviewWorker(req_id=req_id, path=path)
+        worker.signals.finished.connect(self._on_preview_ready)
+        self._pool.start(worker)
+
+    def _show_pdf(self, path: Path):
+        if not _QT_PDF:
+            self._view.setPlainText(
+                "Встроенный просмотр PDF недоступен: в сборке PySide6 нет модулей QtPdf / QtPdfWidgets."
+            )
+            return
+
+        # setDocument(nullptr) в QPdfView в ряде версий Qt вызывает предупреждение
+        # QObject::connect(QPdfDocument, QPdfLinkModel): invalid nullptr parameter.
+        # Поэтому не отвязываем документ вручную: каждый показ — новый QPdfView, старый
+        # убираем из стека и deleteLater (QPdfDocument — ребёнок вида, уничтожается с ним).
+        if self._pdf_view is not None:
+            self._dispose_pdf_preview()
+
+        self._pdf_view = QPdfView()
+        self._stack.addWidget(self._pdf_view)
+        self._pdf_doc = QPdfDocument(self._pdf_view)
+        self._pdf_view.setDocument(self._pdf_doc)
+        self._pdf_doc.load(str(path.resolve()))
+        if self._pdf_doc.pageCount() < 1:
+            self._dispose_pdf_preview()
+            self._view.setPlainText("Не удалось открыть PDF для предпросмотра.")
+            self._stack.setCurrentWidget(self._view)
+            return
+
+        self._stack.setCurrentWidget(self._pdf_view)
+
+    def _release_pdf(self):
+        self._dispose_pdf_preview()
+
+    def _dispose_pdf_preview(self) -> None:
+        if self._pdf_view is None:
+            return
+        self._stack.removeWidget(self._pdf_view)
+        self._pdf_view.deleteLater()
+        self._pdf_view = None
+        self._pdf_doc = None
+
+        if not _QT_PDF:
+            return
+
+        # Предупреждение может прийти при отложенном удалении QPdfView; обрабатываем
+        # DeferredDelete сразу и подавляем только известный шум QtPdf.
+        from PySide6.QtCore import QEvent, QCoreApplication, QtMsgType, qInstallMessageHandler
+
+        chain_to = [None]
+
+        def _chain(msg_type, context, message: str) -> None:
+            if (
+                msg_type == QtMsgType.QtWarningMsg
+                and "QPdfLinkModel" in message
+                and "invalid nullptr parameter" in message
+            ):
+                return
+            prev = chain_to[0]
+            if prev is not None:
+                prev(msg_type, context, message)
+
+        chain_to[0] = qInstallMessageHandler(_chain)
+        try:
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        finally:
+            qInstallMessageHandler(chain_to[0])
+
+    def _open_original_externally(self):
         path = self._original_path()
         if path is None or not path.exists():
             return
@@ -142,7 +245,6 @@ class DocumentViewOriginalTab(QWidget):
         return str(path.resolve()), int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)))
 
     def _on_preview_ready(self, req_id: int, mode: str, content: str, cache_key: Optional[Tuple[str, int]]):
-        # Если пользователь уже переключился на другой документ — игнорируем.
         if req_id != self._request_id:
             return
         if cache_key is not None:
@@ -150,6 +252,7 @@ class DocumentViewOriginalTab(QWidget):
         self._apply_preview(mode, content)
 
     def _apply_preview(self, mode: str, content: str):
+        self._stack.setCurrentWidget(self._view)
         if mode == "html":
             self._view.setHtml(content)
         else:
@@ -157,7 +260,7 @@ class DocumentViewOriginalTab(QWidget):
 
 
 class _DocxPreviewSignals(QObject):
-    finished = Signal(int, str, str, object)  # req_id, mode, content, cache_key
+    finished = Signal(int, str, str, object)
 
 
 class _DocxPreviewWorker(QRunnable):
