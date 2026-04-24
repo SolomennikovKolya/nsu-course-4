@@ -4,9 +4,12 @@ from pathlib import Path
 from core.document import DocumentContext
 from core.uddm.model import UDDM
 from modules.base import BaseModule, ModuleResult
+
 from modules.converter.normalizers.base import BaseNormalizer
+from modules.converter.normalizers.doc_to_docx import DocToDocx
+from modules.converter.normalizers.pdf_to_docx import PdfToDocx
 from modules.converter.internal.base import BaseInternalConverter
-from modules.converter.internal.docx_converter import DocxConverter
+from modules.converter.internal.docx_converter import DocxToUDDM
 from modules.converter.external.base import BaseExternalConverter
 from modules.converter.reverse.to_txt import UDDMToText
 from modules.converter.reverse.to_html import UDDMToHTML
@@ -21,8 +24,9 @@ class ConverterRegistry:
     external_converters: Dict[str, Type[BaseExternalConverter]] = {}  # Внешние конвертеры
 
     # Инициализация реестра
-    # normalizers["doc"] = DocToDocxNormalizer
-    internal_converters["docx"] = DocxConverter
+    normalizers["doc"] = DocToDocx
+    normalizers["pdf"] = PdfToDocx
+    internal_converters["docx"] = DocxToUDDM
     # external_converters["pdf"] = PdfConverter
 
     @staticmethod

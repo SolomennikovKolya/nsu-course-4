@@ -10,7 +10,7 @@ from modules.converter.internal.base import BaseInternalConverter
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 
-class DocxConverter(BaseInternalConverter):
+class DocxToUDDM(BaseInternalConverter):
     """Конвертирует DOCX в объектную модель UDDM."""
 
     def convert(self, file_path: Path) -> UDDM:
