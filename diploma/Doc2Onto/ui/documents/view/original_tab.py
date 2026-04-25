@@ -327,11 +327,11 @@ class DocumentViewOriginalTab(QWidget):
         toolbar_layout = QVBoxLayout(self._toolbar)
         toolbar_layout.setContentsMargins(0, 0, 0, 8)
 
-        disclaimer = QLabel(
-            "Предпросмотр через PDF; для DOC/DOCX вид может слегка отличаться от оригинала."
-        )
-        disclaimer.setWordWrap(True)
-        disclaimer.setStyleSheet("QLabel { color: #8a8a8a; }")
+        # disclaimer = QLabel(
+        #     "Предпросмотр через PDF; для DOC/DOCX вид может слегка отличаться от оригинала."
+        # )
+        # disclaimer.setWordWrap(True)
+        # disclaimer.setStyleSheet("QLabel { color: #8a8a8a; }")
 
         self._open_external_btn = QPushButton()
         self._open_external_btn.clicked.connect(self._open_original_externally)
