@@ -241,7 +241,7 @@ def build_or_reuse_preview_pdf(original: Path) -> Path:
 class OriginalPdfPreviewWidget(QWidget):
     """Встроенный просмотр PDF с зумом (отдельный виджет в этом же модуле)."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         self._pdf_view: Optional[QPdfView] = None
         self._pdf_doc: Optional[QPdfDocument] = None
@@ -276,7 +276,7 @@ class OriginalPdfPreviewWidget(QWidget):
 
         self._toolbar.setEnabled(_QT_PDF)
 
-    def clear(self) -> None:
+    def clear(self):
         if self._pdf_view is None:
             return
         self.layout().removeWidget(self._pdf_view)
@@ -303,23 +303,23 @@ class OriginalPdfPreviewWidget(QWidget):
         self._pdf_doc = doc
         return True
 
-    def _on_fit_width(self) -> None:
+    def _on_fit_width(self):
         if self._pdf_view is None:
             return
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
 
-    def _on_fit_page(self) -> None:
+    def _on_fit_page(self):
         if self._pdf_view is None:
             return
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
 
-    def _on_zoom_in(self) -> None:
+    def _on_zoom_in(self):
         if self._pdf_view is None:
             return
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
         self._pdf_view.setZoomFactor(min(5.0, self._pdf_view.zoomFactor() * 1.15))
 
-    def _on_zoom_out(self) -> None:
+    def _on_zoom_out(self):
         if self._pdf_view is None:
             return
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
@@ -332,13 +332,13 @@ class _PreviewPdfSignals(QObject):
 
 
 class _PreviewPdfWorker(QRunnable):
-    def __init__(self, req_id: int, original: Path, bridge: _PreviewPdfSignals) -> None:
+    def __init__(self, req_id: int, original: Path, bridge: _PreviewPdfSignals):
         super().__init__()
         self.req_id = req_id
         self.original = original
         self._bridge = bridge
 
-    def run(self) -> None:
+    def run(self):
         # Word/pywin32 и COM Word небезопасны при параллельных вызовах; пул предпросмотра
         # ограничен одним потоком, здесь дополнительно инициализируем COM на этом потоке (Windows).
         com_inited = False
@@ -368,7 +368,7 @@ class _PreviewPdfWorker(QRunnable):
 class DocumentViewOriginalTab(QWidget):
     """Вкладка для отображения оригинального документа (через PDF-предпросмотр)."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         self._document: Optional[Document] = None
         # Один поток: LibreOffice/Word не должны выполняться параллельно (COM / процессы).
@@ -464,7 +464,7 @@ class DocumentViewOriginalTab(QWidget):
             return None
         return self._document.original_file_path()
 
-    def _on_preview_pdf_ready(self, req_id: int, pdf_path: str) -> None:
+    def _on_preview_pdf_ready(self, req_id: int, pdf_path: str):
         if req_id != self._request_id:
             return
         path = Path(pdf_path)
@@ -474,7 +474,7 @@ class DocumentViewOriginalTab(QWidget):
             self._message.setPlainText("Не удалось открыть PDF для предпросмотра.")
             self._stack.setCurrentWidget(self._message)
 
-    def _on_preview_pdf_failed(self, req_id: int, message: str) -> None:
+    def _on_preview_pdf_failed(self, req_id: int, message: str):
         if req_id != self._request_id:
             return
         self._message.setHtml(
@@ -483,7 +483,7 @@ class DocumentViewOriginalTab(QWidget):
         )
         self._stack.setCurrentWidget(self._message)
 
-    def _open_original_externally(self) -> None:
+    def _open_original_externally(self):
         path = self._original_path()
         if path is None or not path.exists():
             return

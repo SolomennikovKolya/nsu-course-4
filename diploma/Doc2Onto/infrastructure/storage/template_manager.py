@@ -148,4 +148,7 @@ class TemplateManager(BaseManager[Template, str]):
             and meta.get("name") == directory.name \
             and (directory / "code.py").exists()
 
+        if valid and meta.get("directory") != str(directory):
+            meta["directory"] = str(directory)
+
         return valid, meta

@@ -9,7 +9,7 @@ APP_VERSION = "1.0.0"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 META_FILENAME = "meta.json"
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = PROJECT_ROOT / ".data"
 DOCUMENTS_BASE_DIR = DATA_DIR / "documents"
 TEMPLATES_BASE_DIR = DATA_DIR / "templates"
 ONTOLOGY_PATH = DATA_DIR / "ontology.ttl"

@@ -326,7 +326,7 @@ class FieldRowWidget(QFrame):
         self._value_edit.textChanged.connect(self._emit_change)
         self._refresh_info_line()
 
-    def _refresh_info_line(self) -> None:
+    def _refresh_info_line(self):
         valid = self._valid_checkbox.isChecked()
 
         if valid:

@@ -18,5 +18,5 @@ class TemplateCode(BaseTemplateCode):
     def fields(self) -> List[Field]:
         raise NotImplementedError()
 
-    def build_triples(self, g: Graph, f: FieldsAccessor) -> None:
+    def build_triples(self, g: Graph, f: FieldsAccessor):
         raise NotImplementedError()

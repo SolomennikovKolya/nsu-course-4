@@ -45,7 +45,7 @@ class BaseTemplateCode(ABC):
         pass
 
     @abstractmethod
-    def build_triples(self, g: Graph, f: FieldsAccessor) -> None:
+    def build_triples(self, g: Graph, f: FieldsAccessor):
         """
         Построение графа RDF на основе извлечённых значений полей.
 

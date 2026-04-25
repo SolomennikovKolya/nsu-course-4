@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
 
+from app.settings import DATA_DIR
+
 # Импорты импользуются только локально или для проверки типов,
 # чтобы избежать циклических зависимостей
 if TYPE_CHECKING:
@@ -31,11 +33,11 @@ def init_app_context() -> AppContext:
     _app_context = AppContext()
 
     from app.logger import create_logger
-    _app_context.logger = create_logger(False, Path("data/app.log"))
+    _app_context.logger = create_logger(False, DATA_DIR / "app.log")
     from infrastructure.storage.document_manager import DocumentManager
-    _app_context.doc_manager = DocumentManager(Path("data/documents"))
+    _app_context.doc_manager = DocumentManager(DATA_DIR / "documents")
     from infrastructure.storage.template_manager import TemplateManager
-    _app_context.temp_manager = TemplateManager(Path("data/templates"))
+    _app_context.temp_manager = TemplateManager(DATA_DIR / "templates")
     from app.pipeline import Pipeline
     _app_context.pipeline = Pipeline()
 

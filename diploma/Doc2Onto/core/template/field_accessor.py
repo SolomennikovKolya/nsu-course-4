@@ -46,6 +46,8 @@ class FieldsAccessor:
 
     def uri(self, name: str, prefix: str) -> URIRef:
         val = self.value(name)
+        if val is None:
+            return URIRef(prefix + "None")
         # if val is None:
         #     raise ValueError(f"Cannot build URI for field {name}: value is None")
-        return URIRef(prefix + sanitize_camel(val))
+        return URIRef(prefix + val)

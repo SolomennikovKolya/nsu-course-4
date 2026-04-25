@@ -12,5 +12,5 @@ __pycache__/
 .env
 
 # App
-test/
-data/
+.test_docs/
+.data/

@@ -54,7 +54,7 @@ class DocumentsCache:
     def _group_key(doc: Document) -> str:
         return doc.doc_class if doc.doc_class else "Без класса"
 
-    def sync_all_from_metadata(self, doc_manager) -> None:
+    def sync_all_from_metadata(self, doc_manager):
         """Перечитывает meta.json для всех закешированных документов и пересобирает группы."""
         docs: List[Document] = []
         for group_docs in self._groups.values():
