@@ -2,7 +2,8 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox,
-    QPushButton, QMessageBox, QStackedLayout, QSizePolicy
+    QPushButton, QMessageBox, QStackedLayout, QSizePolicy,
+    QApplication
 )
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
@@ -206,6 +207,8 @@ class DocumentInfoWidget(QWidget):
             return
 
         self.set_document(None)
+        QApplication.processEvents()
+
         self._doc_manager.delete(doc)
         self.document_deleted.emit(doc)
 

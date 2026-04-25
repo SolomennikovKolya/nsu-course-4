@@ -1,8 +1,8 @@
 """
 Вкладка «Оригинал»: предпросмотр PDF, DOCX и DOC через единый рендер QtPdf.
 
-DOC/DOCX конвертируются в PDF локально (LibreOffice soffice; на Windows при
-отсутствии LO — экспорт через Word COM), без сетевых API. Кэш: ``<stem>.preview.pdf``
+DOC/DOCX конвертируются в PDF локально (LibreOffice ``soffice``), без сетевых API.
+Кэш: ``<stem>.preview.pdf``
 рядом с исходным файлом; пересборка при изменении исходника (и рядом лежащего .docx для .doc).
 """
 
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from core.document import Document
 from ui.common.design import UI_COLOR_RED
+from shiboken6 import delete as shiboken_delete
 
 try:
     from PySide6.QtPdf import QPdfDocument
@@ -193,7 +194,7 @@ class OriginalPdfPreviewWidget(QWidget):
     def __init__(self):
         super().__init__()
         self._pdf_view: Optional[QPdfView] = None
-        self._pdf_doc: Optional[QPdfDocument] = None
+        self._blank_doc: Optional[QPdfDocument] = None
 
         self._toolbar = QWidget()
         tb = QHBoxLayout(self._toolbar)
@@ -225,24 +226,36 @@ class OriginalPdfPreviewWidget(QWidget):
         self._toolbar.setEnabled(_QT_PDF)
         if _QT_PDF and QPdfView is not None and QPdfDocument is not None:
             self._pdf_view = QPdfView()
-            self._pdf_doc = QPdfDocument(self._pdf_view)
-            self._pdf_view.setDocument(self._pdf_doc)
+            self._blank_doc = QPdfDocument(self._pdf_view)
+            self._pdf_view.setDocument(self._blank_doc)
             root.addWidget(self._pdf_view, 1)
 
     def clear(self):
-        if self._pdf_doc is None:
+        if self._pdf_view is None or self._blank_doc is None:
             return
-        self._pdf_doc.close()
+
+        current = self._pdf_view.document()
+        if current is None or current is self._blank_doc:
+            return
+
+        # Не используем setDocument(None): в QtPdf это даёт предупреждение QPdfLinkModel.
+        self._pdf_view.setDocument(self._blank_doc)
+        current.close()
+        shiboken_delete(current)
 
     def load_pdf(self, path: Path) -> bool:
-        if not _QT_PDF or self._pdf_view is None or self._pdf_doc is None:
+        if not _QT_PDF or self._pdf_view is None:
             return False
 
-        self._pdf_doc.close()
-        self._pdf_doc.load(str(path.resolve()))
-        if self._pdf_doc.pageCount() < 1:
+        self.clear()
+        doc = QPdfDocument(self._pdf_view)
+        doc.load(str(path.resolve()))
+        if doc.pageCount() < 1:
+            doc.close()
+            shiboken_delete(doc)
             return False
 
+        self._pdf_view.setDocument(doc)
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
         return True
 
@@ -347,6 +360,9 @@ class DocumentViewOriginalTab(QWidget):
         self._document = document
         self._request_id += 1
         req_id = self._request_id
+
+        # Дождаться конвертации в фоне: иначе воркер может открыть .preview.pdf уже после close().
+        self._preview_pool.waitForDone()
 
         self._message.clear()
         self._message.setPlaceholderText("")
