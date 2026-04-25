@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from app.settings import DOCUMENTS_BASE_DIR
 from core.document import Document
@@ -28,6 +28,21 @@ class DocumentManager(BaseManager[Document, Path]):
     def __init__(self, base_dir: Path = DOCUMENTS_BASE_DIR):
         super().__init__(base_dir)
 
+    @staticmethod
+    def _apply_meta_to_document(doc: Document, meta: dict) -> None:
+        """Заполняет поля DTO документа из словаря meta.json."""
+        doc.status = Document.Status(meta.get("status", Document.Status.UPLOADED))
+        doc.doc_class = meta.get("doc_class")
+        raw_pft: Any = meta.get("pipeline_failed_target")
+        if raw_pft:
+            try:
+                doc.pipeline_failed_target = Document.Status(raw_pft)
+            except ValueError:
+                doc.pipeline_failed_target = None
+        else:
+            doc.pipeline_failed_target = None
+        doc.pipeline_error_message = meta.get("pipeline_error_message")
+
     def get(self, name: str) -> Optional[Document]:
         """Возвращает документ по имени."""
         directory = self.base_dir / name
@@ -36,16 +51,20 @@ class DocumentManager(BaseManager[Document, Path]):
         if not valid or not meta:
             return None
 
-        doc = Document(
-            name=directory.name,
-            directory=directory,
-            status=Document.Status(meta.get("status", Document.Status.UPLOADED)),
-            doc_class=meta.get("doc_class"),
-            pipeline_failed_target=Document.Status(
-                meta.get("pipeline_failed_target")) if meta.get("pipeline_failed_target") else None,
-            pipeline_error_message=meta.get("pipeline_error_message"),
-        )
+        doc = Document(name=directory.name, directory=directory)
+        self._apply_meta_to_document(doc, meta)
         return doc
+
+    def reload_metadata(self, doc: Document) -> bool:
+        """
+        Перечитывает meta.json в уже существующий объект Document (тот же identity в кеше UI).
+        Нужно после массового обновления метафайлов (например, переименование шаблона / класса).
+        """
+        valid, meta = self._is_directory_valid(doc.directory)
+        if not valid or not meta:
+            return False
+        self._apply_meta_to_document(doc, meta)
+        return True
 
     def add(self, file_path: Path) -> Document:
         """Добавляет новый документ в систему."""

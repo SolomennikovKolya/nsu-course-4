@@ -54,6 +54,17 @@ class DocumentsCache:
     def _group_key(doc: Document) -> str:
         return doc.doc_class if doc.doc_class else "Без класса"
 
+    def sync_all_from_metadata(self, doc_manager) -> None:
+        """Перечитывает meta.json для всех закешированных документов и пересобирает группы."""
+        docs: List[Document] = []
+        for group_docs in self._groups.values():
+            docs.extend(group_docs)
+        for doc in docs:
+            doc_manager.reload_metadata(doc)
+        self.clear()
+        for doc in docs:
+            self.add_or_update(doc)
+
 
 class DocumentsTab(QWidget):
     """Интерфейс для работы с документами."""
@@ -207,7 +218,11 @@ class DocumentsTab(QWidget):
         Обновляет список классов документов. 
         Вызывается из MainWindow при изменении списка шаблонов (добавили новый, удалили или переименовали).
         """
-        self._refresh_tree()
+        self._docs_cache.sync_all_from_metadata(self._doc_manager)
+        selected = self._info_widget.get_document()
+        self._refresh_tree(selected_doc=selected, restore_focus=True)
+
+        self._info_widget.set_document(selected)
         self._info_widget.refresh_classes()
 
     def _load_docs_cache(self):
