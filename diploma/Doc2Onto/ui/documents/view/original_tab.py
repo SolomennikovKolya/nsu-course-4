@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 
 from core.document import Document
-from modules.converter.normalizers.doc_to_docx import DocToDocx
 from ui.common.design import UI_COLOR_RED
 
 try:
@@ -59,7 +58,34 @@ def _preview_cache_path(source: Path) -> Path:
 
 
 def _libreoffice_candidates() -> List[Path]:
-    return DocToDocx()._libreoffice_candidates()
+    candidates: List[Path] = []
+    env = os.environ.get("SOFFICE_PATH")
+    if env:
+        candidates.append(Path(env))
+    for name in ("soffice", "libreoffice"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(Path(found))
+    if os.name == "nt":
+        for base in (
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        ):
+            root = Path(base)
+            candidates.append(root / "LibreOffice" / "program" / "soffice.exe")
+            for child in sorted(root.glob("LibreOffice *"), reverse=True):
+                candidates.append(child / "program" / "soffice.exe")
+    seen: set[str] = set()
+    unique: List[Path] = []
+    for p in candidates:
+        if not p.is_file():
+            continue
+        key = str(p.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(p)
+    return unique
 
 
 def _run_soffice_convert_to_pdf(exe: Path, src: Path, out_dir: Path) -> bool:
@@ -102,60 +128,6 @@ def _convert_with_libreoffice_to_path(src: Path, dest_pdf: Path) -> bool:
     return False
 
 
-def _convert_with_word_export_pdf(src: Path, dest_pdf: Path) -> bool:
-    if os.name != "nt":
-        return False
-    try:
-        import win32com.client  # type: ignore[import-untyped]
-    except ImportError:
-        return False
-
-    wd_export_pdf = 17  # wdExportFormatPDF
-    word = None
-    doc = None
-    tmp_pdf = dest_pdf.with_suffix(".tmp.pdf")
-    try:
-        if tmp_pdf.is_file():
-            tmp_pdf.unlink()
-    except OSError:
-        pass
-    try:
-        word = win32com.client.Dispatch("Word.Application")
-        word.Visible = False
-        word.DisplayAlerts = 0
-        doc = word.Documents.Open(str(src.resolve()), ReadOnly=True)
-        doc.ExportAsFixedFormat(OutputFileName=str(tmp_pdf.resolve()), ExportFormat=wd_export_pdf)
-        doc.Close(SaveChanges=False)
-        doc = None
-        word.Quit()
-        word = None
-        if not tmp_pdf.is_file():
-            return False
-        dest_pdf.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            tmp_pdf.replace(dest_pdf)
-        except OSError:
-            shutil.copy2(tmp_pdf, dest_pdf)
-            tmp_pdf.unlink(missing_ok=True)
-        return True
-    except Exception:
-        try:
-            if doc is not None:
-                doc.Close(SaveChanges=False)
-        except Exception:
-            pass
-        try:
-            if word is not None:
-                word.Quit()
-        except Exception:
-            pass
-        try:
-            tmp_pdf.unlink(missing_ok=True)
-        except OSError:
-            pass
-        return False
-
-
 def _preview_source_paths(original: Path) -> List[Path]:
     ext = original.suffix.lower()
     if ext == ".pdf":
@@ -184,19 +156,6 @@ def _cache_is_fresh(cache: Path, originals: List[Path]) -> bool:
     return True
 
 
-def _ensure_docx_for_doc(doc_path: Path) -> Path:
-    docx = doc_path.with_suffix(".docx")
-    if docx.is_file():
-        doc_mt = _mtime_ns(doc_path)
-        docx_mt = _mtime_ns(docx)
-        if doc_mt is not None and docx_mt is not None and docx_mt >= doc_mt:
-            return docx
-    DocToDocx().normalize(doc_path)
-    if not docx.is_file():
-        raise RuntimeError("Не удалось получить DOCX из DOC для предпросмотра.")
-    return docx
-
-
 def build_or_reuse_preview_pdf(original: Path) -> Path:
     """
     Возвращает путь к PDF для предпросмотра: для .pdf — сам файл; иначе кэш ``<stem>.preview.pdf``.
@@ -216,21 +175,11 @@ def build_or_reuse_preview_pdf(original: Path) -> Path:
     if dest.is_file() and _cache_is_fresh(dest, sources):
         return dest.resolve()
 
-    src_for_lo = original
-    if ext == ".doc":
-        if _convert_with_libreoffice_to_path(original, dest):
-            return dest.resolve()
-        if _convert_with_word_export_pdf(original, dest):
-            return dest.resolve()
-        src_for_lo = _ensure_docx_for_doc(original)
-
-    if not _convert_with_libreoffice_to_path(src_for_lo, dest):
-        if not _convert_with_word_export_pdf(src_for_lo, dest):
-            raise RuntimeError(
-                "Не удалось сделать PDF для предпросмотра. Установите LibreOffice и добавьте "
-                "soffice в PATH (или переменную SOFFICE_PATH). На Windows при установленном "
-                "Microsoft Word можно экспортировать без LibreOffice."
-            )
+    if not _convert_with_libreoffice_to_path(original, dest):
+        raise RuntimeError(
+            "Не удалось сделать PDF для предпросмотра. Установите LibreOffice и добавьте "
+            "soffice в PATH (или переменную SOFFICE_PATH)."
+        )
 
     if not dest.is_file() or _mtime_ns(dest) is None:
         raise RuntimeError("Конвертация завершилась без выходного PDF.")
@@ -262,7 +211,6 @@ class OriginalPdfPreviewWidget(QWidget):
         self._fit_width.clicked.connect(self._on_fit_width)
         self._fit_page.clicked.connect(self._on_fit_page)
 
-        # tb.addWidget(QLabel("Масштаб:"))
         tb.addWidget(self._zoom_out)
         tb.addWidget(self._zoom_in)
         tb.addWidget(self._fit_width)
@@ -275,32 +223,27 @@ class OriginalPdfPreviewWidget(QWidget):
         root.addWidget(self._toolbar)
 
         self._toolbar.setEnabled(_QT_PDF)
+        if _QT_PDF and QPdfView is not None and QPdfDocument is not None:
+            self._pdf_view = QPdfView()
+            self._pdf_doc = QPdfDocument(self._pdf_view)
+            self._pdf_view.setDocument(self._pdf_doc)
+            root.addWidget(self._pdf_view, 1)
 
     def clear(self):
-        if self._pdf_view is None:
+        if self._pdf_doc is None:
             return
-        self.layout().removeWidget(self._pdf_view)
-        self._pdf_view.deleteLater()
-        self._pdf_view = None
-        self._pdf_doc = None
+        self._pdf_doc.close()
 
     def load_pdf(self, path: Path) -> bool:
-        self.clear()
-        if not _QT_PDF or QPdfView is None or QPdfDocument is None:
+        if not _QT_PDF or self._pdf_view is None or self._pdf_doc is None:
             return False
 
-        view = QPdfView()
-        doc = QPdfDocument(view)
-        view.setDocument(doc)
-        doc.load(str(path.resolve()))
-        if doc.pageCount() < 1:
-            view.deleteLater()
+        self._pdf_doc.close()
+        self._pdf_doc.load(str(path.resolve()))
+        if self._pdf_doc.pageCount() < 1:
             return False
 
-        view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
-        self.layout().addWidget(view, 1)
-        self._pdf_view = view
-        self._pdf_doc = doc
+        self._pdf_view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
         return True
 
     def _on_fit_width(self):
@@ -339,30 +282,11 @@ class _PreviewPdfWorker(QRunnable):
         self._bridge = bridge
 
     def run(self):
-        # Word/pywin32 и COM Word небезопасны при параллельных вызовах; пул предпросмотра
-        # ограничен одним потоком, здесь дополнительно инициализируем COM на этом потоке (Windows).
-        com_inited = False
-        if os.name == "nt":
-            try:
-                import pythoncom  # type: ignore[import-untyped]
-
-                pythoncom.CoInitialize()
-                com_inited = True
-            except Exception:
-                pass
         try:
             pdf = build_or_reuse_preview_pdf(self.original)
             self._bridge.finished.emit(self.req_id, str(pdf))
         except Exception as exc:
             self._bridge.failed.emit(self.req_id, str(exc))
-        finally:
-            if com_inited:
-                try:
-                    import pythoncom  # type: ignore[import-untyped]
-
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
 
 
 class DocumentViewOriginalTab(QWidget):

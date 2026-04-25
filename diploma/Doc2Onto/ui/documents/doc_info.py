@@ -205,9 +205,8 @@ class DocumentInfoWidget(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        self._doc_manager.delete(doc)
-
         self.set_document(None)
+        self._doc_manager.delete(doc)
         self.document_deleted.emit(doc)
 
     def _on_validation_result_changed(self, doc: Document):
