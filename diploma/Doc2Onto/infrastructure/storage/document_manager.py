@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
-from app.settings import DOCUMENTS_BASE_DIR
+from app.settings import DOCUMENTS_DIR
 from core.document import Document
 from infrastructure.storage.base_manager import BaseManager
 
@@ -25,7 +25,7 @@ class DocumentManager(BaseManager[Document, Path]):
     ```
     """
 
-    def __init__(self, base_dir: Path = DOCUMENTS_BASE_DIR):
+    def __init__(self, base_dir: Path = DOCUMENTS_DIR):
         super().__init__(base_dir)
 
     def get(self, name: str) -> Optional[Document]:

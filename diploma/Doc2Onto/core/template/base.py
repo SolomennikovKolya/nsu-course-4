@@ -1,10 +1,10 @@
 from rdflib import Graph
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import List
 
 from core.template.field import Field
 from core.uddm.model import UDDM
-from core.template.field_accessor import FieldsAccessor
+from core.rdf.field_accessor import FieldsAccessor
 
 
 class BaseTemplateCode(ABC):

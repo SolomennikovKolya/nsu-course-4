@@ -7,7 +7,7 @@ from openai import DefaultHttpxClient, OpenAI
 from pathlib import Path
 from string import Template as StringTemplate
 
-from app.settings import DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS, DATA_DIR, LOG_LINE_LENGTH
+from app.settings import DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS, AGENTS_LOG_PATH, LOG_LINE_LENGTH
 
 
 _client: Optional[OpenAI] = None
@@ -20,8 +20,8 @@ def _get_agents_logger() -> logging.Logger:
     if _agents_logger is not None:
         return _agents_logger
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = DATA_DIR / "agents.log"
+    AGENTS_LOG_PATH.mkdir(parents=True, exist_ok=True)
+    log_path = AGENTS_LOG_PATH
 
     logger = logging.getLogger("doc2onto.agents")
     logger.setLevel(logging.INFO)

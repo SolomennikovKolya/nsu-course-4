@@ -6,7 +6,7 @@ from core.document import Document, DocumentContext
 from modules.base import BaseModule, ModuleResult
 from modules.validator import ValidationResult
 from core.template.field import Field
-from core.template.field_accessor import FieldsAccessor
+from core.rdf.field_accessor import FieldsAccessor
 
 
 class GraphBuilder(BaseModule):

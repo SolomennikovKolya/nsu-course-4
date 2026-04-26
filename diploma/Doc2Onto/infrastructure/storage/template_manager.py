@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Tuple
 import shutil
 
-from app.settings import TEMPLATES_BASE_DIR, TEMPLATE_CODE_EXAMPLE_PATH
+from app.settings import TEMPLATES_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
 from core.template.template import Template
 from infrastructure.storage.base_manager import BaseManager
@@ -25,7 +25,7 @@ class TemplateManager(BaseManager[Template, str]):
     ```
     """
 
-    def __init__(self, base_dir: Path = TEMPLATES_BASE_DIR):
+    def __init__(self, base_dir: Path = TEMPLATES_DIR):
         super().__init__(base_dir)
 
         self.logger = get_logger()
