@@ -170,7 +170,7 @@ class DocumentViewFieldsTab(QWidget):
         self._rows = {}
         self._list_layout.addStretch()
 
-    def _handle_row_change(self, field_name: str, new_value: str, new_valid: bool):
+    def _handle_row_change(self, field_name: str, new_value: str, new_valid: bool, manual_reset: bool = False):
         """Обработка изменения значения или флага валидности поля."""
         doc = self._document
         if doc is None:
@@ -184,9 +184,14 @@ class DocumentViewFieldsTab(QWidget):
         except Exception:
             return
 
+        baseline = (validation_res.get_corrected_value_llm(field_name)
+                    or validation_res.get_extracted_value(field_name) or "")
+
         if new_valid:
             validation_res.set_valid_manual(field_name)
-            if new_value and new_value != validation_res.get_extracted_value(field_name):
+            if manual_reset:
+                validation_res.set_corrected_value_manual(field_name, None)
+            elif new_value and new_value != baseline:
                 validation_res.set_corrected_value_manual(field_name, new_value)
             else:
                 validation_res.set_corrected_value_manual(field_name, None)
@@ -223,7 +228,7 @@ class FieldRowWidget(QFrame):
         field_description: str,
         extraction_data: FieldExtractionData,
         validation_data: FieldValidationData,
-        on_change: Callable[[str, str, bool], None],
+        on_change: Callable[[str, str, bool, bool], None],
     ):
         super().__init__(parent)
         self.setObjectName("FieldRowWidget")
@@ -330,7 +335,8 @@ class FieldRowWidget(QFrame):
         valid = self._valid_checkbox.isChecked()
 
         if valid:
-            if self._value_edit.text().strip() != self._init_displayed_value:
+            baseline = self._corrected_value_llm or self._extracted_value or ""
+            if self._value_edit.text().strip() != baseline:
                 text = "Исправлено вручную"
                 color = UI_COLOR_GREEN
             elif self._corrected_value_llm:
@@ -353,5 +359,17 @@ class FieldRowWidget(QFrame):
         if self._is_updating:
             return
 
+        stripped = self._value_edit.text().strip()
+        if stripped == "" and self._valid_checkbox.isChecked():
+            revert = self._corrected_value_llm or self._extracted_value or ""
+            self._is_updating = True
+            self._value_edit.setText(revert)
+            self._is_updating = False
+            self._refresh_info_line()
+            self._on_change(self._name, revert.strip(), self._valid_checkbox.isChecked(), True)
+            return
+
         self._refresh_info_line()
-        self._on_change(self._name, self._value_edit.text().strip(), self._valid_checkbox.isChecked())
+        self._on_change(
+            self._name, stripped, self._valid_checkbox.isChecked(), False
+        )
