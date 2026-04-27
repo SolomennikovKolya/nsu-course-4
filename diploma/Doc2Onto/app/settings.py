@@ -1,26 +1,26 @@
 from pathlib import Path
 
 
-# Приложение
+# --- приложение ---
 APP_NAME = "Doc2Onto"
 APP_VERSION = "1.0.0"
 
-# Настройки OpenAI
+# --- настройки агентов ---
 DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_TIMEOUT_SECONDS = 60
 
-# Настройки RDF
+# --- онтология ---
 SUBJECT_NAMESPACE_IRI = "http://doc2onto.org/ontology#"
 
-# GUI и логи
+# --- GUI и логи ---
 LOG_ALIGN_WIDTH = 30
 LOG_LINE_LENGTH = 96
 
-# Директории и пути хранения файлов
+# --- файловая структура ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 META_FILENAME = "meta.json"
-TEMPLATE_CODE_EXAMPLE_PATH = PROJECT_ROOT / "core" / "template" / "code_example.py"
+TEMPLATE_CODE_EXAMPLE_PATH = PROJECT_ROOT / "resources" / "template" / "code_example.py"
 
 DATA_DIR = PROJECT_ROOT / ".data"
 DOCUMENTS_DIR = DATA_DIR / "documents"

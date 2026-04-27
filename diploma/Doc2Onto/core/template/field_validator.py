@@ -236,6 +236,6 @@ class FieldValidator:
         return self
 
 
-def validate() -> FieldValidator:
+def val() -> FieldValidator:
     """Создаёт валидатор поля."""
     return FieldValidator()

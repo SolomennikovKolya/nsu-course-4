@@ -21,7 +21,6 @@ def create_logger(use_console: bool = True, log_file: Optional[Path] = None) -> 
         return logger
 
     formatter = logging.Formatter(
-        # fmt="%(asctime)s | %(levelname)-7s | %(message)s",
         fmt="%(levelname)-7s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )

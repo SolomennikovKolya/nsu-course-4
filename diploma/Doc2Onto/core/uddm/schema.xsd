@@ -3,10 +3,10 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
     <!-- ========================= -->
-    <!-- Document -->
+    <!-- Root -->
     <!-- ========================= -->
 
-    <xs:element name="document">
+    <xs:element name="root">
         <xs:complexType>
             <xs:sequence>
                 <xs:group ref="blockGroup" minOccurs="0" maxOccurs="unbounded"/>

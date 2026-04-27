@@ -8,8 +8,14 @@ from core.template.field_validator import FieldValidator
 class Field:
     """Содержит описание поля документа и информацию о том, как его извлекать и валидировать."""
 
-    def __init__(self, name: str, description: str,
-                 selector: FieldSelector, extractor: FieldExtractor, validator: FieldValidator):
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        selector: FieldSelector,
+        extractor: FieldExtractor,
+        validator: FieldValidator,
+    ):
         """
         Args:
             name: Уникальное название поля, используемое в дальнейшем при построении триплетов

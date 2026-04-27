@@ -182,6 +182,6 @@ class FieldExtractor:
         return self
 
 
-def extract() -> FieldExtractor:
+def ext() -> FieldExtractor:
     """Создаёт экстрактор значения поля."""
     return FieldExtractor()

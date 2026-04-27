@@ -70,6 +70,9 @@ class Document:
     def validation_result_file_path(self):
         return self.directory / "validation_result.json"
 
+    def draft_graph_file_path(self):
+        return self.directory / "draft_graph.json"
+
     def rdf_file_path(self):
         return self.directory / "rdf.ttl"
 

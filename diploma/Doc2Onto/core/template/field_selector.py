@@ -9,73 +9,77 @@ ElementPredicate = Callable[[Element], bool]
 ScopeOperation = Callable[[List[Element]], List[Element]]
 
 
-def contains_text(text: str, *, case_sensitive: bool = False) -> ElementPredicate:
-    """Предикат: строковое представление элемента содержит подстроку."""
-    needle = text if case_sensitive else text.lower()
+class Predicate:
+    """Класс для создания предикатов для селектора полей."""
 
-    def _predicate(el: Element) -> bool:
-        haystack = str(el) if case_sensitive else str(el).lower()
-        return needle in haystack
+    @staticmethod
+    def contains_text(text: str, *, case_sensitive: bool = False) -> ElementPredicate:
+        """Предикат: строковое представление элемента содержит подстроку."""
+        needle = text if case_sensitive else text.lower()
 
-    return _predicate
+        def _predicate(el: Element) -> bool:
+            haystack = str(el) if case_sensitive else str(el).lower()
+            return needle in haystack
 
+        return _predicate
 
-def matches_regex(pattern: str | Pattern[str], *, flags: int = 0) -> ElementPredicate:
-    """Предикат: строковое представление элемента матчится с регулярным выражением."""
-    compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
-    return lambda el: compiled.search(str(el)) is not None
+    @staticmethod
+    def matches_regex(pattern: str | Pattern[str], *, flags: int = 0) -> ElementPredicate:
+        """Предикат: строковое представление элемента матчится с регулярным выражением."""
+        compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
+        return lambda el: compiled.search(str(el)) is not None
 
+    @staticmethod
+    def starts_with(prefix: str, *, case_sensitive: bool = False) -> ElementPredicate:
+        """Предикат: строковое представление элемента начинается с префикса."""
+        needle = prefix if case_sensitive else prefix.lower()
 
-def starts_with(prefix: str, *, case_sensitive: bool = False) -> ElementPredicate:
-    """Предикат: строковое представление элемента начинается с префикса."""
-    needle = prefix if case_sensitive else prefix.lower()
+        def _predicate(el: Element) -> bool:
+            text = str(el) if case_sensitive else str(el).lower()
+            return text.startswith(needle)
 
-    def _predicate(el: Element) -> bool:
-        text = str(el) if case_sensitive else str(el).lower()
-        return text.startswith(needle)
+        return _predicate
 
-    return _predicate
+    @staticmethod
+    def ends_with(suffix: str, *, case_sensitive: bool = False) -> ElementPredicate:
+        """Предикат: строковое представление элемента заканчивается суффиксом."""
+        needle = suffix if case_sensitive else suffix.lower()
 
+        def _predicate(el: Element) -> bool:
+            text = str(el) if case_sensitive else str(el).lower()
+            return text.endswith(needle)
 
-def ends_with(suffix: str, *, case_sensitive: bool = False) -> ElementPredicate:
-    """Предикат: строковое представление элемента заканчивается суффиксом."""
-    needle = suffix if case_sensitive else suffix.lower()
+        return _predicate
 
-    def _predicate(el: Element) -> bool:
-        text = str(el) if case_sensitive else str(el).lower()
-        return text.endswith(needle)
+    @staticmethod
+    def min_length(n: int) -> ElementPredicate:
+        """Предикат: длина строки элемента не меньше n."""
+        return lambda el: len(str(el)) >= n
 
-    return _predicate
+    @staticmethod
+    def max_length(n: int) -> ElementPredicate:
+        """Предикат: длина строки элемента не больше n."""
+        return lambda el: len(str(el)) <= n
 
+    @staticmethod
+    def all_of(*predicates: ElementPredicate) -> ElementPredicate:
+        """Комбинация предикатов через логическое И."""
+        return lambda el: all(pred(el) for pred in predicates)
 
-def min_length(n: int) -> ElementPredicate:
-    """Предикат: длина строки элемента не меньше n."""
-    return lambda el: len(str(el)) >= n
+    @staticmethod
+    def any_of(*predicates: ElementPredicate) -> ElementPredicate:
+        """Комбинация предикатов через логическое ИЛИ."""
+        return lambda el: any(pred(el) for pred in predicates)
 
+    @staticmethod
+    def invert(predicate: ElementPredicate) -> ElementPredicate:
+        """Инверсия предиката."""
+        return lambda el: not predicate(el)
 
-def max_length(n: int) -> ElementPredicate:
-    """Предикат: длина строки элемента не больше n."""
-    return lambda el: len(str(el)) <= n
-
-
-def all_of(*predicates: ElementPredicate) -> ElementPredicate:
-    """Комбинация предикатов через логическое И."""
-    return lambda el: all(pred(el) for pred in predicates)
-
-
-def any_of(*predicates: ElementPredicate) -> ElementPredicate:
-    """Комбинация предикатов через логическое ИЛИ."""
-    return lambda el: any(pred(el) for pred in predicates)
-
-
-def invert(predicate: ElementPredicate) -> ElementPredicate:
-    """Инверсия предиката."""
-    return lambda el: not predicate(el)
-
-
-def always_true() -> ElementPredicate:
-    """Предикат: всегда True (без дополнительной фильтрации)."""
-    return lambda _: True
+    @staticmethod
+    def always_true() -> ElementPredicate:
+        """Предикат: всегда True (без дополнительной фильтрации)."""
+        return lambda _: True
 
 
 class FieldSelector:
@@ -96,7 +100,7 @@ class FieldSelector:
     """
 
     def __init__(self):
-        self._operations: List[Callable[[], List[Element]]] = []  # Цепочка операций
+        self._operations: List[Callable[[], List[Element]]] = []     # Цепочка операций
         self._scope: List[Element] = []                              # Текущая область поиска
         self._parent_index: dict[Element, tuple[Element, int]] = {}  # Индекс родителей
 
@@ -124,7 +128,7 @@ class FieldSelector:
         result = str(self._scope[0])
         return result
 
-    def find(self, element_type: ElementType, predicate: ElementPredicate = always_true) -> "FieldSelector":
+    def find(self, element_type: ElementType, predicate: ElementPredicate = Predicate.always_true()) -> "FieldSelector":
         """
         Находит все элементы заданного типа в дереве UDDM, удовлетворяющие заданному предикату.
 
@@ -320,6 +324,6 @@ class FieldSelector:
         return self
 
 
-def select() -> FieldSelector:
+def sel() -> FieldSelector:
     """Создаёт селектор полей."""
     return FieldSelector()

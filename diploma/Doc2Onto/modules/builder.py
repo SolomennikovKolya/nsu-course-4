@@ -1,12 +1,12 @@
 from typing import List, Dict
 from logging import WARNING, INFO
-from rdflib import Graph
+from typing import Optional
 
 from core.document import Document, DocumentContext
 from modules.base import BaseModule, ModuleResult
 from modules.validator import ValidationResult
 from core.template.field import Field
-from core.rdf.field_accessor import FieldsAccessor
+from core.graph.template_graph_builder import TemplateGraphBuilder
 
 
 class GraphBuilder(BaseModule):
@@ -36,23 +36,25 @@ class GraphBuilder(BaseModule):
         valid_res = ValidationResult.load(doc.validation_result_file_path())
         if not self._check_field_names_consistency(fields, valid_res):
             self.log(WARNING, f'Field names consistency check failed for template "{tctx.template.name}"')
-            return ModuleResult.failed(message="Неконсистентность структур: "
-                                       "набор полей после валидации и в шаблоне не совпадает."
-                                       "Перезапустите обработку")
+            msg = "Неконсистентность структур: набор полей после валидации и в шаблоне не совпадает. Перезапустите обработку"
+            return ModuleResult.failed(message=msg)
 
-        g = Graph()
-        f = FieldsAccessor(self._validation_res_to_values(valid_res))
+        field_values = self._validation_res_to_values(valid_res)
+        if not all(v is not None for v in field_values.values()):
+            self.log(WARNING, "Not all field values are present")
+            return ModuleResult.failed(message="Не все значения полей распознаны")
 
+        builder = TemplateGraphBuilder(field_values)
         try:
-            tctx.code.build_triples(g, f)
+            tctx.code.build(builder)
         except Exception as ex:
             self.log_exception()
             return ModuleResult.failed(message=str(ex))
 
-        g.serialize(ctx.document.rdf_file_path())
+        builder._get_draft_graph().serialize(ctx.document.draft_graph_file_path())
         return ModuleResult.ok()
 
-    def _validation_res_to_values(self, valid_res: ValidationResult) -> Dict[str, str]:
+    def _validation_res_to_values(self, valid_res: ValidationResult) -> Dict[str, Optional[str]]:
         values = dict()
         for field_name in valid_res.fields.keys():
             values[field_name] = (
