@@ -4,7 +4,7 @@ import shutil
 
 from app.settings import TEMPLATES_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
-from core.template.template import Template
+from models.template import Template
 from infrastructure.storage.base_manager import BaseManager
 
 

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 
 from app.context import get_temp_manager
 from app.settings import APP_NAME
-from core.template.template import Template
+from models.template import Template
 from ui.templates.temp_info import TemplateInfoWidget
 
 

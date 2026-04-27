@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 from app.settings import DOCUMENTS_DIR
-from core.document import Document
+from models.document import Document
 from infrastructure.storage.base_manager import BaseManager
 
 

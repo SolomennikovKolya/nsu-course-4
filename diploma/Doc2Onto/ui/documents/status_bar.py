@@ -2,7 +2,7 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 
-from core.document import Document
+from models.document import Document
 from ui.common.design import UI_COLOR_GREEN, UI_COLOR_RED
 
 

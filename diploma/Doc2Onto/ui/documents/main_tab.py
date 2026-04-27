@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 
 from app.context import get_pipeline, get_doc_manager
 from app.settings import APP_NAME
-from core.document import Document
+from models.document import Document
 from modules.converter.converter import ConverterRegistry
 from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW
 from ui.documents.doc_info import DocumentInfoWidget

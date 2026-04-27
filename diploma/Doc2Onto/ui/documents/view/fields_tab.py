@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.context import get_doc_manager
-from core.document import Document, document_context
+from models.document import Document, document_context
 from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW, UI_COLOR_RED, UI_COLOR_GRAY
 from modules.extractor import ExtractionResult, FieldExtractionData
 from modules.validator import ValidationResult, FieldValidationData

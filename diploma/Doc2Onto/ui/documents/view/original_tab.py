@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.document import Document
+from models.document import Document
 from ui.common.design import UI_COLOR_RED
 from shiboken6 import delete as shiboken_delete
 

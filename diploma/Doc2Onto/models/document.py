@@ -5,7 +5,7 @@ from pathlib import Path
 from enum import StrEnum, auto
 
 from app.context import get_temp_manager
-from core.template.template import TemplateContext
+from models.template import TemplateContext
 from core.uddm.model import UDDM
 
 

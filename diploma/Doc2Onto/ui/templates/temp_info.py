@@ -21,8 +21,8 @@ from app.settings import (
     GENERATE_TEMP_USER_PROMPT_PATH,
     TEMPLATE_CODE_EXAMPLE_PATH,
 )
-from core.document import Document
-from core.template.template import Template, TemplateCodeLoader
+from models.document import Document
+from models.template import Template, TemplateCodeLoader
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from ui.common.design import DELETE_BUTTON_STYLE

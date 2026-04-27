@@ -2,7 +2,7 @@ from typing import List, Dict
 from logging import WARNING, INFO
 from typing import Optional
 
-from core.document import Document, DocumentContext
+from models.document import Document, DocumentContext
 from modules.base import BaseModule, ModuleResult
 from modules.validator import ValidationResult
 from core.template.field import Field

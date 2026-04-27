@@ -2,8 +2,8 @@ from logging import WARNING, INFO
 
 from app.context import get_temp_manager
 from modules.base import BaseModule, ModuleResult
-from core.document import DocumentContext
-from core.template.template import TemplateContext
+from models.document import DocumentContext
+from models.template import TemplateContext
 
 
 class Classifier(BaseModule):

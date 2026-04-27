@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional, Self
 
 from app.context import get_logger
-from core.document import Document, DocumentContext, document_context
+from models.document import Document, DocumentContext, document_context
 from modules import Converter, Classifier, Extractor, Validator, GraphBuilder, Connector
 from modules.base import BaseModule
 

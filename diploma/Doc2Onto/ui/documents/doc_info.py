@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 
 from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
-from core.document import Document
+from models.document import Document
 from ui.common.editable_title import EditableTitleWidget
 from ui.documents.status_bar import StatusBarWidget
 from ui.documents.view.doc_view import DocumentViewWidget

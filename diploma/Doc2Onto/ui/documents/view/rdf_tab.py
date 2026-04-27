@@ -2,7 +2,7 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from core.document import Document
+from models.document import Document
 
 
 class DocumentViewRdfTab(QWidget):

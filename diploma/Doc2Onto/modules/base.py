@@ -4,7 +4,7 @@ from typing import Optional, Self
 from logging import ERROR
 
 from app.context import get_logger
-from core.document import DocumentContext
+from models.document import DocumentContext
 
 
 @dataclass(frozen=True)

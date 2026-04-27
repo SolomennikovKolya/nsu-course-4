@@ -1,7 +1,7 @@
 from typing import Dict, Type, List, Optional
 from pathlib import Path
 
-from core.document import DocumentContext
+from models.document import DocumentContext
 from core.uddm.model import UDDM
 from modules.base import BaseModule, ModuleResult
 

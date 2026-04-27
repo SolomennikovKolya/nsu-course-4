@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.agents import ask_gpt, read_prompt
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
-from core.document import Document, DocumentContext
+from models.document import Document, DocumentContext
 from core.template.field import Field
 from modules.base import BaseModule, ModuleResult
 from modules.extractor import ExtractionResult

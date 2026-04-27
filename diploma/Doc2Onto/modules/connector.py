@@ -1,5 +1,5 @@
 from modules.base import BaseModule, ModuleResult
-from core.document import Document, DocumentContext
+from models.document import Document, DocumentContext
 
 
 class Connector(BaseModule):

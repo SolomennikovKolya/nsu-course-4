@@ -2,7 +2,7 @@ from typing import Optional
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
-from core.document import Document
+from models.document import Document
 from ui.documents.view.common import wrap_tab_page_content
 from ui.documents.view.fields_tab import DocumentViewFieldsTab
 from ui.documents.view.original_tab import DocumentViewOriginalTab
