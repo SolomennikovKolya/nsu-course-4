@@ -192,6 +192,8 @@ class DocumentViewFieldsTab(QWidget):
                 validation_res.set_corrected_value_manual(field_name, None)
         else:
             validation_res.set_invalid_manual(field_name)
+            if not new_value:
+                validation_res.set_corrected_value_manual(field_name, "")
 
         try:
             validation_res.save(validation_path)
@@ -242,10 +244,18 @@ class FieldRowWidget(QFrame):
         self._val_err_temp = validation_data.get("error_temp")
         self._corrected_value_llm = validation_data.get("corrected_value_llm") or ""
         self._val_err_llm = validation_data.get("error_llm")
-        self._corrected_value_manual = validation_data.get("corrected_value_manual") or ""
+        manual_raw = validation_data.get("corrected_value_manual")
+        self._corrected_value_manual = manual_raw if isinstance(manual_raw, str) else ""
+        if isinstance(manual_raw, str):
+            self._init_displayed_value = manual_raw
+        else:
+            self._init_displayed_value = (
+                self._corrected_value_llm or self._extracted_value or ""
+            )
 
-        self._init_displayed_value = self._corrected_value_manual or self._corrected_value_llm or self._extracted_value or ""
-        is_valid = validation_data.get("valid")
+        is_valid = bool(validation_data.get("valid"))
+        if not self._init_displayed_value.strip():
+            is_valid = False
 
         self.setStyleSheet(
             """
@@ -327,7 +337,8 @@ class FieldRowWidget(QFrame):
         self._refresh_info_line()
 
     def _refresh_info_line(self):
-        valid = self._valid_checkbox.isChecked()
+        text = self._value_edit.text().strip()
+        valid = self._valid_checkbox.isChecked() and bool(text)
 
         if valid:
             if self._value_edit.text().strip() != self._init_displayed_value:
@@ -345,7 +356,10 @@ class FieldRowWidget(QFrame):
                     color = UI_COLOR_GREEN
             self._info_label.setText(f'<span style="color:{color};">{escape(text)}</span>')
         else:
-            parts = [p for p in (self._val_err_temp, self._val_err_llm) if p]
+            parts = []
+            if not text:
+                parts.append("Значение не может быть пустым")
+            parts.extend(p for p in (self._val_err_temp, self._val_err_llm) if p)
             msg = ". ".join(parts) if parts else "Поле отмечено как невалидное"
             self._info_label.setText(f'<span style="color:{UI_COLOR_RED};">{escape(msg)}</span>')
 
@@ -353,5 +367,14 @@ class FieldRowWidget(QFrame):
         if self._is_updating:
             return
 
+        text = self._value_edit.text().strip()
+        if not text and self._valid_checkbox.isChecked():
+            self._is_updating = True
+            try:
+                self._valid_checkbox.setChecked(False)
+            finally:
+                self._is_updating = False
+
+        valid = self._valid_checkbox.isChecked() and bool(text)
         self._refresh_info_line()
-        self._on_change(self._name, self._value_edit.text().strip(), self._valid_checkbox.isChecked())
+        self._on_change(self._name, text, valid)
