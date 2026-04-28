@@ -29,11 +29,11 @@ class FieldExtractionSituation(Enum):
     FOUND = auto()
     FAILED = auto()
 
-    def full_msg(self) -> str:
+    def short_msg(self) -> str:
         msgs = {
             FieldExtractionSituation.OK: "extracted by template",
             FieldExtractionSituation.CORRECTED: "corrected by LLM",
-            FieldExtractionSituation.WRONG: "wrong template value, LLM failed to extract",
+            FieldExtractionSituation.WRONG: "incorrectly extracted",
             FieldExtractionSituation.FOUND: "extracted by LLM",
             FieldExtractionSituation.FAILED: "failed to extract",
         }
@@ -48,6 +48,9 @@ class ExtractionResult:
 
     def __init__(self):
         self.fields: Dict[str, FieldExtractionData] = {}
+
+    def get_field(self, field_name: str) -> Optional[FieldExtractionData]:
+        return self.fields.get(field_name)
 
     def is_extracted_temp(self, field_name: str) -> bool:
         return bool(self.fields.get(field_name, {}).get("extracted_temp", False))
@@ -65,6 +68,21 @@ class ExtractionResult:
         if data.get("extracted_llm") is not None:
             return data.get("extracted_llm")
         return data.get("extracted_temp")
+
+    def get_value_temp(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("value_temp")
+
+    def get_value_llm(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("value_llm")
+
+    def get_value_final(self, field_name: str) -> Optional[str]:
+        return self.get_value_llm(field_name) or self.get_value_temp(field_name)
+
+    def get_error_temp(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("error_temp")
+
+    def get_error_llm(self, field_name: str) -> Optional[str]:
+        return self.fields.get(field_name, {}).get("error_llm")
 
     @staticmethod
     def get_situation_from_data(data: FieldExtractionData) -> FieldExtractionSituation:
@@ -90,21 +108,6 @@ class ExtractionResult:
         if not data:
             return FieldExtractionSituation.FAILED
         return self.get_situation_from_data(data)
-
-    def get_value_temp(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("value_temp")
-
-    def get_value_llm(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("value_llm")
-
-    def get_value_final(self, field_name: str) -> Optional[str]:
-        return self.get_value_llm(field_name) or self.get_value_temp(field_name)
-
-    def get_error_temp(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("error_temp")
-
-    def get_error_llm(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("error_llm")
 
     def set_result(
             self,
@@ -217,11 +220,12 @@ class Extractor(BaseModule):
             return ModuleResult.failed(message="Не удалось получить поля из кода шаблона")
 
         extr_res = self._extract(fields, uddm)
+        extr_res.save(doc.extraction_result_file_path())
+
         if self._all_fields_failed(extr_res):
             self.log(WARNING, "All fields failed")
             return ModuleResult.failed(message="Не удалось извлечь ни одного поля. Скорее всего шаблон вообще не подходит для документа")
 
-        extr_res.save(doc.extraction_result_file_path())
         return ModuleResult.ok()
 
     def _extract(self, fields: List[Field], uddm: UDDM) -> ExtractionResult:
@@ -232,7 +236,6 @@ class Extractor(BaseModule):
         return result
 
     def _extract_fields_declarative(self, fields: List[Field], uddm: UDDM, result: ExtractionResult):
-        """Первый уровень: Декларативное извлечение полей."""
         for field in fields:
             try:
                 text = field.selector._select(uddm)
@@ -251,7 +254,6 @@ class Extractor(BaseModule):
                 result.set_error_temp(field.name, "Непредвиденная ошибка извлечения поля декларативным методом")
 
     def _extract_fields_with_llm(self, fields: List[Field], uddm: UDDM, result: ExtractionResult):
-        """Второй уровень: Проверка/коррекция значений с использованием LLM."""
         try:
             fields_payload = [
                 {
@@ -299,7 +301,9 @@ class Extractor(BaseModule):
         except Exception:
             self.log(WARNING, "Unexpected error in LLM fallback", exc_info=True)
             for field in fields:
-                result.set_unexpected_error_llm(field.name, "Непредвиденная ошибка при обработке поля с помощью LLM")
+                data = result.get_field(field.name) or {}
+                if data.get("extracted_llm") is None:
+                    result.set_unexpected_error_llm(field.name, "Непредвиденная ошибка при обработке поля с помощью LLM")
 
     def _log_result(self, result: ExtractionResult):
         for field_name in result.fields.keys():
@@ -308,7 +312,7 @@ class Extractor(BaseModule):
             value = result.get_value_final(field_name)
             error_temp = result.get_error_temp(field_name)
             error_llm = result.get_error_llm(field_name)
-            situation = result.get_situation(field_name).full_msg()
+            situation = result.get_situation(field_name).short_msg()
 
             text = f'{field_label} {situation}: "{value}"'
             if error_temp is not None:
