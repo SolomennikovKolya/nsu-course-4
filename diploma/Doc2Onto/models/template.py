@@ -89,7 +89,7 @@ class TemplateCodeLoader:
                 if not callable(getattr(code, name, None)):
                     raise ValueError(f"Метод «{name}» отсутствует или не является вызываемым.")
 
-        except Exception as exc:
+        except Exception:
             get_logger().error(f"[TemplateCodeLoader] Error validating template code", exc_info=True)
             raise
 
@@ -116,6 +116,6 @@ class TemplateCodeLoader:
 
             return module.TemplateCode()
 
-        except Exception as exc:
+        except Exception:
             get_logger().error(f"[TemplateCodeLoader] Error loading template code for {template.name}", exc_info=True)
             raise

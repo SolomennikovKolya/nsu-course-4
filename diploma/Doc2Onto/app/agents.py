@@ -8,32 +8,21 @@ from pathlib import Path
 from string import Template as StringTemplate
 
 from app.settings import DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS, AGENTS_LOG_PATH, LOG_LINE_LENGTH
+from app.logger import create_agents_logger
 
 
 _client: Optional[OpenAI] = None
-_agents_logger: Optional[logging.Logger] = None
+_logger: Optional[logging.Logger] = None
 
 
 def _get_agents_logger() -> logging.Logger:
     """Отдельный логгер для OpenAI-запросов (без общего app logger)."""
-    global _agents_logger
-    if _agents_logger is not None:
-        return _agents_logger
+    global _logger
+    if _logger is not None:
+        return _logger
 
-    AGENTS_LOG_PATH.mkdir(parents=True, exist_ok=True)
-    log_path = AGENTS_LOG_PATH
-
-    logger = logging.getLogger("doc2onto.agents")
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-    if not logger.handlers:
-        handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(handler)
-
-    _agents_logger = logger
-    return logger
+    _logger = create_agents_logger(AGENTS_LOG_PATH)
+    return _logger
 
 
 def get_openai_client() -> OpenAI:

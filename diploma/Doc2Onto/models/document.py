@@ -101,7 +101,7 @@ class DocumentContext:
         try:
             self._uddm = UDDM.load(self.document.uddm_file_path())
             return self._uddm
-        except Exception as exc:
+        except Exception:
             return None
 
     @uddm.setter

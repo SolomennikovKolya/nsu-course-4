@@ -120,6 +120,10 @@ class UDDM:
         tree = ET.ElementTree(self.root._to_xml())
         tree.write(path, encoding="utf-8", xml_declaration=True)
 
+    def to_string(self) -> str:
+        """Сериализация в xml-строку."""
+        return ET.tostring(self.root._to_xml(), encoding="unicode")
+
 
 class Element(ABC):
     """Базовый тип для узлов дерева UDDM."""

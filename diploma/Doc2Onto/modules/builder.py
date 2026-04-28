@@ -51,7 +51,7 @@ class GraphBuilder(BaseModule):
             self.log_exception()
             return ModuleResult.failed(message=str(ex))
 
-        builder._get_draft_graph().serialize(ctx.document.draft_graph_file_path())
+        # builder._get_draft_graph().serialize(ctx.document.draft_graph_file_path())
         return ModuleResult.ok()
 
     def _validation_res_to_values(self, valid_res: ValidationResult) -> Dict[str, Optional[str]]:

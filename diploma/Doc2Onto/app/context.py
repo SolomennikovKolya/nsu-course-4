@@ -31,8 +31,8 @@ def init_app_context() -> AppContext:
 
     _app_context = AppContext()
 
-    from app.logger import create_logger
-    _app_context.logger = create_logger(False, APP_LOG_PATH)
+    from app.logger import create_app_logger
+    _app_context.logger = create_app_logger(APP_LOG_PATH)
     from infrastructure.storage.document_manager import DocumentManager
     _app_context.doc_manager = DocumentManager(DOCUMENTS_DIR)
     from infrastructure.storage.template_manager import TemplateManager

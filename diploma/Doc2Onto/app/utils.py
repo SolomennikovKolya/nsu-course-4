@@ -1,5 +1,5 @@
 from dataclasses import asdict, fields
-from typing import Optional
+from typing import Optional, Any
 
 
 def smart_asdict(obj):
@@ -73,3 +73,32 @@ def merge_messages(*messages: Optional[str]) -> Optional[str]:
         return None
 
     return "; ".join(msgs)
+
+
+def parse_dict_field(
+    d: dict,
+    key: str,
+    *,
+    exp_type: Optional[type] = None,
+    strip_str: bool = False,
+    not_empty: bool = False,
+    default: Optional[Any] = None
+) -> Optional[Any]:
+    """
+    Мини-утилита для получения значения из словаря по ключу с проверкой типа.
+    Возвращает значение, если оно существует и соответствует типу, иначе None.
+    """
+    val = d.get(key)
+    if val is None:
+        return default
+
+    if exp_type is not None and not isinstance(val, exp_type):
+        return default
+
+    if strip_str and isinstance(val, str):
+        val = val.strip()
+
+    if not_empty and not val:
+        return default
+
+    return val

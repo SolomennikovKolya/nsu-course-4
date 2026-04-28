@@ -194,7 +194,7 @@ class Validator(BaseModule):
     def _validate(self, doc: Document, fields: List[Field], extraction_res: ExtractionResult) -> ValidationResult:
         result = ValidationResult()
         for field in fields:
-            result.set_extracted_value(field.name, extraction_res.get_value(field.name))
+            result.set_extracted_value(field.name, extraction_res.get_value_final(field.name))
 
         hard_validation = self._hard_validate(fields, extraction_res, result)
         self._validate_with_llm(doc, hard_validation, result)
@@ -207,7 +207,7 @@ class Validator(BaseModule):
         hard_validation: HardValidationResult = {}
 
         for field in fields:
-            extracted_value = extr_res.get_value(field.name)
+            extracted_value = extr_res.get_value_final(field.name)
             hard_validation[field.name] = self._hard_validate_field(field, extracted_value, result)
 
         return hard_validation
