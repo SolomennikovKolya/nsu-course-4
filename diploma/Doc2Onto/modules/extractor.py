@@ -2,7 +2,7 @@ import json
 from logging import WARNING, INFO
 from typing import Dict, Optional, TypedDict, List
 from pathlib import Path
-from enum import Enum
+from enum import Enum, auto
 
 from app.agents import ask_gpt, read_prompt
 from app.utils import parse_dict_field
@@ -23,11 +23,21 @@ class FieldExtractionData(TypedDict):
 
 
 class FieldExtractionSituation(Enum):
-    OK = "ok"
-    CORRECTED = "corrected"
-    WRONG = "wrong"
-    FOUND = "found"
-    FAILED = "failed"
+    OK = auto()
+    CORRECTED = auto()
+    WRONG = auto()
+    FOUND = auto()
+    FAILED = auto()
+
+    def full_msg(self) -> str:
+        msgs = {
+            FieldExtractionSituation.OK: "extracted by template",
+            FieldExtractionSituation.CORRECTED: "corrected by LLM",
+            FieldExtractionSituation.WRONG: "wrong template value, LLM failed to extract",
+            FieldExtractionSituation.FOUND: "extracted by LLM",
+            FieldExtractionSituation.FAILED: "failed to extract",
+        }
+        return msgs[self]
 
 
 class ExtractionResult:
@@ -295,35 +305,18 @@ class Extractor(BaseModule):
         for field_name in result.fields.keys():
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
 
-            extracted = result.is_extracted_final(field_name)
             value = result.get_value_final(field_name)
-            value_temp = result.get_value_temp(field_name)
-            value_llm = result.get_value_llm(field_name)
             error_temp = result.get_error_temp(field_name)
             error_llm = result.get_error_llm(field_name)
+            situation = result.get_situation(field_name).full_msg()
 
-            if extracted and value is not None:
-                situation = result.get_situation(field_name)
-                if situation == FieldExtractionSituation.OK:
-                    self.log(INFO, f'{field_label} "{value}" (ok)')
-                elif situation == FieldExtractionSituation.CORRECTED:
-                    self.log(INFO, f'{field_label} "{value}" (corrected by LLM)')
-                elif situation == FieldExtractionSituation.FOUND:
-                    self.log(INFO, f'{field_label} "{value}" (found by LLM)')
-                else:
-                    self.log(INFO, f'{field_label} "{value}"')
-            else:
-                err_parts = []
-                if error_temp:
-                    err_parts.append(f"template: {error_temp}")
-                if error_llm:
-                    err_parts.append(f"llm: {error_llm}")
-                if not err_parts:
-                    err_parts.append("value is missing")
+            text = f'{field_label} {situation}: "{value}"'
+            if error_temp is not None:
+                text += f" error_temp: {error_temp}"
+            if error_llm is not None:
+                text += f" error_llm: {error_llm}"
 
-                temp_part = f'temp="{value_temp}"' if value_temp is not None else "temp=null"
-                llm_part = f'llm="{value_llm}"' if value_llm is not None else "llm=null"
-                self.log(WARNING, f"{field_label} None ({'; '.join(err_parts)}; {temp_part}; {llm_part})")
+            self.log(INFO, text)
 
     def _all_fields_failed(self, result: ExtractionResult) -> bool:
         return all(not result.is_extracted_final(field_name) for field_name in result.fields.keys())
