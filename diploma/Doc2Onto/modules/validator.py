@@ -14,30 +14,23 @@ from modules.extractor import ExtractionResult
 
 
 class FieldValidationData(TypedDict):
-    valid_temp: bool              # Статус шаблонной (жёсткой) валидации
-    error_temp: Optional[str]     # Ошибка шаблонной валидации
-    valid_llm: Optional[bool]     # Статус LLM-валидации/коррекции (None - непредвиденная ошибка)
-    value_llm: Optional[str]      # Значение после LLM-проверки/коррекции
-    error_llm: Optional[str]      # Ошибка или предупреждение LLM
-    valid_manual: Optional[bool]  # Ручной флаг валидности (None - пользователь не задавал)
-    value_manual: Optional[str]   # Ручное значение (None - пользователь не задавал)
+    valid_temp: bool           # Статус шаблонной (жёсткой) валидации
+    error_temp: Optional[str]  # Ошибка шаблонной валидации
+    valid_llm: Optional[bool]  # Статус LLM-валидации/коррекции (None - непредвиденная ошибка)
+    error_llm: Optional[str]   # Ошибка LLM (что не так с значением)
 
 
 class FieldValidationSituation(Enum):
     VALID_TEMPLATE = auto()
-    CORRECTED_LLM = auto()
+    VALID_LLM = auto()
     INVALID_AFTER_LLM = auto()
-    VALID_MANUAL = auto()
-    INVALID_MANUAL = auto()
     FAILED = auto()
 
     def full_msg(self) -> str:
         msgs = {
             FieldValidationSituation.VALID_TEMPLATE: "valid by template",
-            FieldValidationSituation.CORRECTED_LLM: "validated/corrected by LLM",
+            FieldValidationSituation.VALID_LLM: "validated by LLM",
             FieldValidationSituation.INVALID_AFTER_LLM: "invalid after LLM",
-            FieldValidationSituation.VALID_MANUAL: "validated manually",
-            FieldValidationSituation.INVALID_MANUAL: "invalid manually",
             FieldValidationSituation.FAILED: "validation failed",
         }
         return msgs[self]
@@ -58,18 +51,16 @@ class ValidationResult:
     def is_valid_llm(self, field_name: str) -> Optional[bool]:
         return self.fields.get(field_name, {}).get("valid_llm")
 
-    def is_valid_manual(self, field_name: str) -> Optional[bool]:
-        return self.fields.get(field_name, {}).get("valid_manual")
-
     def is_valid_final(self, field_name: str) -> bool:
         data = self.fields.get(field_name)
         if data is None:
             return False
-        if data.get("valid_manual") is not None:
-            return bool(data.get("valid_manual"))
+
+        # Результат считается валидным, если и шаблон, и LLM считают его валидным
+        # (но LLM может быть None, если произошла ошибка)
         if data.get("valid_llm") is not None:
-            return bool(data.get("valid_llm"))
-        return bool(data.get("valid_temp"))
+            return data.get("valid_temp") and data.get("valid_llm")
+        return data.get("valid_temp")
 
     def is_all_valid(self) -> bool:
         return all(self.is_valid_final(field_name) for field_name in self.fields.keys())
@@ -80,25 +71,10 @@ class ValidationResult:
     def get_error_llm(self, field_name: str) -> Optional[str]:
         return self.fields.get(field_name, {}).get("error_llm")
 
-    def get_value_llm(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("value_llm")
-
-    def get_value_manual(self, field_name: str) -> Optional[str]:
-        return self.fields.get(field_name, {}).get("value_manual")
-
-    def get_value_final(self, field_name: str, extracted_value: Optional[str]) -> Optional[str]:
-        return self.get_value_manual(field_name) or self.get_value_llm(field_name) or extracted_value
-
     @staticmethod
     def get_situation_from_data(data: FieldValidationData) -> FieldValidationSituation:
-        if data.get("valid_manual") is True:
-            return FieldValidationSituation.VALID_MANUAL
-        if data.get("valid_manual") is False:
-            return FieldValidationSituation.INVALID_MANUAL
         if data.get("valid_llm") is True:
-            if data.get("value_llm") is not None:
-                return FieldValidationSituation.CORRECTED_LLM
-            return FieldValidationSituation.VALID_TEMPLATE
+            return FieldValidationSituation.VALID_LLM
         if data.get("valid_llm") is False:
             return FieldValidationSituation.INVALID_AFTER_LLM
         if data.get("valid_temp"):
@@ -118,19 +94,13 @@ class ValidationResult:
             valid_temp: bool = False,
             error_temp: Optional[str] = None,
             valid_llm: Optional[bool] = None,
-            value_llm: Optional[str] = None,
             error_llm: Optional[str] = None,
-            valid_manual: Optional[bool] = None,
-            value_manual: Optional[str] = None
     ):
         self.fields[field_name] = {
             "valid_temp": valid_temp,
             "error_temp": error_temp,
             "valid_llm": valid_llm,
-            "value_llm": value_llm,
             "error_llm": error_llm,
-            "valid_manual": valid_manual,
-            "value_manual": value_manual,
         }
 
     def ensure_field(self, field_name: str):
@@ -149,35 +119,20 @@ class ValidationResult:
         self.fields[field_name]["valid_temp"] = False
         self.fields[field_name]["error_temp"] = error
 
-    def set_valid_llm(self, field_name: str, value: Optional[str] = None, warning: Optional[str] = None):
+    def set_valid_llm(self, field_name: str):
         self.ensure_field(field_name)
         self.fields[field_name]["valid_llm"] = True
-        self.fields[field_name]["value_llm"] = value
-        self.fields[field_name]["error_llm"] = warning
+        self.fields[field_name]["error_llm"] = None
 
     def set_invalid_llm(self, field_name: str, error: str):
         self.ensure_field(field_name)
         self.fields[field_name]["valid_llm"] = False
-        self.fields[field_name]["value_llm"] = None
         self.fields[field_name]["error_llm"] = error
 
     def set_unexpected_error_llm(self, field_name: str, fatal: str):
         self.ensure_field(field_name)
         self.fields[field_name]["valid_llm"] = None
-        self.fields[field_name]["value_llm"] = None
         self.fields[field_name]["error_llm"] = fatal
-
-    def set_valid_manual(self, field_name: str):
-        self.ensure_field(field_name)
-        self.fields[field_name]["valid_manual"] = True
-
-    def set_invalid_manual(self, field_name: str):
-        self.ensure_field(field_name)
-        self.fields[field_name]["valid_manual"] = False
-
-    def set_value_manual(self, field_name: str, value: Optional[str]):
-        self.ensure_field(field_name)
-        self.fields[field_name]["value_manual"] = value
 
     @staticmethod
     def load(path: Path) -> "ValidationResult":
@@ -198,10 +153,7 @@ class ValidationResult:
                 valid_temp=parse_dict_field(field_data, "valid_temp", exp_type=bool, default=False),
                 error_temp=parse_dict_field(field_data, "error_temp", exp_type=str, default=None),
                 valid_llm=parse_dict_field(field_data, "valid_llm", exp_type=bool, default=None),
-                value_llm=parse_dict_field(field_data, "value_llm", exp_type=str, default=None),
                 error_llm=parse_dict_field(field_data, "error_llm", exp_type=str, default=None),
-                valid_manual=parse_dict_field(field_data, "valid_manual", exp_type=bool, default=None),
-                value_manual=parse_dict_field(field_data, "value_manual", exp_type=str, default=None),
             )
         return result
 
@@ -255,7 +207,7 @@ class Validator(BaseModule):
             value = extr_res.get_value_final(field.name)
             try:
                 if value is None or not value.strip():
-                    result.set_invalid_temp(field.name, "Обязательное поле отсутствует или пустое")
+                    result.set_invalid_temp(field.name, "Поле отсутствует или пустое")
                     continue
 
                 error = field.validator._validate(value)
@@ -273,16 +225,7 @@ class Validator(BaseModule):
                 {
                     "name": field.name,
                     "description": field.description,
-                    "extraction": {
-                        "status": extr_res.is_extracted_final(field.name),
-                        "value": extr_res.get_value_final(field.name),
-                        "error_temp": extr_res.get_error_temp(field.name),
-                        "error_llm": extr_res.get_error_llm(field.name),
-                    },
-                    "template_validation": {
-                        "status": result.is_valid_temp(field.name),
-                        "error": result.get_error_temp(field.name),
-                    },
+                    "value": extr_res.get_value_final(field.name),
                 }
                 for field in fields
             ]
@@ -305,7 +248,6 @@ class Validator(BaseModule):
                     continue
 
                 status = parse_dict_field(item, "status", exp_type=bool, default=None)
-                value = parse_dict_field(item, "value", exp_type=str, strip_str=True, not_empty=True, default=None)
                 error = parse_dict_field(item, "error", exp_type=str, strip_str=True, not_empty=True, default=None)
 
                 if status is None:
@@ -313,9 +255,9 @@ class Validator(BaseModule):
                     continue
 
                 if status:
-                    result.set_valid_llm(field.name, value=value, warning=error)
+                    result.set_valid_llm(field.name)
                 else:
-                    result.set_invalid_llm(field.name, error or "LLM не смогла провалидировать/исправить значение")
+                    result.set_invalid_llm(field.name, error or "LLM определила, что значение некорректно")
 
         except Exception:
             self.log(WARNING, "LLM validation level failed", exc_info=True)
@@ -334,23 +276,19 @@ class Validator(BaseModule):
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
 
             extracted_value = extr_res.get_value_final(field_name)
-            value_llm = result.get_value_llm(field_name)
-            value_manual = result.get_value_manual(field_name)
-            final_value = result.get_value_final(field_name, extracted_value)
             error_temp = result.get_error_temp(field_name)
             error_llm = result.get_error_llm(field_name)
 
             situation = result.get_situation(field_name).full_msg()
             if result.is_valid_final(field_name):
-                self.log(INFO, f'{field_label} {situation}: "{final_value or ""}"')
+                self.log(INFO, f'{field_label} {situation}: "{extracted_value or ""}"')
             else:
                 parts = [situation]
                 if error_temp:
                     parts.append(f"template: {error_temp}")
                 if error_llm:
                     parts.append(f"llm: {error_llm}")
-                src = f'extracted="{extracted_value}" llm="{value_llm}" manual="{value_manual}"'
-                self.log(WARNING, f"{field_label} invalid ({'; '.join(parts)}; {src})")
+                self.log(WARNING, f'{field_label} invalid ({"; ".join(parts)}; extracted="{extracted_value}")')
 
     def _all_fields_validated(self, result: ValidationResult) -> bool:
         return all(result.is_valid_final(field_name) for field_name in result.fields.keys())

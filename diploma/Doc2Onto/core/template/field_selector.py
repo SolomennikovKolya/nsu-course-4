@@ -125,7 +125,7 @@ class FieldSelector:
             return None
 
         # В конце должна остаться единственная локальная область поиска. Если это не так, то возвращаем первую
-        result = str(self._scope[0])
+        result = str(self._scope[0]).strip()
         return result
 
     def find(self, element_type: ElementType, predicate: ElementPredicate = Predicate.always_true()) -> "FieldSelector":

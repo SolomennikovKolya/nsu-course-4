@@ -296,7 +296,7 @@ class Extractor(BaseModule):
                 if status:
                     result.set_value_llm(field.name, value, error)
                 else:
-                    result.set_error_llm(field.name, error or "LLM не смогла извлечь/подтвердить корректное значение")
+                    result.set_error_llm(field.name, error or "LLM определила, что значение некорректно")
 
         except Exception:
             self.log(WARNING, "Unexpected error in LLM fallback", exc_info=True)
