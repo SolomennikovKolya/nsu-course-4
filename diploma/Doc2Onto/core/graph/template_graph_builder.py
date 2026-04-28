@@ -1,7 +1,7 @@
 from rdflib import Namespace
 from rdflib.namespace import RDF
 from rdflib import URIRef, Literal, XSD
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from enum import Enum
 
 from app.settings import SUBJECT_NAMESPACE_IRI
@@ -9,7 +9,41 @@ from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
 from core.graph.value_transformer import ValueTransformFunc
 
 
-ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
+_RDFLIB_ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
+
+
+class DomainNamespace:
+    """
+    Пространство имен предметной области. Позволяет легко создавать IRI с префиксом пространства имен.
+    Возвращает специальную обёртку над URIRef для работы в шаблоне.
+
+    Примеры:
+    ```
+    ONTO.Студент
+    ONTO.имеетРуководителя
+    ONTO.имеетИмя
+    ```
+    """
+
+    def __init__(self, ontology_iri: str):
+        self._ontology_iri = ontology_iri
+        self._namespace = Namespace(ontology_iri)
+
+    def get_ontology_iri(self) -> str:
+        return self._ontology_iri
+
+    def _to_draft_node(self, local_name: str) -> DraftNode:
+        uri = self._namespace[local_name]
+        return DraftNode(None, DraftNode.Type.IRI, uri, None)
+
+    def __getitem__(self, local_name: str) -> DraftNode:
+        return self._to_draft_node(local_name)
+
+    def __getattr__(self, local_name: str) -> DraftNode:
+        # Пропускаем служебные python-атрибуты.
+        if local_name.startswith("__"):
+            raise AttributeError(local_name)
+        return self._to_draft_node(local_name)
 
 
 class XSDType(Enum):
@@ -105,7 +139,7 @@ class ValueProxy:
             error = "Значение поля отсутствует; Невозможно построить IRI из None"
             return node(None, error)
 
-        return node(ONTO[value], None)
+        return node(_RDFLIB_ONTO[value], None)
 
     def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
         """
@@ -143,10 +177,10 @@ class NoneValueProxy(ValueProxy):
         return self
 
     def iri(self) -> DraftNode:
-        return DraftNode(self._source_field_name, DraftNode.Type.IRI, None, self.ERROR)
+        return DraftNode(None, DraftNode.Type.IRI, None, self.ERROR)
 
     def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
-        return DraftNode(self._source_field_name, DraftNode.Type.LITERAL, None, self.ERROR)
+        return DraftNode(None, DraftNode.Type.LITERAL, None, self.ERROR)
 
 
 class TemplateGraphBuilder:
@@ -173,13 +207,13 @@ class TemplateGraphBuilder:
 
     # ----- доступ к константам онтологии иполям шаблона -----
 
-    def namespace(self) -> Namespace:
+    def namespace(self) -> DomainNamespace:
         """
         Получение пространства имен предметной области.
         С помощью него можно получить класс, объектное или дата-свойство онтологии.
         Примеры: `ONTO.Студент`, `ONTO.имеетРуководителя`, `ONTO.имеетИмя`
         """
-        return ONTO
+        return DomainNamespace(SUBJECT_NAMESPACE_IRI)
 
     def field(self, field_name: str) -> ValueProxy:
         """
@@ -198,6 +232,10 @@ class TemplateGraphBuilder:
 
         value = self._field_values.get(field_name)
         return ValueProxy(field_name, value)
+
+    def literal(self, value: Any) -> DraftNode:
+        """Построение Literal на основе значения (не связано ни с каким полем шаблона)."""
+        return DraftNode(None, DraftNode.Type.LITERAL, Literal(value), None)
 
     # ----- добавление триплетов -----
 

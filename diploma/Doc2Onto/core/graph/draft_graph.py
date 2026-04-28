@@ -16,7 +16,7 @@ class DraftNode:
 
     def __init__(
         self,
-        source_field_name: str,
+        source_field_name: Optional[str],
         node_type: Type,
         node: Optional[URIRef | Literal],
         error: Optional[Exception] = None
