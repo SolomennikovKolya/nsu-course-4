@@ -40,9 +40,9 @@ class GraphBuilder(BaseModule):
             return ModuleResult.failed(message=msg)
 
         field_values = self._validation_res_to_values(valid_res)
-        if not all(v is not None for v in field_values.values()):
-            self.log(WARNING, "Not all field values are present")
-            return ModuleResult.failed(message="Не все значения полей распознаны")
+        # if not all(v is not None for v in field_values.values()):
+        #     self.log(WARNING, "Not all field values are present")
+        #     return ModuleResult.failed(message="Не все значения полей распознаны")
 
         builder = TemplateGraphBuilder(field_values)
         try:

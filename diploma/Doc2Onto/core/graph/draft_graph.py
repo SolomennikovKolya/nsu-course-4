@@ -1,5 +1,5 @@
-from typing import Optional, List
-from rdflib import URIRef, Literal, Graph
+from typing import Optional, List, Tuple
+from rdflib import URIRef, Literal, Graph, Node
 from enum import Enum
 
 
@@ -16,33 +16,39 @@ class DraftNode:
 
     def __init__(
         self,
-        value: Optional[URIRef | Literal],
+        source_field_name: str,
         node_type: Type,
+        node: Optional[URIRef | Literal],
         error: Optional[Exception] = None
     ):
-        self.value = value
-        self.type = node_type
-        self.error = error
+        self._source_field_name = source_field_name  # название поля, от которого было получено значение
+        self._node_type = node_type                  # тип узла
+        self._node = node                            # значение узла (node != None <=> error == None)
+        self._error = error                          # ошибка, поясняющая причину отсутствия значения
 
     def is_ok(self):
-        return self.value is not None and self.error is None
+        return self._node is not None
+
+    def get_rdf_node(self) -> Optional[URIRef | Literal]:
+        return self._node
 
 
 class DraftTriple:
     """Черновой триплет (некоторые ноды могут не иметь значения)."""
 
     def __init__(self, s: DraftNode, p: DraftNode, o: DraftNode):
-        self.subject = s
-        self.predicate = p
-        self.object = o
+        self._subject = s
+        self._predicate = p
+        self._object = o
 
     def is_complete(self) -> bool:
         """Проверяет, является ли триплет полным."""
-        return self.subject is not None and self.predicate is not None and self.object is not None
+        return self._subject.is_ok() and self._predicate.is_ok() and self._object.is_ok()
 
-    def __repr__(self):
-        status = "OK" if self.is_complete() else "PARTIAL"
-        return f"<DraftTriple {self.subject} {self.predicate} {self.object} [{status}]>"
+    def get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
+        if not self.is_complete():
+            return None
+        return (self._subject.get_rdf_node(), self._predicate.get_rdf_node(), self._object.get_rdf_node())
 
 
 class DraftGraph:
@@ -59,13 +65,8 @@ class DraftGraph:
         """Построение реального RDF-графа (из rdflib)."""
         graph = Graph()
         for triple in self._triples:
-            if triple.is_complete():
-                graph.add(triple)
+            rdf_triple = triple.get_rdf_triple()
+            if rdf_triple is not None:
+                graph.add(rdf_triple)
 
         return graph
-
-    def __repr__(self):
-        rep = f"<DraftGraph {len(self._triples)} triples>"
-        for triple in self._triples:
-            rep += f"\n{triple}"
-        return rep

@@ -222,9 +222,9 @@ class Extractor(BaseModule):
         extr_res = self._extract(fields, uddm)
         extr_res.save(doc.extraction_result_file_path())
 
-        if self._all_fields_failed(extr_res):
-            self.log(WARNING, "All fields failed")
-            return ModuleResult.failed(message="Не удалось извлечь ни одного поля. Скорее всего шаблон вообще не подходит для документа")
+        # if self._all_fields_failed(extr_res):
+        #     self.log(WARNING, "All fields failed")
+        #     return ModuleResult.failed(message="Не удалось извлечь ни одного поля. Скорее всего шаблон вообще не подходит для документа")
 
         return ModuleResult.ok()
 

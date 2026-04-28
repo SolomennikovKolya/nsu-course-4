@@ -189,9 +189,9 @@ class Validator(BaseModule):
         valid_res = self._validate(fields, extr_res)
         valid_res.save(doc.validation_result_file_path())
 
-        if not self._all_fields_validated(valid_res):
-            self.log(WARNING, f'Not all fields are validated')
-            return ModuleResult.failed(message="Не все поля валидны")
+        # if not self._all_fields_validated(valid_res):
+        #     self.log(WARNING, f'Not all fields are validated')
+        #     return ModuleResult.failed(message="Не все поля валидны")
 
         return ModuleResult.ok()
 

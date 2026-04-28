@@ -5,7 +5,6 @@ from typing import Optional, Dict
 from enum import Enum
 
 from app.settings import SUBJECT_NAMESPACE_IRI
-from app.utils import merge_exceptions
 from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
 from core.graph.value_transformer import ValueTransformFunc
 
@@ -51,16 +50,17 @@ class ValueProxy:
     ```
     """
 
-    def __init__(self, raw_value: str):
-        self._raw_value: Optional[str] = raw_value     # исходное значение поля
-        self._transformed_value: Optional[str] = None  # преобразованное значение поля
-        self._error: Optional[Exception] = None        # ошибка в цепочке
+    def __init__(self, field_name: str, field_value: Optional[str]):
+        self._source_field_name: str = field_name              # название поля, от которого было получено значение
+        self._source_field_value: Optional[str] = field_value  # исходное значение поля
+        self._transformed_value: Optional[str] = None          # преобразованное значение поля
+        self._error: Optional[str] = None                      # ошибка в цепочке
 
     def _transform_called(self) -> bool:
         return self._transformed_value is not None or self._error is not None
 
     def _get_value(self) -> Optional[str]:
-        return self._transformed_value or self._raw_value
+        return self._transformed_value or self._source_field_value
 
     def transform(self, fn: ValueTransformFunc, key: str) -> "ValueProxy":
         """
@@ -75,17 +75,17 @@ class ValueProxy:
 
         value = self._get_value()
         if value is None:
-            self._error = ValueError("Значение поля отсутствует; Невозможно применить transform к None")
+            self._error = "Значение поля отсутствует; Невозможно применить transform к None"
             return self
 
         try:
             data = fn(value)
             if key not in data:
-                self._error = ValueError(f"Ключ {key} не найден в результате преобразования")
+                self._error = f"Ключ {key} не найден в результате преобразования"
             else:
                 self._transformed_value = data.get(key)
-        except Exception as exc:
-            self._error = exc
+        except Exception as ex:
+            self._error = str(ex)
 
         return self
 
@@ -94,54 +94,59 @@ class ValueProxy:
         Построение IRI на основе значения поля. 
         Является конечной операцией в цепочке.
         """
+        def node(value: Optional[URIRef], error: Optional[str]) -> DraftNode:
+            return DraftNode(self._source_field_name, DraftNode.Type.IRI, value, error)
+
         if self._error is not None:
-            return DraftNode(None, DraftNode.Type.IRI, self._error)
+            return node(None, self._error)
 
         value = self._get_value()
         if value is None:
-            exc = ValueError("Значение поля отсутствует; Невозможно построить IRI из None")
-            return DraftNode(None, DraftNode.Type.IRI, exc)
+            error = "Значение поля отсутствует; Невозможно построить IRI из None"
+            return node(None, error)
 
-        return DraftNode(URIRef(value), DraftNode.Type.IRI)
+        return node(ONTO[value], None)
 
     def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
         """
         Построение Literal на основе значения поля с учётом типа. 
         Является конечной операцией в цепочке.
         """
+        def node(value: Optional[Literal], error: Optional[str]) -> DraftNode:
+            return DraftNode(self._source_field_name, DraftNode.Type.LITERAL, value, error)
+
         if self._error is not None:
-            return DraftNode(None, DraftNode.Type.LITERAL, self._error)
+            return node(None, self._error)
 
         value = self._get_value()
         if value is None:
-            exc = ValueError("Значение поля отсутствует; Невозможно построить Literal из None")
-            return DraftNode(None, DraftNode.Type.LITERAL, exc)
+            error = "Значение поля отсутствует; Невозможно построить Literal из None"
+            return node(None, error)
 
         try:
             value = xsd_type.py_type(value)
         except Exception:
-            exc = ValueError(f"Невозможно преобразовать значение {value} к типу {xsd_type}")
-            return DraftNode(None, DraftNode.Type.LITERAL, exc)
+            error = f"Невозможно преобразовать значение {value} к типу {xsd_type}"
+            return node(None, error)
 
-        return DraftNode(Literal(value, datatype=xsd_type.uri), DraftNode.Type.LITERAL)
+        return node(Literal(value, datatype=xsd_type.uri), None)
 
 
 class NoneValueProxy(ValueProxy):
-    """Заглушка на случай, если значение поля отсутствует."""
+    """Заглушка на случай, если поле не существует в шаблоне."""
 
-    ERROR = ValueError("Неправильно указано название поля (его не существует в шаблоне)")
-
-    def __init__(self):
-        super().__init__("")
+    def __init__(self, field_name: str):
+        super().__init__(field_name, None)
+        self.ERROR = f"Поле {field_name} не существует в шаблоне"
 
     def transform(self, fn: ValueTransformFunc, key: str) -> "NoneValueProxy":
         return self
 
     def iri(self) -> DraftNode:
-        return DraftNode(None, DraftNode.Type.IRI, self.ERROR)
+        return DraftNode(self._source_field_name, DraftNode.Type.IRI, None, self.ERROR)
 
     def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
-        return DraftNode(None, DraftNode.Type.LITERAL, self.ERROR)
+        return DraftNode(self._source_field_name, DraftNode.Type.LITERAL, None, self.ERROR)
 
 
 class TemplateGraphBuilder:
@@ -188,11 +193,11 @@ class TemplateGraphBuilder:
         email_domain = b.field("student_email").transform(ValueTransformer.email, "domain").literal()
         ```
         """
-        value = self._field_values.get(field_name)
-        if value is None:
-            return NoneValueProxy()
+        if field_name not in self._field_values:
+            return NoneValueProxy(field_name)
 
-        return ValueProxy(value)
+        value = self._field_values.get(field_name)
+        return ValueProxy(field_name, value)
 
     # ----- добавление триплетов -----
 
