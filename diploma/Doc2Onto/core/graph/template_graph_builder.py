@@ -46,33 +46,6 @@ class DomainNamespace:
         return self._to_draft_node(local_name)
 
 
-class XSDType(Enum):
-    """Типы данных RDF. Используются для построения Literal с учётом типа."""
-
-    STRING = "string"
-    INTEGER = "integer"
-    FLOAT = "float"
-    DATE = "date"
-
-    @property
-    def uri(self) -> URIRef:
-        return {
-            self.STRING: XSD.string,
-            self.INTEGER: XSD.integer,
-            self.FLOAT: XSD.float,
-            self.DATE: XSD.date,
-        }[self]
-
-    @property
-    def py_type(self) -> type:
-        return {
-            self.STRING: str,
-            self.INTEGER: int,
-            self.FLOAT: float,
-            self.DATE: str,
-        }[self]
-
-
 class ValueProxy:
     """
     Прокси для значения поля. Используется для fluent API.
@@ -141,7 +114,7 @@ class ValueProxy:
 
         return node(_RDFLIB_ONTO[value], None)
 
-    def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
+    def literal(self, datatype: URIRef = XSD.string) -> DraftNode:
         """
         Построение Literal на основе значения поля с учётом типа. 
         Является конечной операцией в цепочке.
@@ -157,13 +130,7 @@ class ValueProxy:
             error = "Значение поля отсутствует; Невозможно построить Literal из None"
             return node(None, error)
 
-        try:
-            value = xsd_type.py_type(value)
-        except Exception:
-            error = f"Невозможно преобразовать значение {value} к типу {xsd_type}"
-            return node(None, error)
-
-        return node(Literal(value, datatype=xsd_type.uri), None)
+        return node(Literal(value, datatype=datatype), None)
 
 
 class NoneValueProxy(ValueProxy):
@@ -179,7 +146,7 @@ class NoneValueProxy(ValueProxy):
     def iri(self) -> DraftNode:
         return DraftNode(None, DraftNode.Type.IRI, None, self.ERROR)
 
-    def literal(self, xsd_type: XSDType = XSDType.STRING) -> DraftNode:
+    def literal(self, datatype: URIRef) -> DraftNode:
         return DraftNode(None, DraftNode.Type.LITERAL, None, self.ERROR)
 
 
@@ -205,7 +172,7 @@ class TemplateGraphBuilder:
     def _get_draft_graph(self) -> DraftGraph:
         return self._draft_graph
 
-    # ----- доступ к константам онтологии иполям шаблона -----
+    # ----- доступ к константам онтологии и полям шаблона -----
 
     def namespace(self) -> DomainNamespace:
         """

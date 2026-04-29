@@ -1,18 +1,15 @@
 from typing import Optional, List, Tuple
 from rdflib import URIRef, Literal, Graph, Node
-from enum import Enum
+from enum import Enum, auto
 
 
 class DraftNode:
     """Черновой узел графа (содержит дополнительные метаданные)."""
 
     class Type(Enum):
-        """
-        Тип узла триплета. Либо IRI, либо Literal, т.к. 
-        построение триплетов в шаблоне не требует других типов.
-        """
-        IRI = "iri"
-        LITERAL = "literal"
+        """Возможные типы узла триплета."""
+        IRI = auto()      # Все узлы, у которых есть IRI (индивидуумы, концепты, свойства)
+        LITERAL = auto()  # Литералы
 
     def __init__(
         self,
@@ -21,10 +18,10 @@ class DraftNode:
         node: Optional[URIRef | Literal],
         error: Optional[Exception] = None
     ):
-        self._source_field_name = source_field_name  # название поля, от которого было получено значение
-        self._node_type = node_type                  # тип узла
-        self._node = node                            # значение узла (node != None <=> error == None)
-        self._error = error                          # ошибка, поясняющая причину отсутствия значения
+        self._source = source_field_name  # название поля шаблона, от которого было получено значение, либо None, если значение не связано с каким-либо полем
+        self._type = node_type            # тип узла
+        self._node = node                 # значение узла (node != None <=> error == None)
+        self._error = error               # ошибка, поясняющая причину отсутствия значения
 
     def is_ok(self):
         return self._node is not None
@@ -36,7 +33,14 @@ class DraftNode:
 class DraftTriple:
     """Черновой триплет (некоторые ноды могут не иметь значения)."""
 
-    def __init__(self, s: DraftNode, p: DraftNode, o: DraftNode):
+    class Type(Enum):
+        """Возможные типы триплета."""
+        TYPE = auto()
+        OBJECT_PROPERTY = auto()
+        DATA_PROPERTY = auto()
+
+    def __init__(self, triple_type: Type, s: DraftNode, p: DraftNode, o: DraftNode):
+        self._triple_type = triple_type
         self._subject = s
         self._predicate = p
         self._object = o
