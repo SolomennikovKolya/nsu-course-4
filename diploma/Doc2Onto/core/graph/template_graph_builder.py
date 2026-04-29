@@ -2,27 +2,16 @@ from rdflib import Namespace
 from rdflib.namespace import RDF
 from rdflib import URIRef, Literal, XSD
 from typing import Optional, Dict, Any
-from enum import Enum
 
 from app.settings import SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
 from core.graph.value_transformer import ValueTransformFunc
 
 
-_RDFLIB_ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
-
-
 class DomainNamespace:
     """
     Пространство имен предметной области. Позволяет легко создавать IRI с префиксом пространства имен.
     Возвращает специальную обёртку над URIRef для работы в шаблоне.
-
-    Примеры:
-    ```
-    ONTO.Студент
-    ONTO.имеетРуководителя
-    ONTO.имеетИмя
-    ```
     """
 
     def __init__(self, ontology_iri: str):
@@ -44,6 +33,15 @@ class DomainNamespace:
         if local_name.startswith("__"):
             raise AttributeError(local_name)
         return self._to_draft_node(local_name)
+
+
+"""
+Пространство имен предметной области.
+С помощью него можно получить класс, объектное или дата-свойство онтологии.
+Примеры: `ONTO.Студент`, `ONTO.имеетРуководителя`, `ONTO.имеетИмя`
+"""
+ONTO = DomainNamespace(SUBJECT_NAMESPACE_IRI)
+_RDFLIB_ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
 
 
 class ValueProxy:
@@ -172,15 +170,7 @@ class TemplateGraphBuilder:
     def _get_draft_graph(self) -> DraftGraph:
         return self._draft_graph
 
-    # ----- доступ к константам онтологии и полям шаблона -----
-
-    def namespace(self) -> DomainNamespace:
-        """
-        Получение пространства имен предметной области.
-        С помощью него можно получить класс, объектное или дата-свойство онтологии.
-        Примеры: `ONTO.Студент`, `ONTO.имеетРуководителя`, `ONTO.имеетИмя`
-        """
-        return DomainNamespace(SUBJECT_NAMESPACE_IRI)
+    # ----- доступ к полям шаблона и константным литералам -----
 
     def field(self, field_name: str) -> ValueProxy:
         """

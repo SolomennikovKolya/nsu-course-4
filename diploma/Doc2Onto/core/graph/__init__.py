@@ -1,6 +1,6 @@
 from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
 from core.graph.value_transformer import ValueTransformer
-from core.graph.template_graph_builder import TemplateGraphBuilder
+from core.graph.template_graph_builder import TemplateGraphBuilder, ONTO
 
 __all__ = [
     "DraftNode",
@@ -8,4 +8,5 @@ __all__ = [
     "DraftGraph",
     "ValueTransformer",
     "TemplateGraphBuilder",
+    "ONTO",
 ]
