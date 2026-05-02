@@ -1,11 +1,11 @@
 from rdflib import Namespace
-from rdflib.namespace import RDF
-from rdflib import URIRef, Literal, XSD
+from rdflib import URIRef, Literal
 from typing import Optional, Dict, Any
 
 from app.settings import SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
 from core.graph.value_transformer import ValueTransformFunc
+from core.graph.rdflib_draft_outer import OUTER
 
 
 class DomainNamespace:
@@ -112,7 +112,7 @@ class ValueProxy:
 
         return node(_RDFLIB_ONTO[value], None)
 
-    def literal(self, datatype: URIRef = XSD.string) -> DraftNode:
+    def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
         """
         Построение Literal на основе значения поля с учётом типа. 
         Является конечной операцией в цепочке.
@@ -128,7 +128,12 @@ class ValueProxy:
             error = "Значение поля отсутствует; Невозможно построить Literal из None"
             return node(None, error)
 
-        return node(Literal(value, datatype=datatype), None)
+        dt_iri = datatype._get_rdf_node() if datatype is not None else OUTER.XSD.string._get_rdf_node()
+        if not isinstance(dt_iri, URIRef):
+            error = "Неверный тип datatype: ожидается именованная сущность (имеющая IRI)"
+            return node(None, error)
+
+        return node(Literal(value, datatype=dt_iri), None)
 
 
 class NoneValueProxy(ValueProxy):
@@ -144,7 +149,7 @@ class NoneValueProxy(ValueProxy):
     def iri(self) -> DraftNode:
         return DraftNode(None, DraftNode.Type.IRI, None, self.ERROR)
 
-    def literal(self, datatype: URIRef) -> DraftNode:
+    def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
         return DraftNode(None, DraftNode.Type.LITERAL, None, self.ERROR)
 
 
@@ -180,7 +185,7 @@ class TemplateGraphBuilder:
         Примеры:
         ```
         student = b.field("student_name").transform(ValueTransformer.person, "hash").iri()
-        course = b.field("course_number").literal(XSD.integer)
+        course = b.field("course_number").literal(OUTER.XSD.integer)
         email_domain = b.field("student_email").transform(ValueTransformer.email, "domain").literal()
         ```
         """
@@ -190,23 +195,27 @@ class TemplateGraphBuilder:
         value = self._field_values.get(field_name)
         return ValueProxy(field_name, value)
 
-    def const_literal(self, value: Any) -> DraftNode:
+    def const_literal(self, value: Any, datatype: Optional[DraftNode] = None) -> DraftNode:
         """Построение Literal на основе значения (не связано ни с каким полем шаблона)."""
-        return DraftNode(None, DraftNode.Type.LITERAL, Literal(value), None)
+        dt_iri = datatype._get_rdf_node() if datatype is not None else None
+        if not isinstance(dt_iri, URIRef):
+            dt_iri = OUTER.XSD.string._get_rdf_node()
+
+        return DraftNode(None, DraftNode.Type.LITERAL, Literal(value, datatype=dt_iri), None)
 
     # ----- добавление триплетов -----
 
     def add_type(self, s: DraftNode, c: DraftNode):
         """Добавляет триплет вида: (экземпляр, RDF.type, класс)."""
-        self._add_triple(s, RDF.type, c)
+        self._add_triple(DraftTriple.Type.TYPE, s, OUTER.RDF.type, c)
 
     def add_object_property(self, s: DraftNode, p: DraftNode, o: DraftNode):
         """Добавляет триплет вида: (экземпляр, объектное свойство, экземпляр)."""
-        self._add_triple(s, p, o)
+        self._add_triple(DraftTriple.Type.OBJECT_PROPERTY, s, p, o)
 
     def add_data_property(self, s: DraftNode, p: DraftNode, l: DraftNode):
         """Добавляет триплет вида: (экземпляр, дата-свойство, литерал)."""
-        self._add_triple(s, p, l)
+        self._add_triple(DraftTriple.Type.DATA_PROPERTY, s, p, l)
 
-    def _add_triple(self, s: DraftNode, p: DraftNode, o: DraftNode):
-        self._draft_graph.add_triple(DraftTriple(s, p, o))
+    def _add_triple(self, triple_type: DraftTriple.Type, s: DraftNode, p: DraftNode, o: DraftNode):
+        self._draft_graph.add_triple(DraftTriple(triple_type, s, p, o))

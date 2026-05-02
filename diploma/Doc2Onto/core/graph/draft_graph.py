@@ -7,9 +7,9 @@ class DraftNode:
     """Черновой узел графа (содержит дополнительные метаданные)."""
 
     class Type(Enum):
-        """Возможные типы узла триплета."""
-        IRI = auto()      # Все узлы, у которых есть IRI (индивидуумы, концепты, свойства)
-        LITERAL = auto()  # Литералы
+        """Возможные типы узла триплета (в системе можно создать только эти типы)."""
+        IRI = auto()
+        LITERAL = auto()
 
     def __init__(
         self,
@@ -23,10 +23,19 @@ class DraftNode:
         self._node = node                 # значение узла (node != None <=> error == None)
         self._error = error               # ошибка, поясняющая причину отсутствия значения
 
-    def is_ok(self):
+    def is_ok(self) -> bool:
+        """Проверяет, является ли узел полным (содержащим значение)."""
         return self._node is not None
 
-    def get_rdf_node(self) -> Optional[URIRef | Literal]:
+    def is_iri(self) -> bool:
+        """Проверяет, является ли узел IRI."""
+        return self._type == DraftNode.Type.IRI
+
+    def is_literal(self) -> bool:
+        """Проверяет, является ли узел литералом."""
+        return self._type == DraftNode.Type.LITERAL
+
+    def _get_rdf_node(self) -> Optional[URIRef | Literal]:
         return self._node
 
 
@@ -34,25 +43,25 @@ class DraftTriple:
     """Черновой триплет (некоторые ноды могут не иметь значения)."""
 
     class Type(Enum):
-        """Возможные типы триплета."""
+        """Возможные типы триплета (в системе можно создать только эти типы)."""
         TYPE = auto()
         OBJECT_PROPERTY = auto()
         DATA_PROPERTY = auto()
 
     def __init__(self, triple_type: Type, s: DraftNode, p: DraftNode, o: DraftNode):
-        self._triple_type = triple_type
-        self._subject = s
-        self._predicate = p
-        self._object = o
+        self._triple_type = triple_type  # тип триплета
+        self._subject = s                # субъект
+        self._predicate = p              # предикат
+        self._object = o                 # объект
 
     def is_complete(self) -> bool:
         """Проверяет, является ли триплет полным."""
         return self._subject.is_ok() and self._predicate.is_ok() and self._object.is_ok()
 
-    def get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
+    def _get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
         if not self.is_complete():
             return None
-        return (self._subject.get_rdf_node(), self._predicate.get_rdf_node(), self._object.get_rdf_node())
+        return (self._subject._get_rdf_node(), self._predicate._get_rdf_node(), self._object._get_rdf_node())
 
 
 class DraftGraph:
@@ -69,7 +78,7 @@ class DraftGraph:
         """Построение реального RDF-графа (из rdflib)."""
         graph = Graph()
         for triple in self._triples:
-            rdf_triple = triple.get_rdf_triple()
+            rdf_triple = triple._get_rdf_triple()
             if rdf_triple is not None:
                 graph.add(rdf_triple)
 
