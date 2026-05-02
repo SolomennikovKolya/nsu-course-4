@@ -73,6 +73,14 @@ class Document:
     def draft_graph_file_path(self):
         return self.directory / "draft_graph.json"
 
+    def draft_graph_edits_file_path(self):
+        """Правки чернового графа (см. :class:`core.graph.draft_graph.EditedGraph`)."""
+        return self.directory / "draft_graph_edits.json"
+
+    def supplementary_facts_ttl_path(self):
+        """Дополнительные факты в Turtle, вносимые пользователем вручную."""
+        return self.directory / "supplementary_facts.ttl"
+
     def rdf_file_path(self):
         return self.directory / "rdf.ttl"
 
