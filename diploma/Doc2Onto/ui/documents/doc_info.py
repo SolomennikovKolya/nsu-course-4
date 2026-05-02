@@ -73,7 +73,6 @@ class DocumentInfoWidget(QWidget):
         # --- Отображение документа ---
         self._document_view = DocumentViewWidget()
         self._document_view.setMinimumHeight(240)
-        self._document_view.validation_result_changed.connect(self._on_validation_result_changed)
         page_layout.addWidget(self._document_view, 1)
 
         # --- Кнопки ---
@@ -211,10 +210,6 @@ class DocumentInfoWidget(QWidget):
 
         self._doc_manager.delete(doc)
         self.document_deleted.emit(doc)
-
-    def _on_validation_result_changed(self, doc: Document):
-        self._status_widget.set_status(doc)
-        self._update_buttons()
 
     def _update_buttons(self):
         self._update_action_button()
