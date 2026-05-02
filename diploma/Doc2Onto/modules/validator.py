@@ -179,17 +179,14 @@ class Validator(BaseModule):
             self.log(WARNING, f'No fields found')
             return ModuleResult.failed(message=f"Шаблон не имеет полей")
 
-        extr_res = ExtractionResult.load(doc.extraction_result_file_path())
-        if not self._check_field_names_consistency(fields, extr_res):
-            self.log(WARNING, f'Field names consistency check failed')
-            return ModuleResult.failed(message="Неконсистентность структур. Перезапустите обработку")
+        try:
+            extr_res = ExtractionResult.load(doc.extraction_result_file_path())
+        except Exception:
+            self.log(WARNING, "Failed to load extraction result", exc_info=True)
+            return ModuleResult.failed(message="Не удалось загрузить результат извлечения")
 
         valid_res = self._validate(fields, extr_res)
         valid_res.save(doc.validation_result_file_path())
-
-        # if not self._all_fields_validated(valid_res):
-        #     self.log(WARNING, f'Not all fields are validated')
-        #     return ModuleResult.failed(message="Не все поля валидны")
 
         return ModuleResult.ok()
 
@@ -263,11 +260,6 @@ class Validator(BaseModule):
                 data = result.get_field(field.name) or {}
                 if data.get("valid_llm") is None:
                     result.set_unexpected_error_llm(field.name, "Непредвиденная ошибка при обработке поля с помощью LLM")
-
-    def _check_field_names_consistency(self, fields: List[Field], extraction_res: ExtractionResult) -> bool:
-        template_names = [field.name for field in fields]
-        extracted_names = list(extraction_res.fields.keys())
-        return set(template_names) == set(extracted_names)
 
     def _log_result(self, result: ValidationResult, extr_res: ExtractionResult):
         for field_name in result.fields.keys():
