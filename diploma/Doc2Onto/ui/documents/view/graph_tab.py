@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt, QTimer
@@ -169,32 +168,27 @@ def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
 class _NodeDetailBlock(QGroupBox):
     """Один столбец «извлечение» / «валидация» / «сборка» (текст копируется)."""
 
+    _MIN_COL_WIDTH = 140
+
     def __init__(self, title: str, warn_level: int, body_html: str):
         super().__init__(title)
+        self.setMinimumWidth(self._MIN_COL_WIDTH)
         self.setStyleSheet(
             f"QGroupBox {{ font-weight: bold; color: {_warn_color(warn_level)}; }}"
         )
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 8, 4, 4)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
-        te = QTextEdit()
-        te.setReadOnly(True)
-        te.setHtml(body_html)
-        te.setFrameShape(QFrame.Shape.NoFrame)
-        te.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
-        te.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        te.setTextInteractionFlags(
+        lb = QLabel()
+        lb.setWordWrap(True)
+        lb.setTextFormat(Qt.TextFormat.RichText)
+        lb.setText(body_html)
+        lb.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
             | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
-        te.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        fm = te.fontMetrics()
-        line_h = max(fm.lineSpacing(), 14)
-        brs = len(re.findall(r"<br\s*/?>", body_html, flags=re.I))
-        lines = max(1, brs + 1)
-        te.setFixedHeight(min(220, line_h * lines + 16))
-        lay.addWidget(te, alignment=Qt.AlignmentFlag.AlignTop)
+        lb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        lay.addWidget(lb, alignment=Qt.AlignmentFlag.AlignTop)
 
 
 class _TripleRowWidget(QFrame):
