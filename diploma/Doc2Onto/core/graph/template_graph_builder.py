@@ -128,7 +128,7 @@ class ValueProxy:
             error = "Значение поля отсутствует; Невозможно построить Literal из None"
             return node(None, error)
 
-        dt_iri = datatype._get_rdf_node() if datatype is not None else OUTER.XSD.string._get_rdf_node()
+        dt_iri = datatype.get_rdf_node() if datatype is not None else OUTER.XSD.string.get_rdf_node()
         if not isinstance(dt_iri, URIRef):
             error = "Неверный тип datatype: ожидается именованная сущность (имеющая IRI)"
             return node(None, error)
@@ -197,9 +197,9 @@ class TemplateGraphBuilder:
 
     def const_literal(self, value: Any, datatype: Optional[DraftNode] = None) -> DraftNode:
         """Построение Literal на основе значения (не связано ни с каким полем шаблона)."""
-        dt_iri = datatype._get_rdf_node() if datatype is not None else None
+        dt_iri = datatype.get_rdf_node() if datatype is not None else None
         if not isinstance(dt_iri, URIRef):
-            dt_iri = OUTER.XSD.string._get_rdf_node()
+            dt_iri = OUTER.XSD.string.get_rdf_node()
 
         return DraftNode(DraftNode.Type.LITERAL, Literal(value, datatype=dt_iri), None, None)
 

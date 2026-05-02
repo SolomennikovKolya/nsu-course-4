@@ -37,7 +37,7 @@ class ValueTransformer:
             "first_name": first,
             "middle_name": middle,
             "name": value,
-            "hash": ValueTransformer._hash(norm),
+            "hash": "person_" + ValueTransformer._hash(norm),
         }
 
     @staticmethod
@@ -59,7 +59,7 @@ class ValueTransformer:
             "local": local,
             "domain": domain,
             "email": value.lower(),
-            "hash": ValueTransformer._hash(value.lower())
+            "hash": "email_" + ValueTransformer._hash(value.lower())
         }
 
     @staticmethod
