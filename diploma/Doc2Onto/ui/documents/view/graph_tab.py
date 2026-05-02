@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from models.document import Document
 
 
-class DocumentViewRdfTab(QWidget):
+class DocumentViewGraphTab(QWidget):
     def __init__(self):
         super().__init__()
         self._label = QLabel("")
