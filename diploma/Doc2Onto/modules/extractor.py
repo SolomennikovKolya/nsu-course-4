@@ -39,6 +39,16 @@ class FieldExtractionSituation(Enum):
         }
         return msgs[self]
 
+    def warn_level(self) -> int:
+        levels = {
+            FieldExtractionSituation.OK: 0,
+            FieldExtractionSituation.CORRECTED: 1,
+            FieldExtractionSituation.WRONG: 2,
+            FieldExtractionSituation.FOUND: 1,
+            FieldExtractionSituation.FAILED: 2,
+        }
+        return levels[self]
+
 
 class ExtractionResult:
     """

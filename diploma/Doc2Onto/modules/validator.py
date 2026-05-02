@@ -33,6 +33,14 @@ class FieldValidationSituation(Enum):
         }
         return msgs[self]
 
+    def warn_level(self) -> int:
+        levels = {
+            FieldValidationSituation.VALID: 0,
+            FieldValidationSituation.NONSENSE: 2,
+            FieldValidationSituation.INVALID: 2,
+        }
+        return levels[self]
+
 
 class ValidationResult:
     """Результат валидации набора полей"""
