@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
@@ -11,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -95,72 +95,81 @@ def _effective_node(edited: EditedGraph, triple_index: int, role: str) -> DraftN
     return edited.node_overrides.get((triple_index, role), tr.get_node(role))
 
 
+def _html_escape(s: object) -> str:
+    t = "" if s is None else str(s)
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _wrap_detail_html(inner: str) -> str:
+    return f'<div style="padding-left:12px;margin:0">{inner}</div>'
+
+
 def _extraction_body_warn(
     field: Optional[str], extraction: Optional[ExtractionResult]
 ) -> Tuple[str, int]:
     if not field or extraction is None:
-        return (
-            "Нет привязки к полю." if not field else "Нет данных извлечения.",
-            1,
-        )
+        msg = "Нет привязки к полю." if not field else "Нет данных извлечения."
+        return _wrap_detail_html(_html_escape(msg)), 1
     data = extraction.get_field(field)
     if not data:
-        return "Поле не найдено в результате извлечения.", 2
+        return _wrap_detail_html(_html_escape("Поле не найдено в результате извлечения.")), 2
     sit = extraction.get_situation(field)
-    parts = [
-        "Шаблон:",
-        f"- извлечено: {'да' if data.get('extracted_temp') else 'нет'}",
-        f"- значение: {data.get('value_temp') or '—'}",
-        f"- ошибка: {data.get('error_temp') or '—'}",
-    ]
+    inner = (
+        "<b>Шаблон</b>:<br/>"
+        f"• статус: {_html_escape('извлечено' if data.get('extracted_temp') else 'не извлечено')}<br/>"
+        f"• значение: {_html_escape(data.get('value_temp') or '—')}<br/>"
+        f"• ошибка: {_html_escape(data.get('error_temp') or '—')}"
+    )
     if data.get("extracted_llm") is not None:
-        parts.append("LLM:")
-        parts.append(f"- извлечено: {'да' if data.get('extracted_llm') else 'нет'}")
-        parts.append(f"- значение: {data.get('value_llm') or '—'}")
-        parts.append(f"- ошибка: {data.get('error_llm') or '—'}")
-    return "\n".join(parts), sit.warn_level()
+        inner += (
+            "<br/><br/><b>LLM</b>:<br/>"
+            f"• статус: {_html_escape('извлечено' if data.get('extracted_llm') else 'не извлечено')}<br/>"
+            f"• значение: {_html_escape(data.get('value_llm') or '—')}<br/>"
+            f"• ошибка: {_html_escape(data.get('error_llm') or '—')}"
+        )
+    return _wrap_detail_html(inner), sit.warn_level()
 
 
 def _validation_body_warn(
     field: Optional[str], validation: Optional[ValidationResult]
 ) -> Tuple[str, int]:
     if not field or validation is None:
-        return (
-            "Нет привязки к полю." if not field else "Нет данных валидации.",
-            1,
-        )
+        msg = "Нет привязки к полю." if not field else "Нет данных валидации."
+        return _wrap_detail_html(_html_escape(msg)), 1
     vdata = validation.get_field(field)
     if not vdata:
-        return "Поле не найдено в результате валидации.", 2
+        return _wrap_detail_html(_html_escape("Поле не найдено в результате валидации.")), 2
     vsit = validation.get_situation(field)
-    parts = [
-        "Шаблон:",
-        f"- валидно: {'да' if vdata.get('valid_temp') else 'нет'}",
-        f"- ошибка: {vdata.get('error_temp') or '—'}",
-    ]
+    inner = (
+        "<b>Шаблон</b>:<br/>"
+        f"• статус: {_html_escape('валидно' if vdata.get('valid_temp') else 'не валидно')}<br/>"
+        f"• ошибка: {_html_escape(vdata.get('error_temp') or '—')}"
+    )
     if vdata.get("valid_llm") is not None:
-        parts.append("LLM:")
-        parts.append(f"- валидно: {'да' if vdata.get('valid_llm') else 'нет'}")
-        parts.append(f"- ошибка: {vdata.get('error_llm') or '—'}")
-    return "\n".join(parts), vsit.warn_level()
+        inner += (
+            "<br/><br/><b>LLM</b>:<br/>"
+            f"• статус: {_html_escape('валидно' if vdata.get('valid_llm') else 'не валидно')}<br/>"
+            f"• ошибка: {_html_escape(vdata.get('error_llm') or '—')}"
+        )
+    return _wrap_detail_html(inner), vsit.warn_level()
 
 
 def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
-    body = "\n".join(
+    inner = "<br/>".join(
         [
-            f"Тип: {node.type.name}",
-            f"Значение (n3): {node._to_json_dict().get('n3') or '—'}",
-            f"Ошибка: {str(node.error) if node.error else '—'}",
-            f"Источник: {node.source or '—'}",
+            f"Тип: {_html_escape(node.type.name)}",
+            f"Значение (n3): {_html_escape(node._to_json_dict().get('n3') or '—')}",
+            f"Ошибка: {_html_escape(str(node.error) if node.error else '—')}",
+            f"Источник: {_html_escape(node.source or '—')}",
         ]
     )
-    return body, _node_row_warn_level(node)
+    return _wrap_detail_html(inner), _node_row_warn_level(node)
 
 
 class _NodeDetailBlock(QGroupBox):
     """Один столбец «извлечение» / «валидация» / «сборка» (текст копируется)."""
 
-    def __init__(self, title: str, warn_level: int, body_plain: str):
+    def __init__(self, title: str, warn_level: int, body_html: str):
         super().__init__(title)
         self.setStyleSheet(
             f"QGroupBox {{ font-weight: bold; color: {_warn_color(warn_level)}; }}"
@@ -168,11 +177,11 @@ class _NodeDetailBlock(QGroupBox):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 8, 4, 4)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
-        te = QPlainTextEdit()
+        te = QTextEdit()
         te.setReadOnly(True)
-        te.setPlainText(body_plain)
+        te.setHtml(body_html)
         te.setFrameShape(QFrame.Shape.NoFrame)
-        te.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        te.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         te.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         te.setTextInteractionFlags(
@@ -182,8 +191,9 @@ class _NodeDetailBlock(QGroupBox):
         te.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         fm = te.fontMetrics()
         line_h = max(fm.lineSpacing(), 14)
-        lines = max(1, body_plain.count("\n") + 1)
-        te.setFixedHeight(min(220, line_h * lines + 14))
+        brs = len(re.findall(r"<br\s*/?>", body_html, flags=re.I))
+        lines = max(1, brs + 1)
+        te.setFixedHeight(min(220, line_h * lines + 16))
         lay.addWidget(te, alignment=Qt.AlignmentFlag.AlignTop)
 
 
