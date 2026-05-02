@@ -100,7 +100,7 @@ def _html_escape(s: object) -> str:
 
 
 def _wrap_detail_html(inner: str) -> str:
-    return f'<div style="padding-left:12px;margin:0">{inner}</div>'
+    return f'<div style="margin:0;padding:6px 10px 10px 14px">{inner}</div>'
 
 
 def _extraction_body_warn(
@@ -157,7 +157,7 @@ def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
     inner = "<br/>".join(
         [
             f"Тип: {_html_escape(node.type.name)}",
-            f"Значение (n3): {_html_escape(node._to_json_dict().get('n3') or '—')}",
+            f"Значение: {_html_escape(node._to_json_dict().get('n3') or '—')}",
             f"Ошибка: {_html_escape(str(node.error) if node.error else '—')}",
             f"Источник: {_html_escape(node.source or '—')}",
         ]
@@ -177,7 +177,7 @@ class _NodeDetailBlock(QGroupBox):
             f"QGroupBox {{ font-weight: bold; color: {_warn_color(warn_level)}; }}"
         )
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(4, 8, 4, 4)
+        lay.setContentsMargins(10, 12, 10, 10)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
         lb = QLabel()
         lb.setWordWrap(True)
