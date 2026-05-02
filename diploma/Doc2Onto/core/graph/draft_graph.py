@@ -24,33 +24,25 @@ class DraftNode:
         error: Optional[Exception] = None,
         source: Optional[str] = None
     ):
-        self._type = node_type  # тип узла
-        self._rdf_node = node   # значение узла (node != None <=> error == None)
-        self._error = error     # ошибка, поясняющая причину отсутствия значения
-        self._source = source   # источник (название поля шаблона или None, если значение не связано с каким-либо полем)
+        self.type = node_type  # тип узла
+        self.rdf_node = node   # значение узла (node != None <=> error == None)
+        self.error = error     # ошибка, поясняющая причину отсутствия значения
+        self.source = source   # источник (название поля шаблона или None, если значение не связано с каким-либо полем)
 
-    def is_ok(self) -> bool:
+    def is_complete(self) -> bool:
         """Проверяет, является ли узел полным (содержащим значение)."""
-        return self._rdf_node is not None
+        return self.rdf_node is not None
 
-    def is_iri(self) -> bool:
-        """Проверяет, является ли узел IRI."""
-        return self._type == DraftNode.Type.IRI
-
-    def is_literal(self) -> bool:
-        """Проверяет, является ли узел литералом."""
-        return self._type == DraftNode.Type.LITERAL
-
-    def _get_rdf_node(self) -> Optional[URIRef | Literal]:
-        return self._rdf_node
+    def get_rdf_node(self) -> Optional[URIRef | Literal]:
+        return self.rdf_node
 
     def _to_json_dict(self) -> Dict[str, Any]:
-        n = self._rdf_node
+        n = self.rdf_node
         return {
-            "kind": self._type.name,
+            "kind": self.type.name,
             "n3": n.n3() if n is not None else None,
-            "error": None if self._error is None else str(self._error),
-            "source": self._source,
+            "error": None if self.error is None else str(self.error),
+            "source": self.source,
         }
 
     @classmethod
@@ -92,26 +84,27 @@ class DraftTriple:
         DATA_PROPERTY = auto()
 
     def __init__(self, triple_type: Type, s: DraftNode, p: DraftNode, o: DraftNode):
-        self._triple_type = triple_type  # тип триплета
-        self._subject = s                # субъект
-        self._predicate = p              # предикат
-        self._object = o                 # объект
+        self.triple_type = triple_type  # тип триплета
+        self.subject = s                # субъект
+        self.predicate = p              # предикат
+        self.object = o                 # объект
 
     def is_complete(self) -> bool:
         """Проверяет, является ли триплет полным."""
-        return self._subject.is_ok() and self._predicate.is_ok() and self._object.is_ok()
+        return self.subject.is_complete() and self.predicate.is_complete() and self.object.is_complete()
 
-    def _get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
+    def get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
         if not self.is_complete():
             return None
-        return (self._subject._get_rdf_node(), self._predicate._get_rdf_node(), self._object._get_rdf_node())
+
+        return (self.subject.get_rdf_node(), self.predicate.get_rdf_node(), self.object.get_rdf_node())
 
     def _to_json_dict(self) -> Dict[str, Any]:
         return {
-            "triple_type": self._triple_type.name,
-            "subject": self._subject._to_json_dict(),
-            "predicate": self._predicate._to_json_dict(),
-            "object": self._object._to_json_dict(),
+            "triple_type": self.triple_type.name,
+            "subject": self.subject._to_json_dict(),
+            "predicate": self.predicate._to_json_dict(),
+            "object": self.object._to_json_dict(),
         }
 
     @classmethod
@@ -132,24 +125,31 @@ class DraftGraph:
     """Черновой граф (триплеты могут быть неполными)."""
 
     def __init__(self):
-        self._triples: List[DraftTriple] = []
+        self.triples: List[DraftTriple] = []
 
     def add_triple(self, triple: DraftTriple):
         """Добавляет черновой триплет в граф."""
-        self._triples.append(triple)
+        self.triples.append(triple)
 
-    def build_graph(self) -> Graph:
+    def is_complete(self) -> bool:
+        """Проверяет, является ли граф полным (все триплеты имеют значения)."""
+        return all(triple.is_complete() for triple in self.triples)
+
+    def get_rdf_graph(self) -> Graph:
         """Построение реального RDF-графа (из rdflib)."""
+        if not self.is_complete():
+            return None
+
         graph = Graph()
-        for triple in self._triples:
-            rdf_triple = triple._get_rdf_triple()
-            if rdf_triple is not None:
-                graph.add(rdf_triple)
+        for triple in self.triples:
+            graph.add(triple.get_rdf_triple())
 
         return graph
 
+    # --- сериализация/десериализация ---
+
     def _to_json_dict(self) -> Dict[str, Any]:
-        return {"triples": [t._to_json_dict() for t in self._triples]}
+        return {"triples": [t._to_json_dict() for t in self.triples]}
 
     @classmethod
     def _from_json_dict(cls, data: Dict[str, Any]) -> DraftGraph:

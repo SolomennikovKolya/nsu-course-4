@@ -1,11 +1,7 @@
-from typing import List, Dict
 from logging import WARNING
-from typing import Optional
 
 from models.document import DocumentContext
 from modules.base import BaseModule, ModuleResult
-from modules.validator import ValidationResult
-from core.template.field import Field
 from core.graph.template_graph_builder import TemplateGraphBuilder
 from modules.extractor import ExtractionResult
 
