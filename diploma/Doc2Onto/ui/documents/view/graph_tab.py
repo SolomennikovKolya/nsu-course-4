@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Callable, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
@@ -218,6 +218,7 @@ class _TripleRowWidget(QFrame):
         self.on_changed = on_changed
 
         self._expanded = False
+        self._mute_edit_finished = False
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
         tr = edited.draft.triples[triple_index]
@@ -309,6 +310,8 @@ class _TripleRowWidget(QFrame):
 
             arrow.clicked.connect(make_arrow_handler(role, inner_details, arrow, details))
 
+            edit.editingFinished.connect(self._on_node_edit_finished)
+
             rl.addLayout(row_line)
             rl.addWidget(details)
             body_lay.addWidget(role_fr)
@@ -329,16 +332,29 @@ class _TripleRowWidget(QFrame):
             details.setVisible(False)
             arrow.setText("▼")
 
+    def _on_node_edit_finished(self) -> None:
+        if not self._expanded or self._mute_edit_finished:
+            return
+        self.apply_edits()
+        self.on_changed()
+
     def _on_toggle(self):
-        if self._expanded:
+        had_expanded = self._expanded
+        if had_expanded:
             self.apply_edits()
-        self._expanded = not self._expanded
-        self._body.setVisible(self._expanded)
-        self._toggle.setText("▲" if self._expanded else "▼")
-        if not self._expanded:
-            self._collapse_all_role_details()
-        elif self._expanded:
-            self._populate_edits()
+        self._mute_edit_finished = True
+        try:
+            self._expanded = not self._expanded
+            self._body.setVisible(self._expanded)
+            self._toggle.setText("▲" if self._expanded else "▼")
+            if not self._expanded:
+                self._collapse_all_role_details()
+            else:
+                self._populate_edits()
+        finally:
+            self._mute_edit_finished = False
+        if had_expanded:
+            self.on_changed()
 
     def _on_toggle_exclude(self):
         idx = self.triple_index
@@ -423,8 +439,7 @@ class _TripleRowWidget(QFrame):
         p = _term_n3_short(self.nm_graph, p_n.get_rdf_node())
         o = _term_n3_short(self.nm_graph, o_n.get_rdf_node())
         typ = tr.triple_type.name
-        prefix = "[исключён] " if excluded else ""
-        self._summary.setText(f"{prefix}#{idx} {typ}  |  {s}  {p}  {o}")
+        self._summary.setText(f"{f'#{idx} {typ}':<20} |  {s}  {p}  {o}")
 
         self._exclude_btn.setText("Вернуть в модель" if excluded else "Исключить из модели")
 
@@ -478,14 +493,14 @@ class DocumentViewGraphTab(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
         )
 
-        self._save_btn = QPushButton("Сохранить правки и доп. факты")
-        self._save_btn.clicked.connect(self._on_save)
+        self._loading = False
+        self._persist_timer = QTimer(self)
+        self._persist_timer.setSingleShot(True)
+        self._persist_timer.timeout.connect(self._persist_graph)
+        self._supp.textChanged.connect(self._on_supp_text_changed)
 
         self._list_layout.addWidget(self._supp_label)
         self._list_layout.addWidget(self._supp)
-        self._list_layout.addWidget(
-            self._save_btn, alignment=Qt.AlignmentFlag.AlignLeft
-        )
 
         self._scroll.setWidget(self._list_host)
 
@@ -505,6 +520,25 @@ class DocumentViewGraphTab(QWidget):
     def _on_triple_changed(self):
         for w in self._triple_widgets:
             w.refresh()
+        self._persist_graph()
+
+    def _on_supp_text_changed(self) -> None:
+        self._persist_timer.stop()
+        self._persist_timer.start(500)
+
+    def _persist_graph(self) -> None:
+        if self._loading or self._document is None or self._edited is None:
+            return
+        try:
+            for w in self._triple_widgets:
+                if w._expanded:
+                    w.apply_edits()
+            self._edited.save(self._document.draft_graph_edits_file_path())
+            self._document.supplementary_facts_ttl_path().write_text(
+                self._supp.toPlainText(), encoding="utf-8"
+            )
+        except OSError as ex:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить: {ex}")
 
     def _rebuild_triples(self):
         self._clear_triples()
@@ -523,69 +557,65 @@ class DocumentViewGraphTab(QWidget):
             self._triples_layout.addWidget(row)
             self._triple_widgets.append(row)
 
-    def _on_save(self):
-        if self._document is None or self._edited is None:
-            return
-        try:
-            for w in self._triple_widgets:
-                if w._expanded:
-                    w.apply_edits()
-            self._edited.save(self._document.draft_graph_edits_file_path())
-            self._document.supplementary_facts_ttl_path().write_text(
-                self._supp.toPlainText(), encoding="utf-8"
-            )
-            QMessageBox.information(self, "Сохранено", "Правки графа и дополнительные факты записаны на диск.")
-        except OSError as ex:
-            QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить: {ex}")
-
     def set_document(self, document: Optional[Document]) -> bool:
-        self._document = document
-        self._edited = None
-        self._extraction = None
-        self._validation = None
-        self._clear_triples()
-        self._supp.clear()
-
-        if document is None:
-            return False
-
-        path = document.draft_graph_file_path()
-        if not path.exists():
-            self._supp.setPlainText("")
-            self._supp.setPlaceholderText("Черновой граф ещё не построен (запустите пайплайн до этапа сборки триплетов).")
-            return False
-
+        self._persist_timer.stop()
+        self._loading = True
         try:
-            draft = DraftGraph.load(path)
-        except Exception:
-            self._supp.setPlaceholderText("Не удалось прочитать draft_graph.json")
-            return False
-
-        edits_path = document.draft_graph_edits_file_path()
-        try:
-            if edits_path.exists():
-                self._edited = EditedGraph.load(edits_path, draft)
-            else:
-                self._edited = EditedGraph(draft)
-        except Exception:
-            self._edited = EditedGraph(draft)
-
-        try:
-            self._extraction = ExtractionResult.load(document.extraction_result_file_path())
-        except Exception:
+            self._document = document
+            self._edited = None
             self._extraction = None
-
-        try:
-            self._validation = ValidationResult.load(document.validation_result_file_path())
-        except Exception:
             self._validation = None
+            self._clear_triples()
+            self._supp.clear()
 
-        supp_path = document.supplementary_facts_ttl_path()
-        text = read_text_file(supp_path)
-        if text.strip():
-            self._supp.setPlainText(text)
-        else:
-            self._supp.setPlainText(self._SUPPLEMENTARY_DEFAULT)
+            if document is None:
+                return False
 
-        self._rebuild_triples()
-        return True
+            path = document.draft_graph_file_path()
+            if not path.exists():
+                self._supp.setPlainText("")
+                self._supp.setPlaceholderText(
+                    "Черновой граф ещё не построен (запустите пайплайн до этапа сборки триплетов)."
+                )
+                return False
+
+            try:
+                draft = DraftGraph.load(path)
+            except Exception:
+                self._supp.setPlaceholderText("Не удалось прочитать draft_graph.json")
+                return False
+
+            edits_path = document.draft_graph_edits_file_path()
+            try:
+                if edits_path.exists():
+                    self._edited = EditedGraph.load(edits_path, draft)
+                else:
+                    self._edited = EditedGraph(draft)
+            except Exception:
+                self._edited = EditedGraph(draft)
+
+            try:
+                self._extraction = ExtractionResult.load(
+                    document.extraction_result_file_path()
+                )
+            except Exception:
+                self._extraction = None
+
+            try:
+                self._validation = ValidationResult.load(
+                    document.validation_result_file_path()
+                )
+            except Exception:
+                self._validation = None
+
+            supp_path = document.supplementary_facts_ttl_path()
+            text = read_text_file(supp_path)
+            if text.strip():
+                self._supp.setPlainText(text)
+            else:
+                self._supp.setPlainText(self._SUPPLEMENTARY_DEFAULT)
+
+            self._rebuild_triples()
+            return True
+        finally:
+            self._loading = False
