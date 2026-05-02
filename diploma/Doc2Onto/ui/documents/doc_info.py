@@ -88,8 +88,8 @@ class DocumentInfoWidget(QWidget):
 
         buttons_layout = QHBoxLayout()
         buttons_layout.addWidget(self._action_button)
-        buttons_layout.addWidget(self._restart_button)
         buttons_layout.addStretch()
+        buttons_layout.addWidget(self._restart_button)
         buttons_layout.addWidget(self._delete_button)
         page_layout.addLayout(buttons_layout)
 

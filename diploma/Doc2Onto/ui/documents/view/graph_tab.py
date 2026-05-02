@@ -155,7 +155,11 @@ def _html_escape(s: object) -> str:
 
 
 def _wrap_detail_html(inner: str) -> str:
-    return f'<div style="margin:0;padding:6px 10px 10px 14px">{inner}</div>'
+    return (
+        '<div style="margin:0;padding:6px 10px 10px 14px;'
+        "word-wrap:break-word;overflow-wrap:anywhere;word-break:break-word"
+        f'">{inner}</div>'
+    )
 
 
 def _extraction_body_warn(
@@ -222,30 +226,67 @@ def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
     return _wrap_detail_html(inner), _assembly_stage_warn_level(node)
 
 
+class _AdaptiveDetailText(QTextEdit):
+    """Read-only HTML: перенос по ширине виджета, высота = документ (без внутреннего скролла)."""
+
+    def __init__(self, body_html: str):
+        super().__init__()
+        self.setReadOnly(True)
+        self.setHtml(body_html)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.document().setDocumentMargin(2)
+        self.setStyleSheet("QTextEdit { background: transparent; }")
+        self._fit_w = -1
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = self.viewport().width()
+        if w > 0 and w != self._fit_w:
+            self._apply_height()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._apply_height_deferred)
+
+    def _apply_height_deferred(self) -> None:
+        if self.viewport().width() < 1:
+            return
+        self._fit_w = -1
+        self._apply_height()
+
+    def _apply_height(self) -> None:
+        w = self.viewport().width()
+        if w < 1:
+            return
+        self._fit_w = w
+        self.document().setTextWidth(w)
+        h = int(self.document().size().height()) + 12
+        self.setFixedHeight(max(24, h))
+
+
 class _NodeDetailBlock(QGroupBox):
     """Один столбец «извлечение» / «валидация» / «сборка» (текст копируется)."""
 
-    _MIN_COL_WIDTH = 140
-
     def __init__(self, title: str, warn_level: int, body_html: str):
         super().__init__(title)
-        self.setMinimumWidth(self._MIN_COL_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.setStyleSheet(
             f"QGroupBox {{ font-weight: bold; color: {_warn_color(warn_level)}; }}"
         )
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 12, 10, 10)
+        lay.setContentsMargins(12, 4, 12, 0)
+        lay.setSpacing(0)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
-        lb = QLabel()
-        lb.setWordWrap(True)
-        lb.setTextFormat(Qt.TextFormat.RichText)
-        lb.setText(body_html)
-        lb.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-            | Qt.TextInteractionFlag.TextSelectableByKeyboard
-        )
-        lb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        lay.addWidget(lb, alignment=Qt.AlignmentFlag.AlignTop)
+        te = _AdaptiveDetailText(body_html)
+        lay.addWidget(te, alignment=Qt.AlignmentFlag.AlignTop)
 
 
 class _TripleRowWidget(QFrame):
