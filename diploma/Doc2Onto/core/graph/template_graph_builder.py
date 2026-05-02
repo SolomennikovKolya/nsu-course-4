@@ -190,22 +190,22 @@ class TemplateGraphBuilder:
         value = self._field_values.get(field_name)
         return ValueProxy(field_name, value)
 
-    def literal(self, value: Any) -> DraftNode:
+    def const_literal(self, value: Any) -> DraftNode:
         """Построение Literal на основе значения (не связано ни с каким полем шаблона)."""
         return DraftNode(None, DraftNode.Type.LITERAL, Literal(value), None)
 
     # ----- добавление триплетов -----
 
     def add_type(self, s: DraftNode, c: DraftNode):
-        """Добавляет триплет, задающий тип субъекта: (субъект, RDF.type, класс)."""
+        """Добавляет триплет вида: (экземпляр, RDF.type, класс)."""
         self._add_triple(s, RDF.type, c)
 
     def add_object_property(self, s: DraftNode, p: DraftNode, o: DraftNode):
-        """Добавляет триплет, задающий объектное свойство субъекта: (субъект, предикат, объект)."""
+        """Добавляет триплет вида: (экземпляр, объектное свойство, экземпляр)."""
         self._add_triple(s, p, o)
 
     def add_data_property(self, s: DraftNode, p: DraftNode, l: DraftNode):
-        """Добавляет триплет, задающий дата-свойство субъекта: (субъект, предикат, литерал)."""
+        """Добавляет триплет вида: (экземпляр, дата-свойство, литерал)."""
         self._add_triple(s, p, l)
 
     def _add_triple(self, s: DraftNode, p: DraftNode, o: DraftNode):
