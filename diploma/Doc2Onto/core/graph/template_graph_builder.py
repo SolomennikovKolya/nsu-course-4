@@ -23,7 +23,7 @@ class DomainNamespace:
 
     def _to_draft_node(self, local_name: str) -> DraftNode:
         uri = self._namespace[local_name]
-        return DraftNode(None, DraftNode.Type.IRI, uri, None)
+        return DraftNode(DraftNode.Type.IRI, uri, None, None)
 
     def __getitem__(self, local_name: str) -> DraftNode:
         return self._to_draft_node(local_name)
@@ -100,7 +100,7 @@ class ValueProxy:
         Является конечной операцией в цепочке.
         """
         def node(value: Optional[URIRef], error: Optional[str]) -> DraftNode:
-            return DraftNode(self._source_field_name, DraftNode.Type.IRI, value, error)
+            return DraftNode(DraftNode.Type.IRI, value, error, self._source_field_name)
 
         if self._error is not None:
             return node(None, self._error)
@@ -118,7 +118,7 @@ class ValueProxy:
         Является конечной операцией в цепочке.
         """
         def node(value: Optional[Literal], error: Optional[str]) -> DraftNode:
-            return DraftNode(self._source_field_name, DraftNode.Type.LITERAL, value, error)
+            return DraftNode(DraftNode.Type.LITERAL, value, error, self._source_field_name)
 
         if self._error is not None:
             return node(None, self._error)
@@ -147,10 +147,10 @@ class NoneValueProxy(ValueProxy):
         return self
 
     def iri(self) -> DraftNode:
-        return DraftNode(None, DraftNode.Type.IRI, None, self.ERROR)
+        return DraftNode(DraftNode.Type.IRI, None, self.ERROR, None)
 
     def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
-        return DraftNode(None, DraftNode.Type.LITERAL, None, self.ERROR)
+        return DraftNode(DraftNode.Type.LITERAL, None, self.ERROR, None)
 
 
 class TemplateGraphBuilder:
@@ -201,7 +201,7 @@ class TemplateGraphBuilder:
         if not isinstance(dt_iri, URIRef):
             dt_iri = OUTER.XSD.string._get_rdf_node()
 
-        return DraftNode(None, DraftNode.Type.LITERAL, Literal(value, datatype=dt_iri), None)
+        return DraftNode(DraftNode.Type.LITERAL, Literal(value, datatype=dt_iri), None, None)
 
     # ----- добавление триплетов -----
 

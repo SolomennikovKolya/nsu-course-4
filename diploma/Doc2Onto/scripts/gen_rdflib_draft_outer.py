@@ -46,7 +46,7 @@ from core.graph.draft_graph import DraftNode
 
 
 def _draft_iri(uri: URIRef) -> DraftNode:
-    return DraftNode(None, DraftNode.Type.IRI, uri, None)
+    return DraftNode(DraftNode.Type.IRI, uri, None, None)
 
 
 class DraftBracketNamespace:

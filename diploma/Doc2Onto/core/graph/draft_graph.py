@@ -13,19 +13,19 @@ class DraftNode:
 
     def __init__(
         self,
-        source_field_name: Optional[str],
         node_type: Type,
         node: Optional[URIRef | Literal],
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
+        source: Optional[str] = None
     ):
-        self._source = source_field_name  # название поля шаблона, от которого было получено значение, либо None, если значение не связано с каким-либо полем
-        self._type = node_type            # тип узла
-        self._node = node                 # значение узла (node != None <=> error == None)
-        self._error = error               # ошибка, поясняющая причину отсутствия значения
+        self._type = node_type  # тип узла
+        self._rdf_node = node   # значение узла (node != None <=> error == None)
+        self._error = error     # ошибка, поясняющая причину отсутствия значения
+        self._source = source   # источник (название поля шаблона или None, если значение не связано с каким-либо полем)
 
     def is_ok(self) -> bool:
         """Проверяет, является ли узел полным (содержащим значение)."""
-        return self._node is not None
+        return self._rdf_node is not None
 
     def is_iri(self) -> bool:
         """Проверяет, является ли узел IRI."""
@@ -36,7 +36,7 @@ class DraftNode:
         return self._type == DraftNode.Type.LITERAL
 
     def _get_rdf_node(self) -> Optional[URIRef | Literal]:
-        return self._node
+        return self._rdf_node
 
 
 class DraftTriple:
