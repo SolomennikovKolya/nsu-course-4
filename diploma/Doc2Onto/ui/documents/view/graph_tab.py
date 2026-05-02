@@ -40,20 +40,75 @@ def _warn_color(level: int) -> str:
     return UI_COLOR_RED
 
 
-def _node_row_warn_level(node: DraftNode) -> int:
+def _extraction_warn_level(
+    field: Optional[str], extraction: Optional[ExtractionResult]
+) -> int:
+    if not field:
+        return 0
+    if extraction is None:
+        return 1
+    data = extraction.get_field(field)
+    if not data:
+        return 2
+    return extraction.get_situation(field).warn_level()
+
+
+def _validation_warn_level(
+    field: Optional[str], validation: Optional[ValidationResult]
+) -> int:
+    if not field:
+        return 0
+    if validation is None:
+        return 1
+    vdata = validation.get_field(field)
+    if not vdata:
+        return 2
+    return validation.get_situation(field).warn_level()
+
+
+def _assembly_stage_warn_level(node: DraftNode) -> int:
+    if node.error is not None:
+        return 2
     if node.is_complete():
         return 0
-    if node.error is not None or node.source is not None:
-        return 1
+    if node.source is None:
+        return 0
     return 2
 
 
-def _triple_badge_warn_level_nodes(s: DraftNode, p: DraftNode, o: DraftNode) -> int:
-    if s.is_complete() and p.is_complete() and o.is_complete():
-        return 0
-    if not s.is_complete() and not p.is_complete() and not o.is_complete():
+def _node_stripe_warn_level(
+    edited: EditedGraph,
+    triple_index: int,
+    role: str,
+    extraction: Optional[ExtractionResult],
+    validation: Optional[ValidationResult],
+) -> int:
+    node = _effective_node(edited, triple_index, role)
+    original = edited.draft.triples[triple_index].get_node(role)
+
+    if not node.is_complete():
         return 2
-    return 1
+    if not node.equals(original):
+        return 0
+
+    field = node.source
+    return max(
+        _extraction_warn_level(field, extraction),
+        _validation_warn_level(field, validation),
+        _assembly_stage_warn_level(node),
+    )
+
+
+def _triple_badge_warn_level(
+    edited: EditedGraph,
+    triple_index: int,
+    extraction: Optional[ExtractionResult],
+    validation: Optional[ValidationResult],
+) -> int:
+    return max(
+        _node_stripe_warn_level(edited, triple_index, r, extraction, validation)
+        for r in ("subject", "predicate", "object")
+    )
 
 
 def _make_prefix_graph() -> Graph:
@@ -106,9 +161,10 @@ def _wrap_detail_html(inner: str) -> str:
 def _extraction_body_warn(
     field: Optional[str], extraction: Optional[ExtractionResult]
 ) -> Tuple[str, int]:
-    if not field or extraction is None:
-        msg = "Нет привязки к полю." if not field else "Нет данных извлечения."
-        return _wrap_detail_html(_html_escape(msg)), 1
+    if not field:
+        return _wrap_detail_html(_html_escape("Нет привязки к полю.")), 0
+    if extraction is None:
+        return _wrap_detail_html(_html_escape("Нет данных извлечения.")), 1
     data = extraction.get_field(field)
     if not data:
         return _wrap_detail_html(_html_escape("Поле не найдено в результате извлечения.")), 2
@@ -132,9 +188,10 @@ def _extraction_body_warn(
 def _validation_body_warn(
     field: Optional[str], validation: Optional[ValidationResult]
 ) -> Tuple[str, int]:
-    if not field or validation is None:
-        msg = "Нет привязки к полю." if not field else "Нет данных валидации."
-        return _wrap_detail_html(_html_escape(msg)), 1
+    if not field:
+        return _wrap_detail_html(_html_escape("Нет привязки к полю.")), 0
+    if validation is None:
+        return _wrap_detail_html(_html_escape("Нет данных валидации.")), 1
     vdata = validation.get_field(field)
     if not vdata:
         return _wrap_detail_html(_html_escape("Поле не найдено в результате валидации.")), 2
@@ -162,7 +219,7 @@ def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
             f"Источник: {_html_escape(node.source or '—')}",
         ]
     )
-    return _wrap_detail_html(inner), _node_row_warn_level(node)
+    return _wrap_detail_html(inner), _assembly_stage_warn_level(node)
 
 
 class _NodeDetailBlock(QGroupBox):
@@ -424,7 +481,9 @@ class _TripleRowWidget(QFrame):
         if excluded:
             stripe_color = UI_COLOR_GRAY
         else:
-            badge_level = _triple_badge_warn_level_nodes(s_n, p_n, o_n)
+            badge_level = _triple_badge_warn_level(
+                self.edited, idx, self.extraction, self.validation
+            )
             stripe_color = _warn_color(badge_level)
 
         self._stripe.setStyleSheet(f"background-color: {stripe_color}; border-radius: 2px;")
@@ -438,8 +497,13 @@ class _TripleRowWidget(QFrame):
         self._exclude_btn.setText("Вернуть в модель" if excluded else "Исключить из модели")
 
         for role, (_, stripe, arrow, details, inner) in self._role_rows.items():
-            node = _effective_node(self.edited, self.triple_index, role)
-            lvl = _node_row_warn_level(node)
+            lvl = _node_stripe_warn_level(
+                self.edited,
+                self.triple_index,
+                role,
+                self.extraction,
+                self.validation,
+            )
             stripe.setStyleSheet(f"background-color: {_warn_color(lvl)}; border-radius: 2px;")
             if details.isVisible() and inner.layout() and inner.layout().count():
                 self._fill_details(role, inner)
