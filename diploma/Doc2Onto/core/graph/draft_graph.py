@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from rdflib import Graph, Literal, Node, URIRef
 from rdflib.util import from_n3
@@ -35,6 +35,14 @@ class DraftNode:
 
     def get_rdf_node(self) -> Optional[URIRef | Literal]:
         return self.rdf_node
+
+    def copy(self) -> DraftNode:
+        """Копия узла с теми же type, rdf_node, error, source."""
+        return DraftNode(self.type, self.rdf_node, self.error, self.source)
+
+    def equals(self, other: DraftNode) -> bool:
+        """Совпадение с другим узлом по сериализованному виду (как при сравнении правок)."""
+        return self._to_json_dict() == other._to_json_dict()
 
     def _to_json_dict(self) -> Dict[str, Any]:
         n = self.rdf_node
@@ -77,6 +85,8 @@ class DraftNode:
 class DraftTriple:
     """Черновой триплет (некоторые ноды могут не иметь значения)."""
 
+    NODE_ROLES = frozenset({"subject", "predicate", "object"})
+
     class Type(Enum):
         """Возможные типы триплета (в системе можно создать только эти типы)."""
         TYPE = auto()
@@ -88,6 +98,16 @@ class DraftTriple:
         self.subject = s                # субъект
         self.predicate = p              # предикат
         self.object = o                 # объект
+
+    def get_node(self, role: str) -> DraftNode:
+        """Узел по роли: ``subject`` | ``predicate`` | ``object``."""
+        if role not in self.NODE_ROLES:
+            raise ValueError(f"некорректная роль узла: {role!r}")
+        if role == "subject":
+            return self.subject
+        if role == "predicate":
+            return self.predicate
+        return self.object
 
     def is_complete(self) -> bool:
         """Проверяет, является ли триплет полным."""
@@ -175,3 +195,116 @@ class DraftGraph:
     def load(cls, path: Path) -> DraftGraph:
         """Загружает черновой граф из UTF-8 JSON-файла."""
         return cls._from_json_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+class EditedGraph:
+    """
+    Обёртка над неизменяемым :class:`DraftGraph` с учётом правок перед загрузкой в онтологию.
+
+    Исходный граф не модифицируется; правки хранятся отдельно и сериализуются сами по себе.
+    """
+
+    def __init__(self, draft: DraftGraph):
+        self.draft = draft
+        self.excluded: Set[int] = set()
+        self.node_overrides: Dict[Tuple[int, str], DraftNode] = {}
+
+    def _triple_index_in_range(self, index: int):
+        n = len(self.draft.triples)
+        if index < 0 or index >= n:
+            raise IndexError(f"Индекс триплета вне диапазона [0, {n}): {index}")
+
+    def exclude_triple(self, index: int):
+        """Помечает триплет исходного графа как не подлежащий загрузке в модель."""
+        self._triple_index_in_range(index)
+        self.excluded.add(index)
+
+    def include_triple(self, index: int):
+        """Снимает пометку «не нужен» с триплета исходного графа."""
+        self._triple_index_in_range(index)
+        self.excluded.discard(index)
+
+    def set_node(self, triple_index: int, role: str, node: DraftNode):
+        """
+        Задаёт замену узла (s/p/o) для триплета исходного графа.
+        Если узел совпадает с исходным, переопределение снимается.
+        """
+        self._triple_index_in_range(triple_index)
+        if role not in DraftTriple.NODE_ROLES:
+            raise ValueError(f"Некорректная роль узла: {role!r}")
+
+        key = (triple_index, role)
+        original = self.draft.triples[triple_index].get_node(role)
+        if node.equals(original):
+            self.node_overrides.pop(key, None)
+        else:
+            self.node_overrides[key] = node
+
+    def build_modified_graph(self) -> DraftGraph:
+        """Новый :class:`DraftGraph` — копия исходного с учётом исключений и замен узлов."""
+        out = DraftGraph()
+        for i, tr in enumerate(self.draft.triples):
+            if i in self.excluded:
+                continue
+            s = self.node_overrides.get((i, "subject"), tr.subject).copy()
+            p = self.node_overrides.get((i, "predicate"), tr.predicate).copy()
+            o = self.node_overrides.get((i, "object"), tr.object).copy()
+            out.add_triple(DraftTriple(tr.triple_type, s, p, o))
+        return out
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Сериализация только правок (исходный граф не входит в результат)."""
+        overrides: List[Dict[str, Any]] = []
+        for (ti, role), node in sorted(self.node_overrides.items()):
+            overrides.append(
+                {"triple_index": ti, "role": role, "node": node._to_json_dict()}
+            )
+        return {
+            "excluded_triple_indices": sorted(self.excluded),
+            "node_overrides": overrides,
+        }
+
+    @classmethod
+    def from_dict(cls, draft: DraftGraph, data: Dict[str, Any]) -> EditedGraph:
+        """Восстановление правок по словарю :meth:`to_dict` и ссылке на исходный граф."""
+        eg = cls(draft)
+        ex = data.get("excluded_triple_indices")
+        if ex is not None:
+            if not isinstance(ex, (list, tuple)):
+                raise ValueError("excluded_triple_indices должен быть списком")
+            for i in ex:
+                if not isinstance(i, int):
+                    raise ValueError("Элемент excluded_triple_indices должен быть int")
+                eg.exclude_triple(i)
+
+        ovs = data.get("node_overrides")
+        if ovs is not None:
+            if not isinstance(ovs, list):
+                raise ValueError("node_overrides должен быть списком")
+            for item in ovs:
+                if not isinstance(item, dict):
+                    raise ValueError("Элемент node_overrides должен быть объектом")
+                ti = item.get("triple_index")
+                role = item.get("role")
+                nd = item.get("node")
+                if not isinstance(ti, int):
+                    raise ValueError("triple_index должен быть int")
+                if role not in DraftTriple.NODE_ROLES:
+                    raise ValueError(f"Некорректный role: {role!r}")
+                if not isinstance(nd, dict):
+                    raise ValueError("node должен быть объектом")
+                eg.set_node(ti, role, DraftNode._from_json_dict(nd))
+
+        return eg
+
+    def save(self, path: Path) -> None:
+        """Сохраняет правки в UTF-8 JSON (без исходного графа)."""
+        path.write_text(
+            json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def load(cls, path: Path, draft: DraftGraph) -> EditedGraph:
+        """Загружает правки из UTF-8 JSON и сочетает их с переданным исходным графом."""
+        return cls.from_dict(draft, json.loads(path.read_text(encoding="utf-8")))
