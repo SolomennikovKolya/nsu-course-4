@@ -440,12 +440,13 @@ class _TripleRowWidget(QFrame):
                             it2.widget().deleteLater()
                     sub.deleteLater()
 
-        node = _effective_node(self.edited, self.triple_index, role)
-        field = node.source
+        tr = self.edited.draft.triples[self.triple_index]
+        draft_node = tr.get_node(role)
+        field = draft_node.source
 
         ex_body, ex_level = _extraction_body_warn(field, self.extraction)
         va_body, va_level = _validation_body_warn(field, self.validation)
-        asm_body, asm_level = _assembly_body_warn(node)
+        asm_body, asm_level = _assembly_body_warn(draft_node)
 
         path = QHBoxLayout()
         path.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -491,8 +492,7 @@ class _TripleRowWidget(QFrame):
         s = _term_n3_short(self.nm_graph, s_n.get_rdf_node())
         p = _term_n3_short(self.nm_graph, p_n.get_rdf_node())
         o = _term_n3_short(self.nm_graph, o_n.get_rdf_node())
-        typ = tr.triple_type.name
-        self._summary.setText(f"{f'#{idx} {typ}':<20} |  {s}  {p}  {o}")
+        self._summary.setText(f"{f'#{idx}':<3} {s} {p} {o}")
 
         self._exclude_btn.setText("Вернуть в модель" if excluded else "Исключить из модели")
 

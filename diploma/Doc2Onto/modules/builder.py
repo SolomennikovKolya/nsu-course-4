@@ -36,9 +36,15 @@ class GraphBuilder(BaseModule):
 
         try:
             tctx.code.build(builder)
-            builder._get_draft_graph().save(ctx.document.draft_graph_file_path())
         except Exception as ex:
             self.log_exception()
             return ModuleResult.failed(message=str(ex))
+
+        builder._get_draft_graph().save(ctx.document.draft_graph_file_path())
+
+        if doc.draft_graph_edits_file_path().exists():
+            doc.draft_graph_edits_file_path().unlink()
+        if doc.supplementary_facts_ttl_path().exists():
+            doc.supplementary_facts_ttl_path().unlink()
 
         return ModuleResult.ok()
