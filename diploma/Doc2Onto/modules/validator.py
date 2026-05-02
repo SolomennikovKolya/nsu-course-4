@@ -21,17 +21,15 @@ class FieldValidationData(TypedDict):
 
 
 class FieldValidationSituation(Enum):
-    VALID_TEMPLATE = auto()
-    VALID_LLM = auto()
-    INVALID_AFTER_LLM = auto()
-    FAILED = auto()
+    VALID = auto()
+    NONSENSE = auto()
+    INVALID = auto()
 
-    def full_msg(self) -> str:
+    def short_msg(self) -> str:
         msgs = {
-            FieldValidationSituation.VALID_TEMPLATE: "valid by template",
-            FieldValidationSituation.VALID_LLM: "validated by LLM",
-            FieldValidationSituation.INVALID_AFTER_LLM: "invalid after LLM",
-            FieldValidationSituation.FAILED: "validation failed",
+            FieldValidationSituation.VALID: "validated",
+            FieldValidationSituation.NONSENSE: "rejected by LLM",
+            FieldValidationSituation.INVALID: "rejected by template",
         }
         return msgs[self]
 
@@ -73,18 +71,18 @@ class ValidationResult:
 
     @staticmethod
     def get_situation_from_data(data: FieldValidationData) -> FieldValidationSituation:
-        if data.get("valid_llm") is True:
-            return FieldValidationSituation.VALID_LLM
-        if data.get("valid_llm") is False:
-            return FieldValidationSituation.INVALID_AFTER_LLM
         if data.get("valid_temp"):
-            return FieldValidationSituation.VALID_TEMPLATE
-        return FieldValidationSituation.FAILED
+            if data.get("valid_llm"):
+                return FieldValidationSituation.VALID
+            else:
+                return FieldValidationSituation.NONSENSE
+        else:
+            return FieldValidationSituation.INVALID
 
     def get_situation(self, field_name: str) -> FieldValidationSituation:
         data = self.fields.get(field_name)
         if not data:
-            return FieldValidationSituation.FAILED
+            return FieldValidationSituation.INVALID
         return self.get_situation_from_data(data)
 
     def set_result(
@@ -275,20 +273,18 @@ class Validator(BaseModule):
         for field_name in result.fields.keys():
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
 
-            extracted_value = extr_res.get_value_final(field_name)
+            value = extr_res.get_value_final(field_name)
             error_temp = result.get_error_temp(field_name)
             error_llm = result.get_error_llm(field_name)
+            situation = result.get_situation(field_name).short_msg()
 
-            situation = result.get_situation(field_name).full_msg()
-            if result.is_valid_final(field_name):
-                self.log(INFO, f'{field_label} {situation}: "{extracted_value or ""}"')
-            else:
-                parts = [situation]
-                if error_temp:
-                    parts.append(f"template: {error_temp}")
-                if error_llm:
-                    parts.append(f"llm: {error_llm}")
-                self.log(WARNING, f'{field_label} invalid ({"; ".join(parts)}; extracted="{extracted_value}")')
+            text = f'{field_label} {situation}: "{value}"'
+            if error_temp is not None:
+                text += f" error_temp: {error_temp}"
+            if error_llm is not None:
+                text += f" error_llm: {error_llm}"
+
+            self.log(INFO, text)
 
     def _all_fields_validated(self, result: ValidationResult) -> bool:
         return all(result.is_valid_final(field_name) for field_name in result.fields.keys())
