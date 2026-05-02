@@ -3,19 +3,18 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSplitter,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -31,7 +30,7 @@ from models.document import Document
 from modules.extractor import ExtractionResult
 from modules.validator import ValidationResult
 from ui.common.design import UI_COLOR_GRAY, UI_COLOR_GREEN, UI_COLOR_RED, UI_COLOR_YELLOW
-from ui.documents.view.common import read_text_file, wrap_tab_page_content
+from ui.documents.view.common import read_text_file
 
 
 def _warn_color(level: int) -> str:
@@ -96,22 +95,96 @@ def _effective_node(edited: EditedGraph, triple_index: int, role: str) -> DraftN
     return edited.node_overrides.get((triple_index, role), tr.get_node(role))
 
 
-class _NodeDetailBlock(QGroupBox):
-    """Один столбец «извлечение» / «валидация» / «сборка»."""
+def _extraction_body_warn(
+    field: Optional[str], extraction: Optional[ExtractionResult]
+) -> Tuple[str, int]:
+    if not field or extraction is None:
+        return (
+            "Нет привязки к полю." if not field else "Нет данных извлечения.",
+            1,
+        )
+    data = extraction.get_field(field)
+    if not data:
+        return "Поле не найдено в результате извлечения.", 2
+    sit = extraction.get_situation(field)
+    parts = [
+        "Шаблон:",
+        f"- извлечено: {'да' if data.get('extracted_temp') else 'нет'}",
+        f"- значение: {data.get('value_temp') or '—'}",
+        f"- ошибка: {data.get('error_temp') or '—'}",
+    ]
+    if data.get("extracted_llm") is not None:
+        parts.append("LLM:")
+        parts.append(f"- извлечено: {'да' if data.get('extracted_llm') else 'нет'}")
+        parts.append(f"- значение: {data.get('value_llm') or '—'}")
+        parts.append(f"- ошибка: {data.get('error_llm') or '—'}")
+    return "\n".join(parts), sit.warn_level()
 
-    def __init__(self, title: str, warn_level: int, lines: List[Tuple[str, str]]):
+
+def _validation_body_warn(
+    field: Optional[str], validation: Optional[ValidationResult]
+) -> Tuple[str, int]:
+    if not field or validation is None:
+        return (
+            "Нет привязки к полю." if not field else "Нет данных валидации.",
+            1,
+        )
+    vdata = validation.get_field(field)
+    if not vdata:
+        return "Поле не найдено в результате валидации.", 2
+    vsit = validation.get_situation(field)
+    parts = [
+        "Шаблон:",
+        f"- валидно: {'да' if vdata.get('valid_temp') else 'нет'}",
+        f"- ошибка: {vdata.get('error_temp') or '—'}",
+    ]
+    if vdata.get("valid_llm") is not None:
+        parts.append("LLM:")
+        parts.append(f"- валидно: {'да' if vdata.get('valid_llm') else 'нет'}")
+        parts.append(f"- ошибка: {vdata.get('error_llm') or '—'}")
+    return "\n".join(parts), vsit.warn_level()
+
+
+def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
+    body = "\n".join(
+        [
+            f"Тип: {node.type.name}",
+            f"Значение (n3): {node._to_json_dict().get('n3') or '—'}",
+            f"Ошибка: {str(node.error) if node.error else '—'}",
+            f"Источник: {node.source or '—'}",
+        ]
+    )
+    return body, _node_row_warn_level(node)
+
+
+class _NodeDetailBlock(QGroupBox):
+    """Один столбец «извлечение» / «валидация» / «сборка» (текст копируется)."""
+
+    def __init__(self, title: str, warn_level: int, body_plain: str):
         super().__init__(title)
         self.setStyleSheet(
             f"QGroupBox {{ font-weight: bold; color: {_warn_color(warn_level)}; }}"
         )
         lay = QVBoxLayout(self)
-        for label, value in lines:
-            row = QVBoxLayout()
-            row.addWidget(QLabel(f"<b>{label}</b>"))
-            v = QLabel(value if value else "—")
-            v.setWordWrap(True)
-            row.addWidget(v)
-            lay.addLayout(row)
+        lay.setContentsMargins(4, 8, 4, 4)
+        lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        te = QPlainTextEdit()
+        te.setReadOnly(True)
+        te.setPlainText(body_plain)
+        te.setFrameShape(QFrame.Shape.NoFrame)
+        te.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        te.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        te.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
+        te.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        fm = te.fontMetrics()
+        line_h = max(fm.lineSpacing(), 14)
+        lines = max(1, body_plain.count("\n") + 1)
+        te.setFixedHeight(min(220, line_h * lines + 14))
+        lay.addWidget(te, alignment=Qt.AlignmentFlag.AlignTop)
 
 
 class _TripleRowWidget(QFrame):
@@ -168,64 +241,83 @@ class _TripleRowWidget(QFrame):
         body_lay = QVBoxLayout(self._body)
         body_lay.setContentsMargins(0, 8, 0, 0)
 
-        self._exclude_btn = QPushButton()
-        self._exclude_btn.clicked.connect(self._on_toggle_exclude)
-        body_lay.addWidget(self._exclude_btn)
+        fm_role = QFontMetrics(mono)
+        role_label_w = max(
+            fm_role.horizontalAdvance("Субъект:"),
+            fm_role.horizontalAdvance("Предикат:"),
+            fm_role.horizontalAdvance("Объект:"),
+        ) - 8
 
-        self._role_rows: Dict[str, Tuple[QLineEdit, QWidget, QPushButton, QWidget]] = {}
+        self._role_rows: Dict[str, Tuple[QLineEdit, QFrame, QPushButton, QWidget, QWidget]] = {}
 
-        for role, title in (("subject", "Субъект"), ("predicate", "Предикат"), ("object", "Объект")):
+        for role, title in (("subject", "Субъект:"), ("predicate", "Предикат:"), ("object", "Объект:")):
             role_fr = QFrame()
             role_fr.setFrameShape(QFrame.Shape.StyledPanel)
             rl = QVBoxLayout(role_fr)
 
-            cap = QHBoxLayout()
-            cap_lbl = QLabel(title)
-            cap.addWidget(cap_lbl)
             stripe = QFrame()
             stripe.setFixedWidth(4)
-            cap.insertWidget(0, stripe)
+
+            cap_lbl = QLabel(title)
+            cap_lbl.setFixedWidth(role_label_w)
+            cap_lbl.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
 
             edit = QLineEdit()
             edit.setFont(mono)
-            det_toggle = QPushButton("Подробнее …")
-            det_toggle.setCheckable(True)
-            det_toggle.setChecked(False)
+
+            arrow = QPushButton("▼")
+            arrow.setFixedWidth(28)
+
+            row_line = QHBoxLayout()
+            row_line.addWidget(stripe)
+            row_line.addWidget(cap_lbl)
+            row_line.addWidget(edit, stretch=1)
+            row_line.addWidget(arrow)
+
             details = QWidget()
             det_lay = QVBoxLayout(details)
             det_lay.setContentsMargins(8, 4, 8, 4)
+            det_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
             details.setVisible(False)
 
             inner_details = QWidget()
-            inner_details.setLayout(QVBoxLayout())
+            id_lay = QVBoxLayout(inner_details)
+            id_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
             det_lay.addWidget(inner_details)
 
-            def on_detail_toggled(
-                checked: bool,
-                r: str = role,
-                st: QPushButton = det_toggle,
-                det: QWidget = details,
-            ):
-                det.setVisible(checked)
-                st.setText("Скрыть" if checked else "Подробнее …")
-                if checked:
-                    self._fill_details(r, inner_details)
+            def make_arrow_handler(r: str, inner_w: QWidget, btn: QPushButton, det: QWidget):
+                def on_arrow_clicked():
+                    will_show = not det.isVisible()
+                    det.setVisible(will_show)
+                    btn.setText("▲" if will_show else "▼")
+                    if will_show:
+                        self._fill_details(r, inner_w)
 
-            det_toggle.toggled.connect(on_detail_toggled)
+                return on_arrow_clicked
 
-            rl.addLayout(cap)
-            rl.addWidget(edit)
+            arrow.clicked.connect(make_arrow_handler(role, inner_details, arrow, details))
 
-            rl.addWidget(det_toggle)
+            rl.addLayout(row_line)
             rl.addWidget(details)
             body_lay.addWidget(role_fr)
 
-            self._role_rows[role] = (edit, stripe, det_toggle, inner_details)
+            self._role_rows[role] = (edit, stripe, arrow, details, inner_details)
+
+        self._exclude_btn = QPushButton()
+        self._exclude_btn.clicked.connect(self._on_toggle_exclude)
+        body_lay.addWidget(self._exclude_btn)
 
         outer.addWidget(self._body)
         self._body.setVisible(False)
 
         self.refresh()
+
+    def _collapse_all_role_details(self) -> None:
+        for _role, (_edit, _stripe, arrow, details, _inner) in self._role_rows.items():
+            details.setVisible(False)
+            arrow.setText("▼")
 
     def _on_toggle(self):
         if self._expanded:
@@ -233,7 +325,9 @@ class _TripleRowWidget(QFrame):
         self._expanded = not self._expanded
         self._body.setVisible(self._expanded)
         self._toggle.setText("▲" if self._expanded else "▼")
-        if self._expanded:
+        if not self._expanded:
+            self._collapse_all_role_details()
+        elif self._expanded:
             self._populate_edits()
 
     def _on_toggle_exclude(self):
@@ -245,11 +339,12 @@ class _TripleRowWidget(QFrame):
         self.on_changed()
 
     def _populate_edits(self):
-        for role, (edit, _, _, inner) in self._role_rows.items():
+        for role, (edit, _, _, details, inner) in self._role_rows.items():
             node = _effective_node(self.edited, self.triple_index, role)
             n3 = node._to_json_dict().get("n3") or ""
             edit.setText(n3)
-            self._fill_details(role, inner)
+            if details.isVisible():
+                self._fill_details(role, inner)
 
     def _fill_details(self, role: str, inner: QWidget):
         lay = inner.layout()
@@ -271,77 +366,29 @@ class _TripleRowWidget(QFrame):
         node = _effective_node(self.edited, self.triple_index, role)
         field = node.source
 
-        # --- извлечение ---
-        ex_lines: List[Tuple[str, str]] = []
-        ex_level = 1
-        if self.extraction is None or not field:
-            ex_lines = [("Статус", "нет привязки к полю" if not field else "нет данных извлечения")]
-            ex_level = 1
-        else:
-            data = self.extraction.get_field(field)
-            if data:
-                sit = self.extraction.get_situation(field)
-                ex_level = sit.warn_level()
-                ex_lines.append(("Ситуация", sit.short_msg()))
-                ex_lines.append(("Шаблон: извлечено", "да" if data.get("extracted_temp") else "нет"))
-                ex_lines.append(("Шаблон: значение", data.get("value_temp") or "—"))
-                ex_lines.append(("Шаблон: ошибка", data.get("error_temp") or "—"))
-                if data.get("extracted_llm") is not None:
-                    ex_lines.append(("LLM: извлечено", "да" if data.get("extracted_llm") else "нет"))
-                    ex_lines.append(("LLM: значение", data.get("value_llm") or "—"))
-                    ex_lines.append(("LLM: ошибка", data.get("error_llm") or "—"))
-            else:
-                ex_lines.append(("Статус", "поле не найдено в результате извлечения"))
-                ex_level = 2
-
-        # --- валидация ---
-        va_lines: List[Tuple[str, str]] = []
-        va_level = 1
-        if self.validation is None or not field:
-            va_lines = [("Статус", "нет привязки к полю" if not field else "нет данных валидации")]
-            va_level = 1
-        else:
-            vdata = self.validation.get_field(field)
-            if vdata:
-                vsit = self.validation.get_situation(field)
-                va_level = vsit.warn_level()
-                va_lines.append(("Ситуация", vsit.short_msg()))
-                va_lines.append(("Шаблон: валидно", "да" if vdata.get("valid_temp") else "нет"))
-                va_lines.append(("Шаблон: ошибка", vdata.get("error_temp") or "—"))
-                if vdata.get("valid_llm") is not None:
-                    va_lines.append(("LLM: валидно", "да" if vdata.get("valid_llm") else "нет"))
-                    va_lines.append(("LLM: ошибка", vdata.get("error_llm") or "—"))
-            else:
-                va_lines.append(("Статус", "поле не найдено в результате валидации"))
-                va_level = 2
-
-        # --- сборка ---
-        asm_level = _node_row_warn_level(node)
-        asm_lines = [
-            ("Тип", node.type.name),
-            ("Значение (n3)", node._to_json_dict().get("n3") or "—"),
-            ("Ошибка", str(node.error) if node.error else "—"),
-            ("Источник", node.source or "—"),
-        ]
+        ex_body, ex_level = _extraction_body_warn(field, self.extraction)
+        va_body, va_level = _validation_body_warn(field, self.validation)
+        asm_body, asm_level = _assembly_body_warn(node)
 
         path = QHBoxLayout()
-        ex_box = _NodeDetailBlock("Извлечение", ex_level, ex_lines)
+        path.setAlignment(Qt.AlignmentFlag.AlignTop)
+        ex_box = _NodeDetailBlock("Извлечение", ex_level, ex_body)
         ar1 = QLabel("→")
         ar1.setStyleSheet("font-size: 18px; color: gray;")
-        va_box = _NodeDetailBlock("Валидация", va_level, va_lines)
+        va_box = _NodeDetailBlock("Валидация", va_level, va_body)
         ar2 = QLabel("→")
         ar2.setStyleSheet("font-size: 18px; color: gray;")
-        asm_box = _NodeDetailBlock("Сборка", asm_level, asm_lines)
-        path.addWidget(ex_box, stretch=1)
-        path.addWidget(ar1, alignment=Qt.AlignmentFlag.AlignVCenter)
-        path.addWidget(va_box, stretch=1)
-        path.addWidget(ar2, alignment=Qt.AlignmentFlag.AlignVCenter)
-        path.addWidget(asm_box, stretch=1)
+        asm_box = _NodeDetailBlock("Сборка", asm_level, asm_body)
+        path.addWidget(ex_box, stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
+        path.addWidget(ar1, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        path.addWidget(va_box, stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
+        path.addWidget(ar2, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        path.addWidget(asm_box, stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
         inner.layout().addLayout(path)
 
     def apply_edits(self):
         tr = self.edited.draft.triples[self.triple_index]
-        for role, (edit, _, _, _) in self._role_rows.items():
+        for role, (edit, _, _, _, _) in self._role_rows.items():
             kind = tr.get_node(role).type
             new_node = _draft_node_from_n3_input(kind, edit.text(), tr.get_node(role).source)
             self.edited.set_node(self.triple_index, role, new_node)
@@ -371,11 +418,11 @@ class _TripleRowWidget(QFrame):
 
         self._exclude_btn.setText("Вернуть в модель" if excluded else "Исключить из модели")
 
-        for role, (_, stripe, _, inner) in self._role_rows.items():
+        for role, (_, stripe, arrow, details, inner) in self._role_rows.items():
             node = _effective_node(self.edited, self.triple_index, role)
             lvl = _node_row_warn_level(node)
             stripe.setStyleSheet(f"background-color: {_warn_color(lvl)}; border-radius: 2px;")
-            if inner.layout() and inner.layout().count():
+            if details.isVisible() and inner.layout() and inner.layout().count():
                 self._fill_details(role, inner)
 
 
@@ -383,8 +430,8 @@ class DocumentViewGraphTab(QWidget):
     """Черновой RDF-граф: просмотр, правки (EditedGraph) и дополнительные факты (Turtle)."""
 
     _SUPPLEMENTARY_DEFAULT = (
-        '@prefix : <http://doc2onto.org/ontology#> .\n'
-        "# Ниже можно дописать дополнительные факты на Turtle; они сохраняются отдельно от чернового графа.\n"
+        '@prefix : <http://doc2onto.org/ontology#> .\n\n'
+        "# Ниже можно дописать дополнительные факты на Turtle.\n"
     )
 
     def __init__(self):
@@ -404,39 +451,44 @@ class DocumentViewGraphTab(QWidget):
         self._list_host = QWidget()
         self._list_layout = QVBoxLayout(self._list_host)
         self._list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self._scroll.setWidget(self._list_host)
 
-        self._supp_label = QLabel("Дополнительные факты (Turtle)")
+        self._triples_host = QWidget()
+        self._triples_layout = QVBoxLayout(self._triples_host)
+        self._triples_layout.setContentsMargins(0, 0, 0, 0)
+        self._triples_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._list_layout.addWidget(self._triples_host)
+
+        self._supp_label = QLabel("\nДополнительные факты:")
         self._supp = QTextEdit()
         self._supp.setFont(QFont("Consolas"))
         self._supp.setPlaceholderText(self._SUPPLEMENTARY_DEFAULT)
-        self._supp.setMinimumHeight(120)
+        self._supp.setMinimumHeight(72)
+        self._supp.setMaximumHeight(160)
+        self._supp.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+        )
 
         self._save_btn = QPushButton("Сохранить правки и доп. факты")
         self._save_btn.clicked.connect(self._on_save)
 
-        bottom = QWidget()
-        bl = QVBoxLayout(bottom)
-        bl.addWidget(self._supp_label)
-        bl.addWidget(self._supp)
-        bl.addWidget(self._save_btn, alignment=Qt.AlignmentFlag.AlignLeft)
+        self._list_layout.addWidget(self._supp_label)
+        self._list_layout.addWidget(self._supp)
+        self._list_layout.addWidget(
+            self._save_btn, alignment=Qt.AlignmentFlag.AlignLeft
+        )
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
-        splitter.addWidget(self._scroll)
-        splitter.addWidget(bottom)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 1)
+        self._scroll.setWidget(self._list_host)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(splitter)
+        layout.addWidget(self._scroll)
 
     def _clear_triples(self):
         for w in self._triple_widgets:
             w.deleteLater()
         self._triple_widgets.clear()
-        while self._list_layout.count():
-            item = self._list_layout.takeAt(0)
+        while self._triples_layout.count():
+            item = self._triples_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
@@ -458,7 +510,7 @@ class DocumentViewGraphTab(QWidget):
                 self._on_triple_changed,
             )
             row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            self._list_layout.addWidget(row)
+            self._triples_layout.addWidget(row)
             self._triple_widgets.append(row)
 
     def _on_save(self):
