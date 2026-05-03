@@ -212,12 +212,12 @@ def _extraction_body_warn(
     field: Optional[str], extraction: Optional[ExtractionResult]
 ) -> Tuple[str, int]:
     if not field:
-        return _wrap_detail_html(_html_escape("Нет привязки к полю.")), 0
+        return _wrap_detail_html(_html_escape("Нет привязки к полю")), 0
     if extraction is None:
-        return _wrap_detail_html(_html_escape("Нет данных извлечения.")), 1
+        return _wrap_detail_html(_html_escape("Нет данных извлечения")), 1
     data = extraction.get_field(field)
     if not data:
-        return _wrap_detail_html(_html_escape("Поле не найдено в результате извлечения.")), 2
+        return _wrap_detail_html(_html_escape("Поле не найдено в результате извлечения")), 2
     sit = extraction.get_situation(field)
     inner = (
         "<b>Шаблон</b>:<br/>"
