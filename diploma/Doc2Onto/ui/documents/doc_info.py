@@ -101,12 +101,14 @@ class DocumentInfoWidget(QWidget):
         self._document_view.set_document(document)
 
         if document is None:
+            self._title.setToolTip("")
             self._stack.setCurrentWidget(self._empty_page)
             return
 
         self._stack.setCurrentWidget(self._document_page)
 
         # Обновляем данные на странице
+        self._title.setToolTip(f"ID: {document.id}")
         self._title.set_value(document.name)
         index = self._class_combo.findData(document.doc_class)
         if index >= 0:

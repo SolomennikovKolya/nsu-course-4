@@ -103,7 +103,7 @@ class Pipeline:
         doc.pipeline_error_message = None
 
         self.logger.info(f"[Pipeline] started")
-        self.logger.info(f'  Document: "{doc.name}"')
+        self.logger.info(f'  Document: "{doc.name}" [id={doc.id}]')
         self.logger.info(f"  Target status: {doc.status} -> {final_stage}")
 
         if int(doc.status) >= int(final_stage):

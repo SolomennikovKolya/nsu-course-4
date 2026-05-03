@@ -1,9 +1,10 @@
 import shutil
+import uuid
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 from app.settings import DOCUMENTS_DIR
-from models.document import Document
+from models.document import ORIGINAL_FILE_STEM, Document
 from infrastructure.storage.base_manager import BaseManager
 
 
@@ -11,61 +12,90 @@ class DocumentManager(BaseManager[Document, Path]):
     """
     Менеджер для управления документами в файловой системе.
 
-    Предполагается, что каждый документ хранится в отдельной директории внутри BASE_DIR, 
-    название которой соответствует имени документа. Внутри директории документа должен быть 
-    оригинальный файл (имя которого совпадает с названием директории) и файл meta.json с метаданными документа.
-    Также в этой директории могут храняться промежуточные файлы обработки документа.
+    Каждый документ хранится в отдельной директории внутри BASE_DIR, имя каталога — уникальный
+    ID документа (UUID). Внутри: оригинальный файл ``original{расширение}`` (ID только в meta.json),
+    meta.json и прочие артефакты.
 
     Минимальная структура:
     ```
     BASE_DIR
-    └── document_i.docx/
+    └── <uuid>/
         ├── meta.json
-        └── document_i.docx
+        └── original.docx
     ```
     """
 
     def __init__(self, base_dir: Path = DOCUMENTS_DIR):
         super().__init__(base_dir)
 
-    def get(self, name: str) -> Optional[Document]:
-        """Возвращает документ по имени."""
-        directory = self.base_dir / name
-
-        valid, meta = self._is_directory_valid(directory)
-        if not valid or not meta:
+    def get(self, doc_id: str) -> Optional[Document]:
+        """Возвращает документ по ID (имя каталога)."""
+        directory = self.base_dir / doc_id
+        if not directory.is_dir():
             return None
 
-        doc = Document(name=directory.name, directory=directory)
+        meta = self._load_meta(directory)
+        if not meta:
+            return None
+
+        valid = self._is_directory_valid(directory, meta)
+        if not valid:
+            return None
+
+        doc = Document(
+            id=meta["id"],
+            original_suffix=meta["original_suffix"],
+            directory=directory,
+            name=meta.get("name") or "",
+        )
         self._apply_meta_to_document(doc, meta)
         return doc
 
     def reload_metadata(self, doc: Document) -> bool:
         """Обновляет данные уже существующего объекта Document данными из метафайла."""
-        valid, meta = self._is_directory_valid(doc.directory)
-        if not valid or not meta:
+        directory = doc.directory
+        meta = self._load_meta(directory)
+        if not meta:
             return False
 
+        valid = self._is_directory_valid(directory, meta)
+        if not valid:
+            return False
+
+        doc.id = meta["id"]
+        doc.name = meta.get("name") or ""
+        doc.directory = directory
+        doc.original_suffix = meta["original_suffix"]
         self._apply_meta_to_document(doc, meta)
         return True
 
     def add(self, file_path: Path) -> Document:
         """Добавляет новый документ в систему."""
-        name = file_path.name
-        directory = self.base_dir / name
-        directory.mkdir(parents=True, exist_ok=True)
-        target_file = directory / name
+        display_name = file_path.name
+        suffix = file_path.suffix
+        if not suffix:
+            raise ValueError("У загружаемого файла должно быть расширение")
 
-        # Если файл уже есть в системе и совпадает - возвращаем существующий документ
-        if target_file.exists():
-            if self._compute_hash(target_file) == self._compute_hash(file_path):
-                doc = self.get(name)
-                if doc:
-                    return doc
+        for existing in self.list():
+            existing_path = existing.original_file_path()
+            if existing_path.is_file() and self._compute_hash(existing_path) == self._compute_hash(
+                file_path
+            ):
+                return existing
+
+        doc_id = str(uuid.uuid4())
+        directory = self.base_dir / doc_id
+        directory.mkdir(parents=True, exist_ok=True)
+        target_file = directory / f"{ORIGINAL_FILE_STEM}{suffix}"
 
         shutil.copy(file_path, target_file)
 
-        doc = Document(name, directory)
+        doc = Document(
+            id=doc_id,
+            name=display_name,
+            directory=directory,
+            original_suffix=suffix,
+        )
         self.save_metadata(doc)
         return doc
 
@@ -75,7 +105,7 @@ class DocumentManager(BaseManager[Document, Path]):
             shutil.rmtree(doc.directory)
 
     def rename(self, doc: Document, new_name: str):
-        """Переименовывает документ (директорию и оригинальный файл), обновляет meta.json."""
+        """Меняет только отображаемое имя в meta.json (каталог и файлы не переименовываются)."""
         new_name = (new_name or "").strip()
         if not new_name:
             raise ValueError("Имя документа не может быть пустым")
@@ -83,71 +113,48 @@ class DocumentManager(BaseManager[Document, Path]):
         if new_name == doc.name:
             return
 
-        old_name = doc.name
-        old_dir = self.base_dir / old_name
-        old_file = old_dir / old_name
-        if not old_dir.exists():
-            raise FileNotFoundError(f'Документ "{old_name}" не найден в хранилище.')
-        if not old_file.exists():
-            raise FileNotFoundError(f'Оригинальный файл "{old_name}" не найден.')
-
-        new_dir = self.base_dir / new_name
-        if new_dir.exists():
-            raise FileExistsError(f'Документ с названием "{new_name}" уже существует.')
-
-        try:
-            old_dir.rename(new_dir)
-        except OSError as exc:
-            raise OSError(str(exc))
-
-        # После переименования директории надо переименовать оригинальный файл.
-        new_file = new_dir / new_name
-        old_file_in_new_dir = new_dir / old_name
-        try:
-            if old_file_in_new_dir.exists() and not new_file.exists():
-                old_file_in_new_dir.rename(new_file)
-        except OSError as exc:
-            # Пытаемся откатить директорию обратно, чтобы не оставить систему в полусостоянии.
-            try:
-                new_dir.rename(old_dir)
-            except OSError:
-                pass
-            raise OSError(str(exc))
-
         doc.name = new_name
-        doc.directory = new_dir
         self.save_metadata(doc)
 
     def is_file_exists(self, file_path: Path) -> bool:
-        """Проверяет, существует ли файл в системе."""
-        name = file_path.name
-        file_dir = self.base_dir / name
-        if not file_dir.exists() or not file_dir.is_dir():
+        """Проверяет, существует ли в системе документ с тем же содержимым исходного файла."""
+        if not file_path.is_file():
             return False
 
-        target_file = file_dir / name
-        return target_file.exists() and self._compute_hash(target_file) == self._compute_hash(file_path)
+        h = self._compute_hash(file_path)
+        for doc in self.list():
+            p = doc.original_file_path()
+            if p.is_file() and self._compute_hash(p) == h:
+                return True
+        return False
 
     # ========== ПРИВАТНЫЕ МЕТОДЫ ==========
 
     def _get_directory(self, obj: Document) -> Path:
         return obj.directory
 
-    def _is_directory_valid(self, directory: Path) -> Tuple[bool, Optional[dict]]:
-        """
-        Проверяет, что директория соответствует структуре хранения документа и содержит необходимые файлы.
-        Возвращает кортеж (is_valid, meta), где is_valid - булево значение, указывающее на валидность директории,
-        а meta - словарь с метаданными документа (или None, если мета не подгрузилась).
-        """
-        meta = self._load_meta(directory)
-        valid = bool(meta) \
-            and meta.get("name") == directory.name \
-            and (directory / directory.name).exists()
+    def _is_directory_valid(self, directory: Path, meta: Optional[dict]) -> bool:
+        """Проверяет структуру каталога документа в актуальном формате."""
+        if not meta:
+            return False
 
-        if valid and meta.get("directory") != str(directory):
+        doc_id = meta.get("id")
+        if not doc_id or doc_id != directory.name:
+            return False
+
+        suffix = meta.get("original_suffix")
+        if not suffix:
+            return False
+
+        original = directory / f"{ORIGINAL_FILE_STEM}{suffix}"
+        if not original.is_file():
+            return False
+
+        if meta.get("directory") != str(directory):
+            meta = dict(meta)
             meta["directory"] = str(directory)
 
-        return valid, meta
+        return True
 
     @staticmethod
     def _apply_meta_to_document(doc: Document, meta: dict):

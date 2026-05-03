@@ -2,7 +2,7 @@
 Вкладка «Оригинал»: предпросмотр PDF, DOCX и DOC через единый рендер QtPdf.
 
 DOC/DOCX конвертируются в PDF локально (LibreOffice ``soffice``), без сетевых API.
-Кэш: ``<stem>.preview.pdf``
+Кэш: ``original.preview.pdf`` (рядом с ``original.docx`` и т.п.)
 рядом с исходным файлом; пересборка при изменении исходника (и рядом лежащего .docx для .doc).
 """
 
@@ -159,7 +159,7 @@ def _cache_is_fresh(cache: Path, originals: List[Path]) -> bool:
 
 def build_or_reuse_preview_pdf(original: Path) -> Path:
     """
-    Возвращает путь к PDF для предпросмотра: для .pdf — сам файл; иначе кэш ``<stem>.preview.pdf``.
+    Возвращает путь к PDF для предпросмотра: для .pdf — сам файл; иначе кэш ``original.preview.pdf``.
     """
     ext = original.suffix.lower()
     if ext == ".pdf":

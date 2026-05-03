@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
@@ -15,6 +16,7 @@ from app.context import get_doc_manager, get_pipeline, get_temp_manager
 from app.agents import ask_gpt, read_prompt
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
+    ORIGINAL_FILE_STEM,
     GENERATE_DESCR_SYS_PROMPT_PATH,
     GENERATE_DESCR_USER_PROMPT_PATH,
     GENERATE_TEMP_SYS_PROMPT_PATH,
@@ -325,10 +327,17 @@ class TemplateInfoWidget(QWidget):
         pipeline = get_pipeline()
         with tempfile.TemporaryDirectory(prefix="doc2onto_unfilled_") as tmp_dir:
             temp_dir = Path(tmp_dir)
-            temp_file_path = temp_dir / source_path.name
+            temp_id = str(uuid.uuid4())
+            suffix = source_path.suffix
+            temp_file_path = temp_dir / f"{ORIGINAL_FILE_STEM}{suffix}"
             shutil.copy2(source_path, temp_file_path)
 
-            temp_doc = Document(name=source_path.name, directory=temp_dir)
+            temp_doc = Document(
+                id=temp_id,
+                name=source_path.name,
+                directory=temp_dir,
+                original_suffix=suffix,
+            )
             res = pipeline.run(temp_doc, Document.Status.UDDM_EXTRACTED)
             if not res:
                 QMessageBox.warning(

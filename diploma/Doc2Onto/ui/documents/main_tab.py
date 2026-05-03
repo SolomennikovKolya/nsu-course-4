@@ -41,10 +41,11 @@ class DocumentsCache:
         if key not in self._groups:
             self._groups[key] = []
         self._groups[key].append(doc)
+        self._groups[key].sort(key=lambda d: d.name.lower())
 
     def remove(self, doc: Document):
         for group, docs in list(self._groups.items()):
-            filtered = [d for d in docs if d is not doc and d.name != doc.name]
+            filtered = [d for d in docs if d is not doc and d.id != doc.id]
             if filtered:
                 self._groups[group] = filtered
             else:
@@ -193,7 +194,7 @@ class DocumentsTab(QWidget):
             for j in range(folder.childCount()):
                 item = folder.child(j)
                 item_doc = item.data(0, Qt.ItemDataRole.UserRole)
-                if item_doc is doc_to_select or (item_doc and item_doc.name == doc_to_select.name):
+                if item_doc is doc_to_select or (item_doc and item_doc.id == doc_to_select.id):
                     self._tree.blockSignals(True)
                     self._tree.setCurrentItem(item)
                     self._tree.blockSignals(False)

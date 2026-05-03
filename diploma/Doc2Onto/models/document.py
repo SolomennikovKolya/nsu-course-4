@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from contextlib import contextmanager
 from typing import Optional
 from pathlib import Path
 from enum import StrEnum, auto
 
 from app.context import get_temp_manager
+from app.settings import ORIGINAL_FILE_STEM
 from models.template import TemplateContext
 from core.uddm.model import UDDM
 
@@ -39,8 +40,11 @@ class Document:
             }
             return stages[self]
 
-    name: str                         # Название документа (имя оригинального файла)
+    id: str                           # Уникальный идентификатор документа в системе (имя каталога хранения)
+    original_suffix: str              # Расширение исходного файла (файл: original + suffix в каталоге id)
     directory: Path                   # Директория с документом и его данными
+    name: str                         # Название документа (храится только в мета-файле, используется в UI)
+
     status: Status = Status.UPLOADED  # Статус обработки документа
     doc_class: Optional[str] = None   # Класс документа (название шаблона)
 
@@ -49,40 +53,40 @@ class Document:
 
     # --- пути до промежуточных данных ---
 
-    def original_file_path(self):
-        return self.directory / self.name
+    def original_file_path(self) -> Path:
+        return self.directory / f"{ORIGINAL_FILE_STEM}{self.original_suffix}"
 
-    def uddm_file_path(self):
+    def uddm_file_path(self) -> Path:
         return self.directory / "uddm.xml"
 
-    def plain_text_file_path(self):
+    def plain_text_file_path(self) -> Path:
         return self.directory / "plain_text.txt"
 
-    def uddm_html_view_file_path(self):
+    def uddm_html_view_file_path(self) -> Path:
         return self.directory / "uddm_html_view.html"
 
-    def uddm_tree_view_file_path(self):
+    def uddm_tree_view_file_path(self) -> Path:
         return self.directory / "uddm_tree_view.txt"
 
-    def extraction_result_file_path(self):
+    def extraction_result_file_path(self) -> Path:
         return self.directory / "extraction_result.json"
 
-    def validation_result_file_path(self):
+    def validation_result_file_path(self) -> Path:
         return self.directory / "validation_result.json"
 
-    def draft_graph_file_path(self):
+    def draft_graph_file_path(self) -> Path:
         return self.directory / "draft_graph.json"
 
-    def draft_graph_edits_file_path(self):
+    def draft_graph_edits_file_path(self) -> Path:
         """Правки чернового графа (см. :class:`core.graph.draft_graph.EditedGraph`)."""
         return self.directory / "draft_graph_edits.json"
 
-    def supplementary_facts_ttl_path(self):
+    def supplementary_facts_ttl_path(self) -> Path:
         """Дополнительные факты в Turtle, вносимые пользователем вручную."""
         return self.directory / "supplementary_facts.ttl"
 
-    def rdf_file_path(self):
-        return self.directory / "rdf.ttl"
+    def final_graph_file_path(self) -> Path:
+        return self.directory / "final_graph.ttl"
 
 
 class DocumentContext:
