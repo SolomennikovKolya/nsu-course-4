@@ -184,7 +184,7 @@ class DraftGraph:
             g.add_triple(DraftTriple._from_json_dict(item))
         return g
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path):
         """Сохраняет черновой граф в UTF-8 JSON-файл."""
         path.write_text(
             json.dumps(self._to_json_dict(), ensure_ascii=False, indent=2),
@@ -297,7 +297,7 @@ class EditedGraph:
 
         return eg
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path):
         """Сохраняет правки в UTF-8 JSON (без исходного графа)."""
         path.write_text(
             json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
@@ -305,6 +305,16 @@ class EditedGraph:
         )
 
     @classmethod
-    def load(cls, path: Path, draft: DraftGraph) -> EditedGraph:
+    def load(cls, draft: DraftGraph, edits_path: Path) -> EditedGraph:
         """Загружает правки из UTF-8 JSON и сочетает их с переданным исходным графом."""
-        return cls.from_dict(draft, json.loads(path.read_text(encoding="utf-8")))
+        edits_data = None
+        if edits_path.exists():
+            try:
+                edits_data = json.loads(edits_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        if edits_data:
+            return cls.from_dict(draft, edits_data)
+        else:
+            return cls(draft)

@@ -29,6 +29,7 @@ META_FILENAME = "meta.json"
 ORIGINAL_FILE_STEM = "original"
 
 ONTOLOGY_PATH = ONTOLOGY_DIR / "ontology.ttl"
+ONTOLOGY_SCHEMA_PATH = ONTOLOGY_DIR / "schema.ttl"
 ONTOLOGY_HISTORY_PATH = ONTOLOGY_DIR / "history.json"
 
 APP_LOG_PATH = LOG_DIR / "app.log"

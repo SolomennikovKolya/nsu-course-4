@@ -8,6 +8,9 @@ from app.context import get_temp_manager
 from app.settings import ORIGINAL_FILE_STEM
 from models.template import TemplateContext
 from core.uddm.model import UDDM
+from modules.extractor import ExtractionResult
+from modules.validator import ValidationResult
+from core.graph.draft_graph import DraftGraph
 
 
 @dataclass
@@ -86,6 +89,10 @@ class Document:
     def final_graph_file_path(self) -> Path:
         return self.directory / "final_graph.ttl"
 
+    def ontology_merge_report_file_path(self) -> Path:
+        """Отчёт о перезаписи фактов при слиянии с моделью (для UI)."""
+        return self.directory / "ontology_merge_report.json"
+
 
 class DocumentContext:
     """
@@ -102,6 +109,9 @@ class DocumentContext:
     def __init__(self, doc: Document):
         self.document: Document = doc                         # DTO документа
         self._uddm: Optional[UDDM] = None                     # UDDM документа
+        self._extr_res: Optional[ExtractionResult] = None     # Результат извлечения полей
+        self._val_res: Optional[ValidationResult] = None      # Результат валидации полей
+        self._draft_graph: Optional[DraftGraph] = None        # Черновой граф
         self._template_ctx: Optional[TemplateContext] = None  # Вложенный контекст шаблона
 
     @property
@@ -117,6 +127,48 @@ class DocumentContext:
     @uddm.setter
     def uddm(self, uddm: Optional[UDDM]):
         self._uddm = uddm
+
+    @property
+    def extraction_result(self) -> Optional[ExtractionResult]:
+        if self._extr_res is not None:
+            return self._extr_res
+        try:
+            self._extr_res = ExtractionResult.load(self.document.extraction_result_file_path())
+            return self._extr_res
+        except Exception:
+            return None
+
+    @extraction_result.setter
+    def extraction_result(self, extraction_result: Optional[ExtractionResult]):
+        self._extr_res = extraction_result
+
+    @property
+    def validation_result(self) -> Optional[ValidationResult]:
+        if self._val_res is not None:
+            return self._val_res
+        try:
+            self._val_res = ValidationResult.load(self.document.validation_result_file_path())
+            return self._val_res
+        except Exception:
+            return None
+
+    @validation_result.setter
+    def validation_result(self, validation_result: Optional[ValidationResult]):
+        self._val_res = validation_result
+
+    @property
+    def draft_graph(self) -> Optional[DraftGraph]:
+        if self._draft_graph is not None:
+            return self._draft_graph
+        try:
+            self._draft_graph = DraftGraph.load(self.document.draft_graph_file_path())
+            return self._draft_graph
+        except Exception:
+            return None
+
+    @draft_graph.setter
+    def draft_graph(self, draft_graph: Optional[DraftGraph]):
+        self._draft_graph = draft_graph
 
     @property
     def template_ctx(self) -> Optional[TemplateContext]:
@@ -139,6 +191,9 @@ class DocumentContext:
 
     def unload(self):
         self._uddm = None
+        self._extr_res = None
+        self._val_res = None
+        self._draft_graph = None
         if self._template_ctx:
             self._template_ctx.unload()
             self._template_ctx = None
@@ -154,6 +209,9 @@ def document_context(doc: Document):
     DocumentContext
         ├── document
         ├── uddm
+        ├── extraction_result
+        ├── validation_result
+        ├── draft_graph
         └── template_ctx
                 ├── template
                 ├── code

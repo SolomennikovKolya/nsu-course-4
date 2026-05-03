@@ -72,8 +72,7 @@ class Converter(BaseModule):
             return ModuleResult.ok()
 
         except Exception as ex:
-            self.log_exception()
-            return ModuleResult.failed(message=str(ex))
+            return ModuleResult.failed(message=f"Ошибка конвертации документа: {ex}")
 
     def _convert(self, file_path: Path) -> UDDM:
         # Нормализация (преобразование без потерь)

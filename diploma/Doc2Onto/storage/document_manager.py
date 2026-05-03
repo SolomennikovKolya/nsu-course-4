@@ -5,7 +5,7 @@ from typing import Optional
 
 from app.settings import DOCUMENTS_DIR
 from models.document import ORIGINAL_FILE_STEM, Document
-from infrastructure.storage.base_manager import BaseManager
+from storage.base_manager import BaseManager
 
 
 class DocumentManager(BaseManager[Document, Path]):

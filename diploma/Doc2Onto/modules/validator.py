@@ -179,22 +179,18 @@ class Validator(BaseModule):
 
         tctx = ctx.template_ctx
         if not tctx:
-            self.log(WARNING, f'No template found')
             return ModuleResult.failed(message=f"Не удалось загрузить шаблон")
 
         fields = tctx.fields
         if fields is None or len(fields) == 0:
-            self.log(WARNING, f'No fields found')
             return ModuleResult.failed(message=f"Шаблон не имеет полей")
 
-        try:
-            extr_res = ExtractionResult.load(doc.extraction_result_file_path())
-        except Exception:
-            self.log(WARNING, "Failed to load extraction result", exc_info=True)
+        extr_res = ctx.extraction_result
+        if not extr_res:
             return ModuleResult.failed(message="Не удалось загрузить результат извлечения")
 
-        valid_res = self._validate(fields, extr_res)
-        valid_res.save(doc.validation_result_file_path())
+        ctx.validation_result = self._validate(fields, extr_res)
+        ctx.validation_result.save(doc.validation_result_file_path())
 
         return ModuleResult.ok()
 
@@ -263,7 +259,7 @@ class Validator(BaseModule):
                     result.set_invalid_llm(field.name, error or "LLM определила, что значение некорректно")
 
         except Exception:
-            self.log(WARNING, "LLM validation level failed", exc_info=True)
+            self.log(WARNING, "Непредвиденная ошибка при обработке поля с помощью LLM", exc_info=True)
             for field in fields:
                 data = result.get_field(field.name) or {}
                 if data.get("valid_llm") is None:

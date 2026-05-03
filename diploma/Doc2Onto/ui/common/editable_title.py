@@ -100,7 +100,7 @@ class EditableTitleWidget(QWidget):
         self._edit_btn.setVisible(enabled)
         self._edit_btn.setEnabled(enabled)
 
-    def setToolTip(self, tip: str) -> None:  # type: ignore[override]
+    def setToolTip(self, tip: str):  # type: ignore[override]
         super().setToolTip(tip)
         # self._label.setToolTip(tip)
         self._edit.setToolTip(tip)

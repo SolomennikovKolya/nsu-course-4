@@ -6,7 +6,7 @@ from typing import Optional
 from app.settings import TEMPLATES_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
 from models.template import Template
-from infrastructure.storage.base_manager import BaseManager
+from storage.base_manager import BaseManager
 
 
 class TemplateManager(BaseManager[Template, str]):

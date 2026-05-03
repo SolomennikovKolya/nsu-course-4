@@ -9,6 +9,7 @@ from app.settings import DOCUMENTS_DIR, TEMPLATES_DIR, APP_LOG_PATH
 if TYPE_CHECKING:
     import logging
     from storage.document_manager import DocumentManager
+    from storage.ontology_repository import OntologyRepository
     from storage.template_manager import TemplateManager
     from app.pipeline import Pipeline
 
@@ -21,6 +22,7 @@ class AppContext:
     logger: logging.Logger
     doc_manager: DocumentManager
     temp_manager: TemplateManager
+    ontology_repository: OntologyRepository
     pipeline: Pipeline
 
 
@@ -37,6 +39,9 @@ def init_app_context() -> AppContext:
     _app_context.doc_manager = DocumentManager(DOCUMENTS_DIR)
     from storage.template_manager import TemplateManager
     _app_context.temp_manager = TemplateManager(TEMPLATES_DIR)
+    from storage.ontology_repository import OntologyRepository
+    _app_context.ontology_repository = OntologyRepository()
+    _app_context.ontology_repository.warmup(_app_context.logger)
     from app.pipeline import Pipeline
     _app_context.pipeline = Pipeline()
 
@@ -70,6 +75,10 @@ def get_doc_manager() -> DocumentManager:
 
 def get_temp_manager() -> TemplateManager:
     return _get_context_attr("temp_manager")
+
+
+def get_ontology_repository() -> OntologyRepository:
+    return _get_context_attr("ontology_repository")
 
 
 def get_pipeline() -> Pipeline:

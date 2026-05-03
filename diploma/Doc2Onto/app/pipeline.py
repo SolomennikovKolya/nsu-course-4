@@ -4,7 +4,7 @@ from typing import Optional, Self
 from app.context import get_logger
 from models.document import Document, DocumentContext, document_context
 from modules import Converter, Classifier, Extractor, Validator, GraphBuilder, Connector
-from modules.base import BaseModule
+from modules.base import BaseModule, ModuleResult
 
 
 @dataclass(frozen=True)
@@ -123,9 +123,11 @@ class Pipeline:
                 if bool(result):
                     ctx.document.status = stage.target_status
                 else:
-                    err_msg = getattr(result, "message", None) or "Ошибка обработки"
+                    module_name = stage.module.__class__.__name__
+                    err_msg = result.message or f"Ошибка выполнения модуля {module_name}"
                     ctx.document.pipeline_failed_target = stage.target_status
                     ctx.document.pipeline_error_message = err_msg
+                    self.logger.warning(f"    [{module_name}] " + err_msg, exc_info=True)
                     self.logger.info(f"  Final status: {ctx.document.status}")
                     self.logger.info(f"[Pipeline] code: {PipelineResult.FAILED}")
                     return PipelineResult.failed(message=err_msg, failed_status=stage.target_status)

@@ -20,15 +20,14 @@ class Classifier(BaseModule):
         if doc.doc_class:
             if ctx.template_ctx:
                 temp = ctx.template_ctx.template
-                self.log(INFO, f'Document already classified as "{temp.name}"')
+                self.log(INFO, f'Документ уже классифицирован как "{temp.name}"')
                 return ModuleResult.ok()
 
-            self.log(WARNING, f'Inconsistency: document has template id "{doc.doc_class}" but no template found')
+            self.log(WARNING, f'Несоответствие: документ имеет идентификатор шаблона "{doc.doc_class}" но шаблон не найден')
 
         # Автоматическая классификация
         uddm = ctx.uddm
         if not uddm:
-            self.log(WARNING, "Cannot classify document without UDDM")
             return ModuleResult.failed(message="Автоматическая классификация невозможна без UDDM")
 
         for temp in self.temp_manager.list():
@@ -41,10 +40,9 @@ class Classifier(BaseModule):
                 if code.classify(doc.name, uddm):
                     doc.doc_class = temp.id
                     ctx.template_ctx = tctx
-                    self.log(INFO, f'Document classified as "{temp.name}"')
+                    self.log(INFO, f'Документ классифицирован как "{temp.name}"')
                     return ModuleResult.ok()
             except Exception:
                 continue
 
-        self.log(WARNING, f"No template found to classify document")
         return ModuleResult.failed(message="Не удалось классифицировать документ")

@@ -54,7 +54,7 @@ class DraftBracketNamespace:
 
     __slots__ = ("_ns",)
 
-    def __init__(self, ns: DefinedNamespace) -> None:
+    def __init__(self, ns: DefinedNamespace):
         self._ns = ns
 
     def __getitem__(self, local_name: str) -> DraftNode:
@@ -63,7 +63,7 @@ class DraftBracketNamespace:
 '''
 
 
-def main() -> None:
+def main():
     names = _namespace_names()
 
     parts: list[str] = [_header(names)]
@@ -75,7 +75,7 @@ def main() -> None:
         ann = getattr(cls, "__annotations__", {}) or {}
         terms = [k for k in ann if not k.startswith("_")]
         parts.append(f"\nclass _Draft{name}:\n")
-        parts.append("    def __init__(self) -> None:\n")
+        parts.append("    def __init__(self):\n")
         for t in terms:
             parts.append(f"        self.{t} = _draft_iri({name}.{t})\n")
 
@@ -84,7 +84,7 @@ def main() -> None:
         '    """Явный контейнер стандартных неймспейсов rdflib '
         '(подсветка OUTER.<NS>.<term>)."""\n'
     )
-    parts.append("\n    def __init__(self) -> None:\n")
+    parts.append("\n    def __init__(self):\n")
 
     for name in sorted(names):
         if name in SKIP_DOT:

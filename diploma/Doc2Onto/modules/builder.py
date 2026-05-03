@@ -1,9 +1,6 @@
-from logging import WARNING
-
 from models.document import DocumentContext
 from modules.base import BaseModule, ModuleResult
 from core.graph.template_graph_builder import TemplateGraphBuilder
-from modules.extractor import ExtractionResult
 
 
 class GraphBuilder(BaseModule):
@@ -17,18 +14,14 @@ class GraphBuilder(BaseModule):
 
         tctx = ctx.template_ctx
         if not tctx:
-            self.log(WARNING, f'No template found')
             return ModuleResult.failed(message=f"Не удалось загрузить шаблон")
 
         fields = tctx.fields
         if fields is None or len(fields) == 0:
-            self.log(WARNING, f'No fields found')
             return ModuleResult.failed(message=f"Шаблон не имеет полей")
 
-        try:
-            extr_res = ExtractionResult.load(doc.extraction_result_file_path())
-        except Exception:
-            self.log(WARNING, "Failed to load extraction result", exc_info=True)
+        extr_res = ctx.extraction_result
+        if not extr_res:
             return ModuleResult.failed(message="Не удалось загрузить результат извлечения")
 
         field_values = {field.name: extr_res.get_value_final(field.name) for field in fields}
@@ -37,11 +30,12 @@ class GraphBuilder(BaseModule):
         try:
             tctx.code.build(builder)
         except Exception as ex:
-            self.log_exception()
-            return ModuleResult.failed(message=str(ex))
+            return ModuleResult.failed(message=f"Ошибка построения графа RDF: {ex}")
 
-        builder._get_draft_graph().save(ctx.document.draft_graph_file_path())
+        ctx.draft_graph = builder._get_draft_graph()
+        ctx.draft_graph.save(doc.draft_graph_file_path())
 
+        # Удаляем неактуальные файлы ручных правок
         if doc.draft_graph_edits_file_path().exists():
             doc.draft_graph_edits_file_path().unlink()
         if doc.supplementary_facts_ttl_path().exists():

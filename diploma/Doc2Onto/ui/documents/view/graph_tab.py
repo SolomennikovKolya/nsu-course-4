@@ -302,13 +302,13 @@ class _AdaptiveDetailText(QTextEdit):
         super().showEvent(event)
         QTimer.singleShot(0, self._apply_height_deferred)
 
-    def _apply_height_deferred(self) -> None:
+    def _apply_height_deferred(self):
         if self.viewport().width() < 1:
             return
         self._fit_w = -1
         self._apply_height()
 
-    def _apply_height(self) -> None:
+    def _apply_height(self):
         w = self.viewport().width()
         if w < 1:
             return
@@ -483,12 +483,12 @@ class _TripleRowWidget(QFrame):
 
         self.refresh()
 
-    def _collapse_all_role_details(self) -> None:
+    def _collapse_all_role_details(self):
         for _role, (_edit, _stripe, arrow, details, _inner) in self._role_rows.items():
             details.setVisible(False)
             arrow.setText("▼")
 
-    def _on_node_edit_finished(self) -> None:
+    def _on_node_edit_finished(self):
         if not self._expanded or self._mute_edit_finished:
             return
         self.apply_edits()
@@ -685,11 +685,11 @@ class DocumentViewGraphTab(QWidget):
             w.refresh()
         self._persist_graph()
 
-    def _on_supp_text_changed(self) -> None:
+    def _on_supp_text_changed(self):
         self._persist_timer.stop()
         self._persist_timer.start(500)
 
-    def _persist_graph(self) -> None:
+    def _persist_graph(self):
         if self._loading or self._document is None or self._edited is None:
             return
         try:

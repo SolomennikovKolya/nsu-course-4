@@ -51,7 +51,7 @@ class DraftBracketNamespace:
 
     __slots__ = ("_ns",)
 
-    def __init__(self, ns: DefinedNamespace) -> None:
+    def __init__(self, ns: DefinedNamespace):
         self._ns = ns
 
     def __getitem__(self, local_name: str) -> DraftNode:
@@ -59,7 +59,7 @@ class DraftBracketNamespace:
 
 
 class _DraftCSVW:
-    def __init__(self) -> None:
+    def __init__(self):
         self.aboutUrl = _draft_iri(CSVW.aboutUrl)
         self.base = _draft_iri(CSVW.base)
         self.column = _draft_iri(CSVW.column)
@@ -146,7 +146,7 @@ class _DraftCSVW:
 
 
 class _DraftDC:
-    def __init__(self) -> None:
+    def __init__(self):
         self.contributor = _draft_iri(DC.contributor)
         self.coverage = _draft_iri(DC.coverage)
         self.creator = _draft_iri(DC.creator)
@@ -165,7 +165,7 @@ class _DraftDC:
 
 
 class _DraftDCAM:
-    def __init__(self) -> None:
+    def __init__(self):
         self.domainIncludes = _draft_iri(DCAM.domainIncludes)
         self.memberOf = _draft_iri(DCAM.memberOf)
         self.rangeIncludes = _draft_iri(DCAM.rangeIncludes)
@@ -173,7 +173,7 @@ class _DraftDCAM:
 
 
 class _DraftDCAT:
-    def __init__(self) -> None:
+    def __init__(self):
         self.accessURL = _draft_iri(DCAT.accessURL)
         self.bbox = _draft_iri(DCAT.bbox)
         self.byteSize = _draft_iri(DCAT.byteSize)
@@ -213,7 +213,7 @@ class _DraftDCAT:
 
 
 class _DraftDCMITYPE:
-    def __init__(self) -> None:
+    def __init__(self):
         self.Collection = _draft_iri(DCMITYPE.Collection)
         self.Dataset = _draft_iri(DCMITYPE.Dataset)
         self.Event = _draft_iri(DCMITYPE.Event)
@@ -229,7 +229,7 @@ class _DraftDCMITYPE:
 
 
 class _DraftDCTERMS:
-    def __init__(self) -> None:
+    def __init__(self):
         self.DCMIType = _draft_iri(DCTERMS.DCMIType)
         self.DDC = _draft_iri(DCTERMS.DDC)
         self.IMT = _draft_iri(DCTERMS.IMT)
@@ -329,7 +329,7 @@ class _DraftDCTERMS:
 
 
 class _DraftDOAP:
-    def __init__(self) -> None:
+    def __init__(self):
         self.ArchRepository = _draft_iri(DOAP.ArchRepository)
         self.BKRepository = _draft_iri(DOAP.BKRepository)
         self.BazaarBranch = _draft_iri(DOAP.BazaarBranch)
@@ -376,7 +376,7 @@ class _DraftDOAP:
 
 
 class _DraftFOAF:
-    def __init__(self) -> None:
+    def __init__(self):
         self.account = _draft_iri(FOAF.account)
         self.accountName = _draft_iri(FOAF.accountName)
         self.accountServiceHomepage = _draft_iri(FOAF.accountServiceHomepage)
@@ -455,7 +455,7 @@ class _DraftFOAF:
 
 
 class _DraftGEO:
-    def __init__(self) -> None:
+    def __init__(self):
         self.dggsLiteral = _draft_iri(GEO.dggsLiteral)
         self.geoJSONLiteral = _draft_iri(GEO.geoJSONLiteral)
         self.gmlLiteral = _draft_iri(GEO.gmlLiteral)
@@ -524,7 +524,7 @@ class _DraftGEO:
 
 
 class _DraftODRL2:
-    def __init__(self) -> None:
+    def __init__(self):
         self.action = _draft_iri(ODRL2.action)
         self.andSequence = _draft_iri(ODRL2.andSequence)
         self.assignee = _draft_iri(ODRL2.assignee)
@@ -732,7 +732,7 @@ class _DraftODRL2:
 
 
 class _DraftORG:
-    def __init__(self) -> None:
+    def __init__(self):
         self.basedAt = _draft_iri(ORG.basedAt)
         self.changedBy = _draft_iri(ORG.changedBy)
         self.classification = _draft_iri(ORG.classification)
@@ -781,7 +781,7 @@ class _DraftORG:
 
 
 class _DraftOWL:
-    def __init__(self) -> None:
+    def __init__(self):
         self.allValuesFrom = _draft_iri(OWL.allValuesFrom)
         self.annotatedProperty = _draft_iri(OWL.annotatedProperty)
         self.annotatedSource = _draft_iri(OWL.annotatedSource)
@@ -864,7 +864,7 @@ class _DraftOWL:
 
 
 class _DraftPROF:
-    def __init__(self) -> None:
+    def __init__(self):
         self.Profile = _draft_iri(PROF.Profile)
         self.ResourceDescriptor = _draft_iri(PROF.ResourceDescriptor)
         self.ResourceRole = _draft_iri(PROF.ResourceRole)
@@ -878,7 +878,7 @@ class _DraftPROF:
 
 
 class _DraftPROV:
-    def __init__(self) -> None:
+    def __init__(self):
         self.activityOfInfluence = _draft_iri(PROV.activityOfInfluence)
         self.agentOfInfluence = _draft_iri(PROV.agentOfInfluence)
         self.contributed = _draft_iri(PROV.contributed)
@@ -1052,7 +1052,7 @@ class _DraftPROV:
 
 
 class _DraftQB:
-    def __init__(self) -> None:
+    def __init__(self):
         self.attribute = _draft_iri(QB.attribute)
         self.codeList = _draft_iri(QB.codeList)
         self.component = _draft_iri(QB.component)
@@ -1092,7 +1092,7 @@ class _DraftQB:
 
 
 class _DraftRDF:
-    def __init__(self) -> None:
+    def __init__(self):
         self.nil = _draft_iri(RDF.nil)
         self.direction = _draft_iri(RDF.direction)
         self.first = _draft_iri(RDF.first)
@@ -1118,7 +1118,7 @@ class _DraftRDF:
 
 
 class _DraftRDFS:
-    def __init__(self) -> None:
+    def __init__(self):
         self.comment = _draft_iri(RDFS.comment)
         self.domain = _draft_iri(RDFS.domain)
         self.isDefinedBy = _draft_iri(RDFS.isDefinedBy)
@@ -1137,7 +1137,7 @@ class _DraftRDFS:
 
 
 class _DraftSH:
-    def __init__(self) -> None:
+    def __init__(self):
         self.alternativePath = _draft_iri(SH.alternativePath)
         self.annotationProperty = _draft_iri(SH.annotationProperty)
         self.annotationValue = _draft_iri(SH.annotationValue)
@@ -1319,7 +1319,7 @@ class _DraftSH:
 
 
 class _DraftSKOS:
-    def __init__(self) -> None:
+    def __init__(self):
         self.altLabel = _draft_iri(SKOS.altLabel)
         self.broadMatch = _draft_iri(SKOS.broadMatch)
         self.broader = _draft_iri(SKOS.broader)
@@ -1355,7 +1355,7 @@ class _DraftSKOS:
 
 
 class _DraftSOSA:
-    def __init__(self) -> None:
+    def __init__(self):
         self.ActuatableProperty = _draft_iri(SOSA.ActuatableProperty)
         self.Actuation = _draft_iri(SOSA.Actuation)
         self.Actuator = _draft_iri(SOSA.Actuator)
@@ -1400,7 +1400,7 @@ class _DraftSOSA:
 
 
 class _DraftSSN:
-    def __init__(self) -> None:
+    def __init__(self):
         self.Deployment = _draft_iri(SSN.Deployment)
         self.Input = _draft_iri(SSN.Input)
         self.Output = _draft_iri(SSN.Output)
@@ -1425,7 +1425,7 @@ class _DraftSSN:
 
 
 class _DraftTIME:
-    def __init__(self) -> None:
+    def __init__(self):
         self.generalDay = _draft_iri(TIME.generalDay)
         self.generalMonth = _draft_iri(TIME.generalMonth)
         self.generalYear = _draft_iri(TIME.generalYear)
@@ -1524,7 +1524,7 @@ class _DraftTIME:
 
 
 class _DraftVANN:
-    def __init__(self) -> None:
+    def __init__(self):
         self.changes = _draft_iri(VANN.changes)
         self.example = _draft_iri(VANN.example)
         self.preferredNamespacePrefix = _draft_iri(VANN.preferredNamespacePrefix)
@@ -1534,7 +1534,7 @@ class _DraftVANN:
 
 
 class _DraftVOID:
-    def __init__(self) -> None:
+    def __init__(self):
         self.classPartition = _draft_iri(VOID.classPartition)
         self.classes = _draft_iri(VOID.classes)
         self.dataDump = _draft_iri(VOID.dataDump)
@@ -1568,7 +1568,7 @@ class _DraftVOID:
 
 
 class _DraftWGS:
-    def __init__(self) -> None:
+    def __init__(self):
         self.SpatialThing = _draft_iri(WGS.SpatialThing)
         self.Point = _draft_iri(WGS.Point)
         self.alt = _draft_iri(WGS.alt)
@@ -1579,7 +1579,7 @@ class _DraftWGS:
 
 
 class _DraftXSD:
-    def __init__(self) -> None:
+    def __init__(self):
         self.ENTITIES = _draft_iri(XSD.ENTITIES)
         self.ENTITY = _draft_iri(XSD.ENTITY)
         self.ID = _draft_iri(XSD.ID)
@@ -1657,7 +1657,7 @@ class _DraftXSD:
 class RdfLibDraftOuter:
     """Явный контейнер стандартных неймспейсов rdflib (подсветка OUTER.<NS>.<term>)."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.BRICK = DraftBracketNamespace(BRICK)
         self.CSVW = _DraftCSVW()
         self.DC = _DraftDC()

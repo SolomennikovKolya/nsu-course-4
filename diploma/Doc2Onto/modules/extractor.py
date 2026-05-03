@@ -216,21 +216,18 @@ class Extractor(BaseModule):
 
         uddm = ctx.uddm
         if not uddm:
-            self.log(WARNING, f"No UDDM found")
-            return ModuleResult.failed(message="Не удалось загрузить UDDM")
+            return ModuleResult.failed(message="Автоматическое извлечение полей невозможно без UDDM")
 
         tctx = ctx.template_ctx
         if not tctx:
-            self.log(WARNING, f"No template found")
             return ModuleResult.failed(message="Не удалось загрузить шаблон")
 
         fields = tctx.fields
         if not fields:
-            self.log(WARNING, f"No fields found")
             return ModuleResult.failed(message="Не удалось получить поля из кода шаблона")
 
-        extr_res = self._extract(fields, uddm)
-        extr_res.save(doc.extraction_result_file_path())
+        ctx.extraction_result = self._extract(fields, uddm)
+        ctx.extraction_result.save(doc.extraction_result_file_path())
 
         return ModuleResult.ok()
 
@@ -305,7 +302,7 @@ class Extractor(BaseModule):
                     result.set_error_llm(field.name, error or "LLM определила, что значение некорректно")
 
         except Exception:
-            self.log(WARNING, "Unexpected error in LLM fallback", exc_info=True)
+            self.log(WARNING, "Непредвиденная ошибка при обработке поля с помощью LLM", exc_info=True)
             for field in fields:
                 data = result.get_field(field.name) or {}
                 if data.get("extracted_llm") is None:
