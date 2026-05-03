@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from typing import Callable, Dict, List, Optional, Tuple
+from urllib.parse import urldefrag
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QFontMetrics
@@ -38,6 +40,36 @@ def _warn_color(level: int) -> str:
     if level == 1:
         return UI_COLOR_YELLOW
     return UI_COLOR_RED
+
+
+def _triple_type_badge_text(tt: DraftTriple.Type) -> str:
+    m = {
+        DraftTriple.Type.TYPE: "тип",
+        DraftTriple.Type.OBJECT_PROPERTY: "объектное св-во",
+        DraftTriple.Type.DATA_PROPERTY: "дата-свойство",
+    }
+    return f"({m[tt]})"
+
+
+def _role_titles_for_triple_type(tt: DraftTriple.Type) -> Dict[str, str]:
+    if tt == DraftTriple.Type.TYPE:
+        return {
+            "subject": "Экземпляр:",
+            "predicate": "Тип:",
+            "object": "Класс:",
+        }
+    if tt == DraftTriple.Type.OBJECT_PROPERTY:
+        return {
+            "subject": "Экземпляр:",
+            "predicate": "Объектное св-во:",
+            "object": "Экземпляр:",
+        }
+    if tt == DraftTriple.Type.DATA_PROPERTY:
+        return {
+            "subject": "Экземпляр:",
+            "predicate": "Дата-свойство:",
+            "object": "Литерал:",
+        }
 
 
 def _extraction_warn_level(
@@ -133,12 +165,26 @@ def _draft_node_from_n3_input(kind: DraftNode.Type, n3_text: str, source: Option
     t = (n3_text or "").strip()
     if not t or t == "—":
         return DraftNode(kind, None, None, source)
+
     try:
         parsed = from_n3(t)
         if kind == DraftNode.Type.IRI and not isinstance(parsed, URIRef):
             return DraftNode(kind, None, "ожидался IRI", source)
         if kind == DraftNode.Type.LITERAL and not isinstance(parsed, Literal):
             return DraftNode(kind, None, "ожидался литерал", source)
+
+        if isinstance(parsed, URIRef):
+            u = str(parsed)
+            if u.endswith("#"):
+                frag = urldefrag(u).fragment
+                if frag == "":
+                    return DraftNode(
+                        kind,
+                        None,
+                        "IRI задаёт только пространство имён (# без локального имени сущности)",
+                        source,
+                    )
+
         return DraftNode(kind, parsed, None, source)
     except Exception as ex:
         return DraftNode(kind, None, str(ex), source)
@@ -333,6 +379,14 @@ class _TripleRowWidget(QFrame):
         self._summary.setFont(mono)
         head.addWidget(self._summary, stretch=1)
 
+        self._type_badge = QLabel(_triple_type_badge_text(self._triple_type))
+        self._type_badge.setFont(mono)
+        self._type_badge.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._type_badge.setStyleSheet("color: gray;")
+        head.addWidget(self._type_badge)
+
         self._toggle = QPushButton("▼")
         self._toggle.setFixedWidth(28)
         self._toggle.clicked.connect(self._on_toggle)
@@ -345,15 +399,25 @@ class _TripleRowWidget(QFrame):
         body_lay.setContentsMargins(0, 8, 0, 0)
 
         fm_role = QFontMetrics(mono)
-        role_label_w = max(
-            fm_role.horizontalAdvance("Субъект:"),
-            fm_role.horizontalAdvance("Предикат:"),
-            fm_role.horizontalAdvance("Объект:"),
-        ) - 8
+        role_label_w = (
+            max(
+                fm_role.horizontalAdvance(lbl)
+                for lbl in (
+                    "Экземпляр:",
+                    "Объектное св-во:",
+                    "Тип:",
+                    "Класс:",
+                    "Дата-свойство:",
+                    "Литерал:",
+                )
+            ) - 32
+        )
 
         self._role_rows: Dict[str, Tuple[QLineEdit, QFrame, QPushButton, QWidget, QWidget]] = {}
 
-        for role, title in (("subject", "Субъект:"), ("predicate", "Предикат:"), ("object", "Объект:")):
+        role_titles = _role_titles_for_triple_type(self._triple_type)
+        for role in ("subject", "predicate", "object"):
+            title = role_titles[role]
             role_fr = QFrame()
             role_fr.setFrameShape(QFrame.Shape.StyledPanel)
             rl = QVBoxLayout(role_fr)
