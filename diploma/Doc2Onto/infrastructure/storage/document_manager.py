@@ -1,7 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from app.settings import DOCUMENTS_DIR
 from models.document import ORIGINAL_FILE_STEM, Document
@@ -49,7 +49,6 @@ class DocumentManager(BaseManager[Document, Path]):
             name=meta.get("name") or "",
         )
         self._apply_meta_to_document(doc, meta)
-        self._resolve_doc_class_to_template_id(doc)
         return doc
 
     def add(self, file_path: Path) -> Document:
@@ -115,7 +114,6 @@ class DocumentManager(BaseManager[Document, Path]):
         doc.directory = directory
         doc.original_suffix = meta["original_suffix"]
         self._apply_meta_to_document(doc, meta)
-        self._resolve_doc_class_to_template_id(doc)
         return True
 
     def is_file_exists(self, file_path: Path) -> bool:
@@ -172,18 +170,3 @@ class DocumentManager(BaseManager[Document, Path]):
             return Document.Status(status)
         except ValueError:
             return None
-
-    def _resolve_doc_class_to_template_id(self, doc: Document) -> None:
-        """Если в meta сохранено старое значение doc_class (имя шаблона), заменяем на ID шаблона."""
-        if not doc.doc_class:
-            return
-        from app.context import get_temp_manager
-
-        tm = get_temp_manager()
-        if tm.get(doc.doc_class):
-            return
-        for t in tm.list():
-            if t.name == doc.doc_class:
-                doc.doc_class = t.id
-                self.save_metadata(doc)
-                return

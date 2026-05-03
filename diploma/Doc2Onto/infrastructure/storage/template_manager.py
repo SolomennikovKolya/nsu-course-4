@@ -1,7 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 from app.settings import TEMPLATES_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
@@ -39,7 +39,6 @@ class TemplateManager(BaseManager[Template, str]):
         if not meta:
             return None
 
-        directory, meta = self._maybe_migrate_legacy(directory, meta)
         if not self._is_directory_valid(directory, meta):
             return None
 
@@ -101,29 +100,6 @@ class TemplateManager(BaseManager[Template, str]):
             directory=directory,
             description=str(meta["description"]) if meta.get("description") else None,
         )
-
-    def _maybe_migrate_legacy(self, directory: Path, meta: dict) -> Tuple[Path, dict]:
-        """
-        Старый формат: каталог назывался по имени шаблона.
-        Переносим в каталог UUID, в meta добавляем id.
-        """
-        if meta.get("id") == directory.name and (directory / "code.py").is_file():
-            return directory, meta
-
-        folder = directory.name
-        if meta.get("name") != folder:
-            return directory, meta
-        if not (directory / "code.py").is_file():
-            return directory, meta
-
-        new_id = str(uuid.uuid4())
-        new_dir = self.base_dir / new_id
-        directory.rename(new_dir)
-        meta = dict(meta)
-        meta["id"] = new_id
-        meta["directory"] = str(new_dir)
-        self._save_meta(new_dir, meta)
-        return new_dir, meta
 
     def _is_directory_valid(self, directory: Path, meta: dict) -> bool:
         if not meta.get("id") or meta["id"] != directory.name:
