@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox
 )
 
-from app.context import get_pipeline, get_doc_manager
+from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
 from models.document import Document
 from modules.converter.converter import ConverterRegistry
@@ -53,7 +53,10 @@ class DocumentsCache:
 
     @staticmethod
     def _group_key(doc: Document) -> str:
-        return doc.doc_class if doc.doc_class else "Без класса"
+        if not doc.doc_class:
+            return "Без класса"
+        t = get_temp_manager().get(doc.doc_class)
+        return t.name if t else "Неизвестный класс"
 
     def sync_all_from_metadata(self, doc_manager):
         """Перечитывает meta.json для всех закешированных документов и пересобирает группы."""

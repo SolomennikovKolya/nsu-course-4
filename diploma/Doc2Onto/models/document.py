@@ -46,7 +46,7 @@ class Document:
     name: str                         # Название документа (храится только в мета-файле, используется в UI)
 
     status: Status = Status.UPLOADED  # Статус обработки документа
-    doc_class: Optional[str] = None   # Класс документа (название шаблона)
+    doc_class: Optional[str] = None   # Класс документа (ID шаблона)
 
     pipeline_failed_target: Optional[Status] = None  # Статус шага, на котором пайплайн остановился с ошибкой
     pipeline_error_message: Optional[str] = None     # Сообщение об ошибке пайплайна
@@ -78,11 +78,9 @@ class Document:
         return self.directory / "draft_graph.json"
 
     def draft_graph_edits_file_path(self) -> Path:
-        """Правки чернового графа (см. :class:`core.graph.draft_graph.EditedGraph`)."""
         return self.directory / "draft_graph_edits.json"
 
     def supplementary_facts_ttl_path(self) -> Path:
-        """Дополнительные факты в Turtle, вносимые пользователем вручную."""
         return self.directory / "supplementary_facts.ttl"
 
     def final_graph_file_path(self) -> Path:

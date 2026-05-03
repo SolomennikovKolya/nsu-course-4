@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, List
 import importlib.util
 import sys
-from typing import Optional
 
 from app.context import get_logger
 from core.template.base import BaseTemplateCode
@@ -14,8 +13,9 @@ from core.template.field import Field
 class Template:
     """Представляет информацию о шаблоне обработки документов."""
 
-    name: str                          # Название шаблона (класс документа)
+    id: str                            # Уникальный идентификатор (имя каталога хранения)
     directory: Path                    # Директория, где хранятся данные шаблона
+    name: str                          # Отображаемое название / класс документа
     description: Optional[str] = None  # Описание шаблона
 
     def code_file_path(self):
@@ -101,7 +101,7 @@ class TemplateCodeLoader:
             if not code_path.exists():
                 raise FileNotFoundError(f"Code file not found for template")
 
-            module_name = f"template_{template.name.replace(' ', '_')}"
+            module_name = f"template_{template.id.replace('-', '_')}"
 
             spec = importlib.util.spec_from_file_location(module_name, code_path)
             if spec is None or spec.loader is None:

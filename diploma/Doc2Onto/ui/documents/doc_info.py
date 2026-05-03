@@ -59,8 +59,8 @@ class DocumentInfoWidget(QWidget):
         self._class_combo = QComboBox()
         self._class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._class_combo.addItem("Класс не определён", None)
-        for doc_class in self._temp_manager.doc_classes_list():
-            self._class_combo.addItem(doc_class, doc_class)
+        for t in self._temp_manager.list():
+            self._class_combo.addItem(t.name, t.id)
 
         self._class_combo.currentIndexChanged.connect(self._on_change_class)
         page_layout.addWidget(self._class_combo, 1)
@@ -264,8 +264,8 @@ class DocumentInfoWidget(QWidget):
         self._class_combo.clear()
         self._class_combo.addItem("Класс не определён", None)
 
-        for doc_class in self._temp_manager.doc_classes_list():
-            self._class_combo.addItem(doc_class, doc_class)
+        for t in self._temp_manager.list():
+            self._class_combo.addItem(t.name, t.id)
 
         if self._document is not None:
             index = self._class_combo.findData(self._document.doc_class)

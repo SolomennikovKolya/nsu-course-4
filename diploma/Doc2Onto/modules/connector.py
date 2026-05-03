@@ -11,7 +11,6 @@ class Connector(BaseModule):
     def execute(self, ctx: DocumentContext) -> ModuleResult:
         try:
             raise NotImplementedError("Модуль не реализован")
-            return ModuleResult.ok()
 
         except Exception as ex:
             self.log_exception()

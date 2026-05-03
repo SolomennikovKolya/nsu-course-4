@@ -17,12 +17,12 @@ class GraphBuilder(BaseModule):
 
         tctx = ctx.template_ctx
         if not tctx:
-            self.log(WARNING, f'Template "{doc.doc_class}" not found')
+            self.log(WARNING, f'No template found')
             return ModuleResult.failed(message=f"Не удалось загрузить шаблон")
 
         fields = tctx.fields
         if fields is None or len(fields) == 0:
-            self.log(WARNING, f'Template "{tctx.template.name}" has no fields')
+            self.log(WARNING, f'No fields found')
             return ModuleResult.failed(message=f"Шаблон не имеет полей")
 
         try:

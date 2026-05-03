@@ -32,6 +32,14 @@ class BaseManager(ABC, Generic[T, A]):
     def delete(self, obj: T):
         pass
 
+    @abstractmethod
+    def rename(self, obj: T, new_name: str):
+        pass
+
+    @abstractmethod
+    def delete(self, obj: T):
+        pass
+
     def iterate(self) -> Iterator[T]:
         """Итератор по всем объектам."""
         if not self.base_dir.exists():

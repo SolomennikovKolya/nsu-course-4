@@ -187,11 +187,13 @@ class TemplateInfoWidget(QWidget):
     def set_template(self, template: Optional[Template]):
         self.template = template
         if template is None:
+            self.title.setToolTip("")
             self.stack.setCurrentIndex(0)
             return
 
         self.stack.setCurrentIndex(1)
         self._loading_fields = True
+        self.title.setToolTip(f"ID: {template.id}")
         self.title.set_value(template.name)
         description = template.description or ""
         self.description_edit.setPlainText(description)
@@ -222,13 +224,8 @@ class TemplateInfoWidget(QWidget):
         if new_name == self.template.name:
             return
 
-        old_name = self.template.name
         try:
-            docs_with_old_name = [doc for doc in get_doc_manager().iterate() if doc.doc_class == old_name]
             self.temp_manager.rename(self.template, new_name)
-            for doc in docs_with_old_name:
-                doc.doc_class = new_name
-                get_doc_manager().save_metadata(doc)
             self.template_name_changed.emit(self.template)
         except Exception as exc:
             QMessageBox.warning(self, APP_NAME, str(exc))

@@ -33,7 +33,7 @@ class TemplatesCache:
         self._items.append(template)
 
     def remove(self, template: Template):
-        self._items = [t for t in self._items if t is not template and t.name != template.name]
+        self._items = [t for t in self._items if t is not template and t.id != template.id]
 
 
 class TemplatesTab(QWidget):
@@ -85,20 +85,20 @@ class TemplatesTab(QWidget):
         if not ok or not name:
             return
 
-        if name in self._temp_manager.doc_classes_list():
+        if any(t.name == name for t in self._temp_manager.list()):
             QMessageBox.critical(self, APP_NAME, "Шаблон с таким именем уже существует.")
             return
 
         temp = self._temp_manager.add(name)
         self._temps_cache.add_or_update(temp)
-        self._refresh_list(temp_to_select=temp.name)
+        self._refresh_list(temp_to_select=temp.id)
         self.templates_changed.emit()
 
     def _refresh_list(self, temp_to_select: Optional[str] = None):
         self._list.clear()
         for i, temp in enumerate(self._temps_cache.items()):
             self._list.addItem(temp.name)
-            if temp.name == temp_to_select:
+            if temp.id == temp_to_select:
                 self._list.setCurrentRow(i)
 
     def _on_temp_selection_changed(self):
@@ -115,7 +115,7 @@ class TemplatesTab(QWidget):
 
     def _on_temp_name_changed(self, temp: Template):
         self._temps_cache.add_or_update(temp)
-        self._refresh_list(temp_to_select=temp.name)
+        self._refresh_list(temp_to_select=temp.id)
         self.templates_changed.emit()
 
     def _on_temp_deleted(self):

@@ -49,25 +49,8 @@ class DocumentManager(BaseManager[Document, Path]):
             name=meta.get("name") or "",
         )
         self._apply_meta_to_document(doc, meta)
+        self._resolve_doc_class_to_template_id(doc)
         return doc
-
-    def reload_metadata(self, doc: Document) -> bool:
-        """Обновляет данные уже существующего объекта Document данными из метафайла."""
-        directory = doc.directory
-        meta = self._load_meta(directory)
-        if not meta:
-            return False
-
-        valid = self._is_directory_valid(directory, meta)
-        if not valid:
-            return False
-
-        doc.id = meta["id"]
-        doc.name = meta.get("name") or ""
-        doc.directory = directory
-        doc.original_suffix = meta["original_suffix"]
-        self._apply_meta_to_document(doc, meta)
-        return True
 
     def add(self, file_path: Path) -> Document:
         """Добавляет новый документ в систему."""
@@ -115,6 +98,25 @@ class DocumentManager(BaseManager[Document, Path]):
 
         doc.name = new_name
         self.save_metadata(doc)
+
+    def reload_metadata(self, doc: Document) -> bool:
+        """Обновляет данные уже существующего объекта Document данными из метафайла."""
+        directory = doc.directory
+        meta = self._load_meta(directory)
+        if not meta:
+            return False
+
+        valid = self._is_directory_valid(directory, meta)
+        if not valid:
+            return False
+
+        doc.id = meta["id"]
+        doc.name = meta.get("name") or ""
+        doc.directory = directory
+        doc.original_suffix = meta["original_suffix"]
+        self._apply_meta_to_document(doc, meta)
+        self._resolve_doc_class_to_template_id(doc)
+        return True
 
     def is_file_exists(self, file_path: Path) -> bool:
         """Проверяет, существует ли в системе документ с тем же содержимым исходного файла."""
@@ -170,3 +172,18 @@ class DocumentManager(BaseManager[Document, Path]):
             return Document.Status(status)
         except ValueError:
             return None
+
+    def _resolve_doc_class_to_template_id(self, doc: Document) -> None:
+        """Если в meta сохранено старое значение doc_class (имя шаблона), заменяем на ID шаблона."""
+        if not doc.doc_class:
+            return
+        from app.context import get_temp_manager
+
+        tm = get_temp_manager()
+        if tm.get(doc.doc_class):
+            return
+        for t in tm.list():
+            if t.name == doc.doc_class:
+                doc.doc_class = t.id
+                self.save_metadata(doc)
+                return
