@@ -8,8 +8,8 @@ from app.settings import DOCUMENTS_DIR, TEMPLATES_DIR, APP_LOG_PATH
 # чтобы избежать циклических зависимостей
 if TYPE_CHECKING:
     import logging
-    from infrastructure.storage.document_manager import DocumentManager
-    from infrastructure.storage.template_manager import TemplateManager
+    from storage.document_manager import DocumentManager
+    from storage.template_manager import TemplateManager
     from app.pipeline import Pipeline
 
 _app_context: Optional["AppContext"] = None
@@ -33,9 +33,9 @@ def init_app_context() -> AppContext:
 
     from app.logger import create_app_logger
     _app_context.logger = create_app_logger(APP_LOG_PATH)
-    from infrastructure.storage.document_manager import DocumentManager
+    from storage.document_manager import DocumentManager
     _app_context.doc_manager = DocumentManager(DOCUMENTS_DIR)
-    from infrastructure.storage.template_manager import TemplateManager
+    from storage.template_manager import TemplateManager
     _app_context.temp_manager = TemplateManager(TEMPLATES_DIR)
     from app.pipeline import Pipeline
     _app_context.pipeline = Pipeline()
