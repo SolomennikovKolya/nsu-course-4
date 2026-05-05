@@ -22,21 +22,17 @@ class Connector(BaseModule):
         if not doc.doc_class:
             return ModuleResult.failed(message="Не задан класс документа")
 
-        draft_path = doc.draft_graph_file_path()
-        if not draft_path.exists():
-            return ModuleResult.failed(message=f"Черновой граф не найден: {draft_path}")
-
         draft_graph = ctx.draft_graph
         if not draft_graph:
             return ModuleResult.failed(message="Черновой граф не найден")
 
-        edited_graph = EditedGraph.load(draft_graph, doc.draft_graph_edits_file_path())
+        draft_and_edits = EditedGraph.load(draft_graph, doc.draft_graph_edits_file_path())
 
-        modified = edited_graph.build_modified_graph()
-        if not modified.is_complete():
+        moded_graph = draft_and_edits.build_modified_graph()
+        if not moded_graph.is_complete():
             return ModuleResult.failed(message="Извлечённый граф неполный")
 
-        rdf_doc = modified.get_rdf_graph()
+        rdf_doc = moded_graph.get_rdf_graph()
         if rdf_doc is None:
             return ModuleResult.failed(message="Не удалось построить RDF-граф из графа")
 

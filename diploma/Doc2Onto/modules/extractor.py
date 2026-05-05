@@ -5,7 +5,7 @@ from typing import List
 from app.agents import ask_gpt, read_prompt
 from app.utils import parse_dict_field
 from app.settings import EXTRACT_FIELDS_SYS_PROMPT_PATH, EXTRACT_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
-from core.template.field import Field
+from core.fields.field import Field
 from core.uddm.model import UDDM
 from models.document import DocumentContext
 from models.extraction_result import ExtractionResult

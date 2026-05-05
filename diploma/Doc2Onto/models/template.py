@@ -6,7 +6,7 @@ import sys
 
 from app.context import get_logger
 from core.template.base import BaseTemplateCode
-from core.template.field import Field
+from core.fields.field import Field
 
 
 @dataclass

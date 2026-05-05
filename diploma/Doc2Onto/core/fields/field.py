@@ -1,8 +1,6 @@
-from enum import StrEnum
-
-from core.template.field_selector import FieldSelector
-from core.template.field_extractor import FieldExtractor
-from core.template.field_validator import FieldValidator
+from core.fields.field_selector import FieldSelector
+from core.fields.field_extractor import FieldExtractor
+from core.fields.field_validator import FieldValidator
 
 
 class Field:

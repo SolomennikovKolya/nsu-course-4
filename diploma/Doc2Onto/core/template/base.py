@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from core.template.field import Field
+from core.fields.field import Field
 from core.uddm.model import UDDM
 from core.graph.template_graph_builder import TemplateGraphBuilder
 

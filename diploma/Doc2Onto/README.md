@@ -1,86 +1,107 @@
 
 ### Инструкция по запуску
-1. `py -3.11 -m venv .venv` - создание окружения для python (необходима версия 3.11)
-2. `.venv\Scripts\activate` - активация окружения
-3. `python -m pip install --upgrade pip setuptools wheel` - обновление инструментов python
-4. `pip install -r requirements.txt` - установка всех необходимых библиотек
-5. `setx [variable_name] "[variable_value]"` - установка переменных среды (см. необходимые переменные в `.env.example`)
-6. Для предпросмотра документов, требуется установить LibreOffice
-7. `python main.py` - запуск всего приложения
+1. `py -3.11 -m venv .venv` — создание окружения (нужен Python 3.11)
+2. `.venv\Scripts\activate` — активация окружения
+3. `python -m pip install --upgrade pip setuptools wheel` — обновление инструментов
+4. `pip install -r requirements.txt` — зависимости
+5. Скопируйте `.env.example` в `.env` и задайте переменные (как минимум ключ API для агентов, если используется)
+6. Для предпросмотра документов может потребоваться LibreOffice (см. конвертер)
+7. `python main.py` — запуск приложения
 
 ### Структура проекта
 ```python
 Doc2Onto/
+├── main.py                            # Точка входа
+├── README.md                          # Этот файл
+├── requirements.txt                   # Зависимости
+├── .env.example                       # Пример переменных окружения
 │
-├── "README.md"                                # Этот файл
-├── "requirements.txt"                         # Зависимости
-├── "main.py"                                  # Точка входа
+├── app/                               # << Оркестрация приложения >>
+│   ├── pipeline.py                    # Пайплайн обработки документов
+│   ├── context.py                     # Глобальный контекст (логгер, менеджеры, ontology_repository)
+│   ├── settings.py                    # Пути (.data, ресурсы), константы
+│   ├── agents.py                      # Вызов LLM
+│   ├── logger.py                      # Логгеры
+│   └── utils.py                       # Утилиты
 │
-├── app/                                       # Уровень приложения (оркестрация)
-│   ├── "pipeline.py"                          # Пайплайн - центр управления модулями
-│   ├── "context.py"                           # Контекст приложения
-│   ├── "logger.py"                            # Логгер
-│   └── "utils.py"                             # Утилиты
+├── models/                            # << DTO >>
+│   ├── document.py                    # Документ + контекст для пайплайна 
+│   ├── template.py                    # Шаблон + контекст для пайплайна + загрузчик кода шаблона
+│   ├── extraction_result.py           # Результат экстрактора
+│   └── validation_result.py           # Результат валидатора
 │
-├── core/                                      # Ядро логики (всё что используется в шаблонах)
-│   ├── "document.py"                          # Модель документа
-│   ├── "uddm.py"                              # Объектная модель документа в формате UDDM
-│   ├── "schema.xsd"                           # Схема, описывающая структуру любого UDDM файла
-│   └── "template/"
-│       ├── "template.py"                      # Модель шаблона
-│       ├── "base.py"                          # Контракт кода шаблона
-│       ├── "field_selector.py"                # DSL описания выбора текста
-│       ├── "field_extractor.py"               # DSL описания извлечения термов
-│       ├── "field_validator.py"               # DSL описания валидации термов
-│       └── "example.py"                       # Пример кода шаблона
+├── modules/                           # << Шаги пайплайна >>
+│   ├── base.py                        # Базовый модуль + результат выполнения модуля
+│   ├── converter/                     # Конвертер (со всеми специализированными конвертерами)
+│   ├── classifier.py                  # Классификатор
+│   ├── extractor.py                   # Экстрактор
+│   ├── validator.py                   # Валидатор
+│   ├── builder.py                     # Сборщик
+│   └── connector.py                   # Коннектор
 │
-├── modules/                                   # Модули
-│   ├── "base.py"                              # Определение абстрактного BaseModule
-│   ├── "converter/"                       
-│   │   ├── "converter.py"                     # Конвертер
-│   │   ├── "registry.py"                      # Регистр всех поддерживаемых форматов
-│   │   ├── "internal/"                        # Внутренние конвертеры
-│   │   ├── "external/"                        # Внешние конвертеры
-│   │   ├── "nornalizers/"                     # Lossless нормализаторы форматов
-│   │   └── "reverse/"                         # Конвертеры из UDDM в текстовые форматы
-│   ├── "classifier.py"                        # Классификатор
-│   ├── extractor.py                           # Экстрактор знаний
-│   ├── validator.py                           # Валидатор
-│   ├── triple_builder.py                      # Сборщик триплетов
-│   └── connector.py                           # Коннектор
+├── core/                              # << Ядро (всё оно используезся в коде шаблона) >>
+│   ├── template/                      # База шаблона
+│   │   └── base.py                    # Контракт кода шаблона
+│   ├── uddm/                          # Унифицированный формат представления документов
+│   │   ├── model.py                   # Все элементы UDDM
+│   │   ├── schema.xsd                 # Схема хранения UDDM
+│   │   └── algorithms.py              # Дополнительные алгоритмы для работы с UDDM
+│   ├── fields/                        # DSL для построения полей
+│   │   ├── field.py                   # Определение поля
+│   │   ├── field_selector.py          # Селектор поля
+│   │   ├── field_extractor.py         # Экстрактор поля
+│   │   └── field_validator.py         # Валидатор поля
+│   └── graph/                         # DSL для построения графа
+│       ├── template_graph_builder.py  # Сборщик графа
+│       ├── draft_graph.py             # Описания промежуточного графового представления
+│       ├── rdflib_draft_outer.py      # Обёртка для интеграции draft-графа с rdflib
+│       └── value_transformer.py       # Преобразование значений полей для построения графа
 │
-├── ui/                                        # GUI (PySide6)
-│   ├── "main_window.py"                       # Главное окно
-│   ├── "documents/"
-│   │   ├── "documents_tab.py"                 # Вкладка для работы с документами
-│   │   ├── "document_info.py"                 # Правая часть documents_tab
-│   │   └── "status_progress.py"               # Виджет с прогресс баром статуса обработки документа
-│   └── templates/
-│       ├── "templates_tab.py"                 # Вкладка для работы с шаблонами
-│       └── template_editor.py
+├── storage/                           # << Работа с файлами >>
+│   ├── base_manager.py                # Базовый менеджер хранилища
+│   ├── document_manager.py            # Менеджер документов
+│   ├── template_manager.py            # Менеджер шаблонов
+│   └── ontology_repository.py         # Управление и сборка онтологии
 │
-├── infrastructure/                            # Работа с данными приложения
-│   ├── "storage/"
-│   │   ├── "base_manager.py"                  # Базовый менеджер
-│   │   ├── "document_manager.py"              # Менеджер для управления документами в системе
-│   │   ├── "template_manager.py"              # Менеджер для управления шаблонами в системе
-│   │   └── "template_loader.py"               # Загрузчик кода шаблона 
-│   └── ontology/
-│       ├── ontology_repository.py
-│       └── rdf_store_adapter.py
-|
-├── "resources/"                               # Неизменяемые ресурсы приложения
-├── "data/"                                    # Динамические данные приложения
-│   ├── "documents/"                           # Загруженные документы + промежуточные форматы и метаинформация
-│   ├── "templates/"                           # Шаблоны (плагины)
-│   └── "app.log"                              # Логи
+├── scripts/                           # << Вспомогательные скрипты >>
+│   └── gen_rdflib_draft_outer.py      # Генерация обёрток над rdflib
 │
-└── test/
-    ├── "documents/"                           # Тестовые документы
-    └── module_tests/                          # Unit-тесты отдельных модулей
+├── ui/                                # << GUI (PySide6) >>
+│   ├── main_window.py                 # Главный класс и логика основного окна приложения
+│   ├── common/                        # Переиспользуемые виджеты и оформление
+│   ├── documents/                     # Вкладка для работы с документами
+│   │   ├── main_tab.py                # Вкладка с основным представлением документов
+│   │   ├── doc_info.py                # Виджет с информацией о документе
+│   │   ├── status_bar.py              # Отображаемый статус документа
+│   │   └── view/                      # Подмодули представления документа
+│   │       ├── doc_view.py            # Основное отображение контента документа
+│   │       ├── original_tab.py        # Вкладка для предпросмотра оригинальна документа
+│   │       ├── uddm_tab.py            # Вкладка для просмотра UDDM
+│   │       ├── graph_tab.py           # Вкладка с извлечённым графом фактов (можно вносить правки)
+│   │       └── common.py              # Общие компоненты и вспомогательные функции для view
+│   └── templates/                     # Вкладка для работы с шаблонами
+│       ├── temps_tab.py               # Вкладка для списка шаблонов
+│       ├── temp_info.py               # Виджет с информацией о шаблоне
+│       └── python_code_html.py        # Компонент для отображения кода шаблона в формате HTML
+│
+├── resources/                         # << Статические ресурсы >>
+│   ├── prompts/                       # Промпты
+│   ├── template/                      # Пример кода шаблона
+│   └── onto/                          # Эталонная схема онтологии (копия может дублироваться в .data)
+│
+└── .data/                             # << Динамические данные (создаётся при работе приложения) >>
+    ├── documents/                     # Все документы системы
+    ├── templates/                     # Все Шаблоны системы
+    ├── ontology/                      # Онтология
+    │   ├── schema.ttl                 # Схема онтологии (используется при сборке модели)
+    │   ├── history.json               # Порядок добавления компонентов документов
+    │   └── ontology.ttl               # Полная собранная модель
+    └── logs/                          # Логи
+        ├── app.log                    # Лог работы приложение
+        └── agents.log                 # Лог работы агентов
 ```
 
 ### Дополнительно
-- `python.analysis.typeCheckingMode` - настройка vs code для подсветки синтаксиса
-- `Ctrl + Shift + P` → `Python: Select Interpreter` - выбор нужного интерпретатора для корректной подсветки в vs code
-- `Ctrl + Shift + P` → `Restart Language Server` - перезапустите Python Language Server
+- `python.analysis.typeCheckingMode` — настройка VS Code для проверки типов
+- `Ctrl + Shift + P` → `Python: Select Interpreter` — выбор интерпретатора (например `.venv`)
+- `Ctrl + Shift + P` → `Restart Language Server` — перезапуск языкового сервера Python
