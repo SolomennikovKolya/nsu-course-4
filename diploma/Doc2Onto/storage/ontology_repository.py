@@ -23,12 +23,24 @@ class HistoryEntry:
 
 @dataclass
 class PropertyOverwriteRecord:
-    """Перезапись значения из-за ограничения кардинальности (для UI)."""
+    """
+    Перезапись значения из-за ограничения кардинальности (для UI).
 
-    subject_n3: str
-    predicate_n3: str
-    removed_object_n3: str
-    added_object_n3: str
+    Конфликтующие триплеты имели вид:
+    ```
+    (<s> <p> <o1>)
+    (<s> <p> <o2>)
+    ```
+    После перезаписи будет:
+    ```
+    (<s> <p> <o2>)
+    ```
+    """
+
+    subject_n3: str                        # Общий субъект триплета
+    predicate_n3: str                      # Общий предикат триплета
+    removed_object_n3: str                 # Старый объект триплета
+    added_object_n3: str                   # Новый объект триплета
     superseded_document_id: Optional[str]  # ID документа, с которого сняли старое значение (если было в модели)
     causing_document_id: str               # ID документа, чей компонент добавил новое значение и вызвал замену
 
@@ -46,8 +58,8 @@ class AssembledOntology:
     """Результат сборки полной модели по списку записей истории."""
 
     merge: MergeAssemblyResult  # Граф и перезаписи
-    model_valid: bool           # Прошла ли проверка целостности (кардинальность max-one)
-    validation_message: str     # Пусто при успехе; иначе пояснение для пользователя/лога
+    model_valid: bool           # Прошла ли проверка целостности
+    validation_message: str     # Пусто при успехе; иначе пояснение ошибки
 
 
 class OntologyRepository:
@@ -151,8 +163,10 @@ class OntologyRepository:
         return g
 
     def get_max_one_predicates(self) -> Set[URIRef]:
+        """Возвращает предикаты с ограничением кардинальности ≤1 объекта на субъект."""
         if self._max_one_predicates is not None:
             return self._max_one_predicates
+
         self._max_one_predicates = self._collect_max_one_predicates(self.get_schema_graph())
         return self._max_one_predicates
 
@@ -168,6 +182,7 @@ class OntologyRepository:
             p = schema_graph.value(restr, OWL.onProperty)
             if not isinstance(p, URIRef):
                 continue
+
             for owl_key in (OWL.maxCardinality, OWL.cardinality, OWL.maxQualifiedCardinality):
                 val = schema_graph.value(restr, owl_key)
                 if val is not None:
@@ -224,8 +239,10 @@ class OntologyRepository:
                 )
 
         merge = MergeAssemblyResult(graph=combined, property_overwrites=overwrites)
+
         ok, msg = self.validate_model(merge.graph, max_one)
         out = AssembledOntology(merge=merge, model_valid=ok, validation_message=msg)
+
         self._assembly_cache_fingerprint = fp
         self._assembly_cache = out
         return out
@@ -274,6 +291,7 @@ class OntologyRepository:
 
     @staticmethod
     def validate_model(graph: Graph, max_one_predicates: Set[URIRef]) -> Tuple[bool, str]:
+        """Проверяет, что в графе нет нарушений кардинальности для предикатов с ограничением ≤1 объекта на субъект."""
         violations: List[str] = []
         sp_seen: Dict[Tuple, int] = {}
         for s, p, o in graph:
@@ -303,7 +321,7 @@ class OntologyRepository:
         graph.serialize(destination=path, format="turtle", encoding="utf-8")
 
     def write_combined_ontology(self, graph: Graph):
-        """Сохраняет общую модель в Turtle-файл."""
+        """Сохраняет полную модель в Turtle-файл."""
         self.write_ttl(graph, ONTOLOGY_PATH)
 
     # --- кэш сборки, отпечаток истории, warmup ---

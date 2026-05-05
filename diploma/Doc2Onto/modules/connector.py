@@ -32,8 +32,8 @@ class Connector(BaseModule):
         if not moded_graph.is_complete():
             return ModuleResult.failed(message="Извлечённый граф неполный")
 
-        rdf_doc = moded_graph.get_rdf_graph()
-        if rdf_doc is None:
+        rdf_graph = moded_graph.get_rdf_graph()
+        if rdf_graph is None:
             return ModuleResult.failed(message="Не удалось построить RDF-граф из графа")
 
         try:
@@ -41,13 +41,13 @@ class Connector(BaseModule):
                 sup = Graph()
                 sup.parse(doc.supplementary_facts_ttl_path(), format="turtle")
                 for t in sup:
-                    rdf_doc.add(t)
+                    rdf_graph.add(t)
         except Exception as ex:
             return ModuleResult.failed(message=f"Не удалось разобрать дополнительные факты: {ex}")
 
         repo = get_ontology_repository()
         try:
-            repo.write_ttl(rdf_doc, doc.final_graph_file_path())
+            repo.write_ttl(rdf_graph, doc.final_graph_file_path())
         except Exception as ex:
             return ModuleResult.failed(message=f"Не удалось сохранить итоговый граф документа: {ex}")
 
@@ -57,33 +57,29 @@ class Connector(BaseModule):
             return ModuleResult.failed(message=f"Схема онтологии недоступна: {ex}")
 
         try:
-            prior_entries = repo.load_history_entries()
-            prior_out = repo.assemble_full_graph(history_entries=prior_entries)
-            if not prior_out.model_valid:
-                return ModuleResult.failed(
-                    message=f"Текущая онтологическая модель некорректна до добавления документа: {prior_out.validation_message}"
-                )
+            old_history = repo.load_history_entries()
+            old_onto = repo.assemble_full_graph(history_entries=old_history)
+            if not old_onto.model_valid:
+                return ModuleResult.failed(message=f"Текущая онтологическая модель некорректна до добавления документа: {old_history.validation_message}")
 
-            component_ttl = doc.final_graph_file_path().resolve()
-            candidate = HistoryEntry(
-                document_id=doc.id,
-                template_id=doc.doc_class,
-                added_at=datetime.now(timezone.utc).isoformat(),
-                component_path=str(component_ttl),
-            )
-            trial_entries = prior_entries + [candidate]
-            trial_out = repo.assemble_full_graph(history_entries=trial_entries)
-            if not trial_out.model_valid:
-                return ModuleResult.failed(
-                    message=f"После добавления фактов документа модель не проходит проверку: {trial_out.validation_message}"
+            history = old_history + [
+                HistoryEntry(
+                    document_id=doc.id,
+                    template_id=doc.doc_class,
+                    added_at=datetime.now(timezone.utc).isoformat(),
+                    component_path=str(doc.final_graph_file_path().resolve()),
                 )
+            ]
+            onto = repo.assemble_full_graph(history_entries=history)
+            if not onto.model_valid:
+                return ModuleResult.failed(message=f"После добавления фактов документа модель не проходит проверку: {onto.validation_message}")
 
-            repo.save_history_entries(trial_entries)
-            repo.write_combined_ontology(trial_out.merge.graph)
+            repo.save_history_entries(history)
+            repo.write_combined_ontology(onto.merge.graph)
 
             doc_report = [
                 asdict(r)
-                for r in trial_out.merge.property_overwrites
+                for r in onto.merge.property_overwrites
                 if r.causing_document_id == doc.id
             ]
             doc.ontology_merge_report_file_path().write_text(
