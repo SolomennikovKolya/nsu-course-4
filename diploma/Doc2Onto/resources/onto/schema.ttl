@@ -4,174 +4,524 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-# ========== Классы ==========
+<http://doc2onto.org/ontology> rdf:type owl:Ontology ;
+    rdfs:label "Онтология учебного процесса кафедры"@ru ;
+    rdfs:comment """Онтология предметной области «кафедра общей информатики университета».
+Цель — формализованное хранение знаний учебного процесса кафедры в виде, обеспечивающем
+надёжное автоматическое извлечение фактов из документов и их детерминированное добавление
+в граф знаний.
 
-# --- оброзовательная структура ---
+Принципы идентификации индивидов:
+  1. Индивиды, чья текстовая идентификация неоднозначна (ФИО, названия организаций,
+     темы ВКР и т. п.), получают IRI в виде хеша от нормализованной формы
+     идентифицирующих признаков. Сами признаки одновременно сохраняются как
+     литеральные свойства индивида.
+  2. Индивиды с заведомо стабильным «техническим» идентификатором (номер группы,
+     код направления подготовки, учебный год, семестр) хешированию не подвергаются —
+     для них используется либо литерал, либо IRI, безопасно построенный из самого
+     идентификатора.
+  3. Перечисляемые типы (должность, учёная степень, учёное звание, вид практики,
+     итоговая оценка) выражены закрытыми списками именованных индивидов
+     с предсказуемыми IRI вида :<Класс>_<Значение> для детерминированного маппинга
+     из текста.
 
-:Организация rdf:type owl:Class .
+Принципы стабильности модели:
+  • Документ — лишь источник фактов; знания не привязаны к документу как к «центру».
+  • Ограничения existential/cardinality на уровне TBox намеренно сведены к минимуму:
+    добавление новой частичной информации о существующем индивиде не должно нарушать
+    модель.
+  • Соответствие классам выводится по rdfs:domain / rdfs:range объектных и
+    данных-свойств — это даёт мягкую типизацию и устойчивость к неполным данным.""" .
 
-:СтруктурноеПодразделение rdf:type owl:Class ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :входитВ ;
-        owl:someValuesFrom :Организация
-    ] .
 
-:Университет rdf:type owl:Class ;
-    rdfs:subClassOf :Организация .
+# =====================================================================
+# КЛАССЫ
+# =====================================================================
 
-:Факультет rdf:type owl:Class ;
-    rdfs:subClassOf :СтруктурноеПодразделение ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :входитВ ;
-        owl:someValuesFrom :Университет
-    ] .
+# ---------- Агенты: персоны и организации ----------
 
-:Кафедра rdf:type owl:Class ;
-    rdfs:subClassOf :СтруктурноеПодразделение ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :входитВ ;
-        owl:someValuesFrom :Факультет
-    ] .
+:Агент rdf:type owl:Class ;
+    rdfs:label "Агент"@ru ;
+    rdfs:comment "Действующее лицо предметной области: персона либо организация." .
 
-:ВнешняяОрганизация rdf:type owl:Class ;
-    rdfs:subClassOf :Организация .
+# --- Персоны ---
 
-# --- персонал кафедры ---
-
-:Персона rdf:type owl:Class .
+:Персона rdf:type owl:Class ;
+    rdfs:subClassOf :Агент ;
+    rdfs:label "Персона"@ru ;
+    rdfs:comment """Физическое лицо. IRI индивида формируется как детерминированный
+хеш от нормализованного представления ФИО (нижний регистр, без лишних пробелов,
+с заменой 'ё' на 'е' и т. п.). Сами фамилия, имя и отчество одновременно сохраняются
+как литералы через :фамилия / :имя / :отчество. Один и тот же человек может
+одновременно являться и :Студент, и :Сотрудник — эти подклассы не дизъюнктны.""" .
 
 :Студент rdf:type owl:Class ;
     rdfs:subClassOf :Персона ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :обучаетсяВГруппе ;
-        owl:onClass :Группа ;
-        owl:cardinality 1
-    ] ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :имеетВКР ;
-        owl:onClass :ВКР ;
-        owl:maxCardinality 1
-    ] .
+    rdfs:label "Студент"@ru ;
+    rdfs:comment "Персона в роли обучающегося. Не дизъюнктен с :Сотрудник." .
 
 :Сотрудник rdf:type owl:Class ;
     rdfs:subClassOf :Персона ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :занимаетДолжность ;
-        owl:someValuesFrom :Должность
-    ] .
+    rdfs:label "Сотрудник"@ru ;
+    rdfs:comment "Персона в роли работника университета или внешней организации." .
 
-# --- личные данные ---
+# --- Организации ---
 
-:Группа rdf:type owl:Class .
-:Направление rdf:type owl:Class .
-:Профиль rdf:type owl:Class .
-:Должность rdf:type owl:Class .
+:Организация rdf:type owl:Class ;
+    rdfs:subClassOf :Агент ;
+    rdfs:label "Организация"@ru ;
+    rdfs:comment """Юридическое лицо или его структурное подразделение. IRI — хеш
+от нормализованной канонической формы основного наименования. Все известные варианты
+наименования (полное, краткое, аббревиатура) хранятся как :названиеОрганизации.""" .
 
-:Практика rdf:type owl:Class ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :проходитПрактикуВ ;
-        owl:someValuesFrom :Организация
-    ] .
+:Университет rdf:type owl:Class ;
+    rdfs:subClassOf :Организация ;
+    rdfs:label "Университет"@ru ;
+    rdfs:comment "Высшее учебное заведение." .
+
+:СтруктурноеПодразделение rdf:type owl:Class ;
+    rdfs:subClassOf :Организация ;
+    rdfs:label "Структурное подразделение"@ru ;
+    rdfs:comment "Часть организации, связанная с родителем через :входитВ." .
+
+:Факультет rdf:type owl:Class ;
+    rdfs:subClassOf :СтруктурноеПодразделение ;
+    rdfs:label "Факультет"@ru .
+
+:Кафедра rdf:type owl:Class ;
+    rdfs:subClassOf :СтруктурноеПодразделение ;
+    rdfs:label "Кафедра"@ru .
+
+:Лаборатория rdf:type owl:Class ;
+    rdfs:subClassOf :СтруктурноеПодразделение ;
+    rdfs:label "Лаборатория"@ru ;
+    rdfs:comment "Научная или учебная лаборатория, как правило часть факультета или внешнего НИИ." .
+
+:ВнешняяОрганизация rdf:type owl:Class ;
+    rdfs:subClassOf :Организация ;
+    rdfs:label "Внешняя организация"@ru ;
+    rdfs:comment "Организация, не являющаяся частью университета (НИИ, предприятие — место прохождения практики, работодатель и т. п.)." .
+
+# Дизъюнктность: персона и организация не пересекаются.
+[] rdf:type owl:AllDisjointClasses ;
+   owl:members ( :Персона :Организация ) .
+
+# Дизъюнктность типов организаций (одна и та же организация не может одновременно
+# быть, например, факультетом и кафедрой).
+[] rdf:type owl:AllDisjointClasses ;
+   owl:members ( :Университет :Факультет :Кафедра :Лаборатория :ВнешняяОрганизация ) .
+
+
+# ---------- Образовательная структура ----------
+
+:Группа rdf:type owl:Class ;
+    rdfs:label "Учебная группа"@ru ;
+    rdfs:comment """Студенческая группа. IRI формируется напрямую из номера группы
+(например, :Группа_22204) — номер сам по себе является стабильным идентификатором,
+хеш не требуется. Номер также сохраняется как литерал :номерГруппы.""" .
+
+:НаправлениеПодготовки rdf:type owl:Class ;
+    rdfs:label "Направление подготовки"@ru ;
+    rdfs:comment """Образовательное направление (например, '09.03.01 Информатика и
+вычислительная техника'). IRI образуется из кода направления с заменой точек на
+подчёркивания: :Направление_09_03_01. Код и название хранятся как литералы.""" .
+
+:Профиль rdf:type owl:Class ;
+    rdfs:label "Профиль (направленность) подготовки"@ru ;
+    rdfs:comment "Профиль образовательной программы. IRI — хеш от нормализованного названия." .
+
+# ---------- Академические активности ----------
+
+:АкадемическаяАктивность rdf:type owl:Class ;
+    rdfs:label "Академическая активность"@ru ;
+    rdfs:comment "Длящаяся работа или событие учебного процесса (ВКР, практика и т. п.)." .
 
 :ВКР rdf:type owl:Class ;
-    rdfs:subClassOf [
-        rdf:type owl:Restriction ;
-        owl:onProperty :имеетРуководителя ;
-        owl:allValuesFrom :Сотрудник
-    ] .
+    rdfs:subClassOf :АкадемическаяАктивность ;
+    rdfs:label "Выпускная квалификационная работа"@ru ;
+    rdfs:comment """ВКР конкретного студента в рамках конкретной образовательной
+программы. IRI — хеш от пары (IRI студента, нормализованная тема ВКР). Сама тема
+хранится как литерал :темаВКР; смена формулировки темы приводит к появлению нового
+индивида ВКР, а связь со старой темой может быть восстановлена по студенту.""" .
 
-# --- должности ---
+:Практика rdf:type owl:Class ;
+    rdfs:subClassOf :АкадемическаяАктивность ;
+    rdfs:label "Практика"@ru ;
+    rdfs:comment """Учебная / производственная / преддипломная и т. п. практика
+конкретного студента. IRI — хеш от тройки (IRI студента, IRI вида практики,
+учебный год). Это даёт стабильный детерминированный идентификатор, позволяющий
+сливать факты об одной и той же практике, поступившие из разных документов
+(заявление, индивидуальное задание, отзыв руководителя).""" .
 
-:ЗаведующийКафедрой rdf:type :Должность .
-:Доцент rdf:type :Должность .
-:Профессор rdf:type :Должность .
-:НаучныйСотрудник rdf:type :Должность .
-:СтаршийПреподаватель rdf:type :Должность .
-:Преподаватель rdf:type :Должность .
-:Лаборант rdf:type :Должность .
-:Секретарь rdf:type :Должность .
-:Директор rdf:type :Должность .
-:Ректор rdf:type :Должность .
 
-# ========== Объектные свойства ==========
+# ---------- Перечисляемые типы (named-individual enums) ----------
+
+# Все перечисления оформлены как owl:Class + список owl:NamedIndividual.
+# IRI индивидов имеет форму :<Класс>_<Значение>, что обеспечивает однозначный
+# и детерминированный маппинг из текста документа в граф.
+
+:Должность rdf:type owl:Class ;
+    rdfs:label "Должность"@ru ;
+    rdfs:comment "Должность сотрудника. Закрытый перечень именованных индивидов." .
+
+:УченаяСтепень rdf:type owl:Class ;
+    rdfs:label "Учёная степень"@ru ;
+    rdfs:comment "Учёная степень сотрудника. Закрытый перечень." .
+
+:УченоеЗвание rdf:type owl:Class ;
+    rdfs:label "Учёное звание"@ru ;
+    rdfs:comment "Учёное звание сотрудника. Закрытый перечень." .
+
+:ВидПрактики rdf:type owl:Class ;
+    rdfs:label "Вид практики"@ru .
+
+:ОценкаПрактики rdf:type owl:Class ;
+    rdfs:label "Итоговая оценка практики"@ru .
+
+
+# =====================================================================
+# ИМЕНОВАННЫЕ ИНДИВИДЫ ПЕРЕЧИСЛЕНИЙ
+# =====================================================================
+
+# ---------- Должности ----------
+
+:Должность_ЗаведующийКафедрой rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "заведующий кафедрой"@ru .
+:Должность_Декан rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "декан"@ru .
+:Должность_Ректор rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "ректор"@ru .
+:Должность_ДиректорИнститута rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "директор института"@ru .
+:Должность_Профессор rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "профессор"@ru .
+:Должность_Доцент rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "доцент"@ru .
+:Должность_СтаршийПреподаватель rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "старший преподаватель"@ru .
+:Должность_Преподаватель rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "преподаватель"@ru .
+:Должность_Ассистент rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "ассистент"@ru .
+:Должность_ГлавныйНаучныйСотрудник rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "главный научный сотрудник"@ru .
+:Должность_ВедущийНаучныйСотрудник rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "ведущий научный сотрудник"@ru ;
+    rdfs:comment "В тексте часто записывается как 'в.н.с.'." .
+:Должность_СтаршийНаучныйСотрудник rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "старший научный сотрудник"@ru ;
+    rdfs:comment "В тексте часто записывается как 'с.н.с.'." .
+:Должность_НаучныйСотрудник rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "научный сотрудник"@ru .
+:Должность_МладшийНаучныйСотрудник rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "младший научный сотрудник"@ru .
+:Должность_Лаборант rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "лаборант"@ru .
+:Должность_Секретарь rdf:type owl:NamedIndividual, :Должность ;
+    rdfs:label "секретарь"@ru .
+
+# ---------- Учёные степени ----------
+
+:УченаяСтепень_КандидатФизМатНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "кандидат физико-математических наук"@ru ;
+    rdfs:comment "к.ф.-м.н." .
+:УченаяСтепень_ДокторФизМатНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "доктор физико-математических наук"@ru ;
+    rdfs:comment "д.ф.-м.н." .
+:УченаяСтепень_КандидатТехнНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "кандидат технических наук"@ru ;
+    rdfs:comment "к.т.н." .
+:УченаяСтепень_ДокторТехнНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "доктор технических наук"@ru ;
+    rdfs:comment "д.т.н." .
+:УченаяСтепень_КандидатПедНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "кандидат педагогических наук"@ru ;
+    rdfs:comment "к.п.н." .
+:УченаяСтепень_ДокторПедНаук rdf:type owl:NamedIndividual, :УченаяСтепень ;
+    rdfs:label "доктор педагогических наук"@ru ;
+    rdfs:comment "д.п.н." .
+
+# ---------- Учёные звания ----------
+
+:УченоеЗвание_Доцент rdf:type owl:NamedIndividual, :УченоеЗвание ;
+    rdfs:label "доцент"@ru .
+:УченоеЗвание_Профессор rdf:type owl:NamedIndividual, :УченоеЗвание ;
+    rdfs:label "профессор"@ru .
+:УченоеЗвание_ЧленКорреспондентРАН rdf:type owl:NamedIndividual, :УченоеЗвание ;
+    rdfs:label "член-корреспондент РАН"@ru .
+:УченоеЗвание_АкадемикРАН rdf:type owl:NamedIndividual, :УченоеЗвание ;
+    rdfs:label "академик РАН"@ru .
+:УченоеЗвание_АкадемикРИА rdf:type owl:NamedIndividual, :УченоеЗвание ;
+    rdfs:label "академик РИА"@ru .
+
+# ---------- Виды практики ----------
+
+:ВидПрактики_Учебная rdf:type owl:NamedIndividual, :ВидПрактики ;
+    rdfs:label "учебная практика"@ru .
+:ВидПрактики_Производственная rdf:type owl:NamedIndividual, :ВидПрактики ;
+    rdfs:label "производственная практика"@ru .
+:ВидПрактики_НИР rdf:type owl:NamedIndividual, :ВидПрактики ;
+    rdfs:label "научно-исследовательская работа"@ru ;
+    rdfs:comment "НИР как форма производственной практики." .
+:ВидПрактики_Эксплуатационная rdf:type owl:NamedIndividual, :ВидПрактики ;
+    rdfs:label "эксплуатационная практика"@ru .
+:ВидПрактики_Преддипломная rdf:type owl:NamedIndividual, :ВидПрактики ;
+    rdfs:label "преддипломная практика"@ru .
+
+# ---------- Итоговые оценки ----------
+
+:Оценка_Отлично rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+    rdfs:label "отлично"@ru .
+:Оценка_Хорошо rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+    rdfs:label "хорошо"@ru .
+:Оценка_Удовлетворительно rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+    rdfs:label "удовлетворительно"@ru .
+:Оценка_Неудовлетворительно rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+    rdfs:label "неудовлетворительно"@ru .
+
+
+# =====================================================================
+# ОБЪЕКТНЫЕ СВОЙСТВА
+# =====================================================================
+
+# ---------- Структура организаций ----------
+
+:входитВ rdf:type owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:label "входит в"@ru ;
+    rdfs:domain :Организация ;
+    rdfs:range :Организация ;
+    rdfs:comment "Иерархическая принадлежность подразделения к родительской организации. Транзитивно: кафедра входит в факультет → кафедра входит в университет." .
+
+# ---------- Студент ----------
 
 :обучаетсяВГруппе rdf:type owl:ObjectProperty ;
+    rdfs:label "обучается в группе"@ru ;
     rdfs:domain :Студент ;
     rdfs:range :Группа .
 
 :обучаетсяНаНаправлении rdf:type owl:ObjectProperty ;
+    rdfs:label "обучается на направлении"@ru ;
     rdfs:domain :Студент ;
-    rdfs:range :Направление .
+    rdfs:range :НаправлениеПодготовки .
 
 :имеетПрофиль rdf:type owl:ObjectProperty ;
+    rdfs:label "имеет профиль (направленность)"@ru ;
     rdfs:domain :Студент ;
     rdfs:range :Профиль .
 
-:состоитВКафедре rdf:type owl:ObjectProperty ;
+# ---------- Сотрудник ----------
+
+:занимаетДолжность rdf:type owl:ObjectProperty ;
+    rdfs:label "занимает должность"@ru ;
     rdfs:domain :Сотрудник ;
-    rdfs:range :Кафедра .
+    rdfs:range :Должность ;
+    rdfs:comment "Сотрудник может занимать несколько должностей одновременно (в т. ч. в разных подразделениях)." .
 
 :работаетВ rdf:type owl:ObjectProperty ;
+    rdfs:label "работает в"@ru ;
     rdfs:domain :Сотрудник ;
-    rdfs:range :СтруктурноеПодразделение .
+    rdfs:range :Организация ;
+    rdfs:comment "Место работы сотрудника. Возможно несколько одновременно." .
 
-:имеетПрактику rdf:type owl:ObjectProperty ;
-    rdfs:domain :Студент ;
-    rdfs:range :Практика .
+:имеетУченуюСтепень rdf:type owl:ObjectProperty ;
+    rdfs:label "имеет учёную степень"@ru ;
+    rdfs:domain :Сотрудник ;
+    rdfs:range :УченаяСтепень .
+
+:имеетУченоеЗвание rdf:type owl:ObjectProperty ;
+    rdfs:label "имеет учёное звание"@ru ;
+    rdfs:domain :Сотрудник ;
+    rdfs:range :УченоеЗвание .
+
+# ---------- Связь Студент ↔ ВКР, Студент ↔ Практика ----------
+
+:авторВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "автор ВКР"@ru ;
+    rdfs:domain :ВКР ;
+    rdfs:range :Студент ;
+    rdfs:comment "У каждой ВКР ровно один автор-студент." .
 
 :имеетВКР rdf:type owl:ObjectProperty ;
+    rdfs:label "является автором ВКР"@ru ;
+    owl:inverseOf :авторВКР ;
     rdfs:domain :Студент ;
     rdfs:range :ВКР .
 
-:имеетРуководителя rdf:type owl:ObjectProperty ;
+:практикантВПрактике rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "практикант"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range :Студент ;
+    rdfs:comment "У одной практики ровно один практикант-студент." .
+
+:имеетПрактику rdf:type owl:ObjectProperty ;
+    rdfs:label "проходит практику"@ru ;
+    owl:inverseOf :практикантВПрактике ;
+    rdfs:domain :Студент ;
+    rdfs:range :Практика .
+
+# ---------- ВКР: руководители ----------
+
+:руководительВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "руководитель ВКР"@ru ;
     rdfs:domain :ВКР ;
     rdfs:range :Сотрудник .
 
+:соруководительВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "соруководитель ВКР"@ru ;
+    rdfs:domain :ВКР ;
+    rdfs:range :Сотрудник .
+
+:консультантВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "консультант ВКР"@ru ;
+    rdfs:domain :ВКР ;
+    rdfs:range :Сотрудник .
+
+# ---------- Практика: место прохождения и руководители ----------
+
 :проходитПрактикуВ rdf:type owl:ObjectProperty ;
+    rdfs:label "место прохождения практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :Организация .
+    rdfs:range :Организация ;
+    rdfs:comment "Профильная организация (или подразделение университета) — место прохождения практики." .
 
-:занимаетДолжность rdf:type owl:ObjectProperty ;
-    rdfs:domain :Сотрудник ;
-    rdfs:range :Должность .
+:видПрактики rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "вид практики"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range :ВидПрактики .
 
-# ========== Дата-свойства ==========
+:оценкаПрактики rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "итоговая оценка практики"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range :ОценкаПрактики .
 
-:ФИО rdf:type owl:DatatypeProperty ;
+:руководительПрактикиОтУниверситета rdf:type owl:ObjectProperty ;
+    rdfs:label "руководитель практики от университета"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range :Сотрудник .
+
+:руководительПрактикиОтПрофильнойОрганизации rdf:type owl:ObjectProperty ;
+    rdfs:label "руководитель практики от профильной организации"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range :Сотрудник .
+
+
+# =====================================================================
+# ДАТА-СВОЙСТВА (литералы)
+# =====================================================================
+
+# ---------- Персона ----------
+
+:фамилия rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "фамилия"@ru ;
     rdfs:domain :Персона ;
     rdfs:range xsd:string .
 
-:номерГруппы rdf:type owl:DatatypeProperty ;
-    rdfs:domain :Группа ;
+:имя rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "имя"@ru ;
+    rdfs:domain :Персона ;
     rdfs:range xsd:string .
 
+:отчество rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "отчество"@ru ;
+    rdfs:domain :Персона ;
+    rdfs:range xsd:string .
+
+:фио rdf:type owl:DatatypeProperty ;
+    rdfs:label "ФИО (полная строка)"@ru ;
+    rdfs:domain :Персона ;
+    rdfs:range xsd:string ;
+    rdfs:comment """Полное ФИО как одна строка в исходном написании. Может присутствовать
+несколько вариантов (краткая/полная форма имени, инициалы) — все они хранятся вместе.
+Для надёжной идентификации используется не эта строка, а IRI-хеш персоны.""" .
+
 :email rdf:type owl:DatatypeProperty ;
+    rdfs:label "адрес электронной почты"@ru ;
     rdfs:domain :Персона ;
     rdfs:range xsd:string .
 
 :телефон rdf:type owl:DatatypeProperty ;
+    rdfs:label "номер телефона"@ru ;
     rdfs:domain :Персона ;
     rdfs:range xsd:string .
 
-:тема rdf:type owl:DatatypeProperty ;
+# ---------- Организация ----------
+
+:названиеОрганизации rdf:type owl:DatatypeProperty ;
+    rdfs:label "наименование организации"@ru ;
+    rdfs:domain :Организация ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Любая известная форма наименования (полная, краткая, аббревиатура). Допускается несколько значений." .
+
+:адресОрганизации rdf:type owl:DatatypeProperty ;
+    rdfs:label "адрес организации"@ru ;
+    rdfs:domain :Организация ;
+    rdfs:range xsd:string .
+
+# ---------- Группа ----------
+
+:номерГруппы rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "номер группы"@ru ;
+    rdfs:domain :Группа ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Номер учебной группы как строка (для совместимости с возможными нечисловыми обозначениями)." .
+
+# ---------- Направление подготовки ----------
+
+:кодНаправления rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "код направления подготовки"@ru ;
+    rdfs:domain :НаправлениеПодготовки ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Стандартный код направления подготовки в формате 'XX.XX.XX' (например, '09.03.01')." .
+
+:названиеНаправления rdf:type owl:DatatypeProperty ;
+    rdfs:label "наименование направления подготовки"@ru ;
+    rdfs:domain :НаправлениеПодготовки ;
+    rdfs:range xsd:string .
+
+# ---------- Профиль ----------
+
+:названиеПрофиля rdf:type owl:DatatypeProperty ;
+    rdfs:label "наименование профиля"@ru ;
+    rdfs:domain :Профиль ;
+    rdfs:range xsd:string .
+
+# ---------- ВКР ----------
+
+:темаВКР rdf:type owl:DatatypeProperty ;
+    rdfs:label "тема ВКР"@ru ;
     rdfs:domain :ВКР ;
     rdfs:range xsd:string .
 
-:датаНачала rdf:type owl:DatatypeProperty ;
+:обоснованиеТемыВКР rdf:type owl:DatatypeProperty ;
+    rdfs:label "обоснование актуальности темы ВКР"@ru ;
+    rdfs:domain :ВКР ;
+    rdfs:range xsd:string .
+
+# ---------- Практика ----------
+
+:темаЗаданияПрактики rdf:type owl:DatatypeProperty ;
+    rdfs:label "тема индивидуального задания практики"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range xsd:string .
+
+:датаНачалаПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "дата начала практики"@ru ;
     rdfs:domain :Практика ;
     rdfs:range xsd:date .
 
-:датаОкончания rdf:type owl:DatatypeProperty ;
+:датаОкончанияПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "дата окончания практики"@ru ;
     rdfs:domain :Практика ;
     rdfs:range xsd:date .
 
-:оценка rdf:type owl:DatatypeProperty ;
+:учебныйГодПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "учебный год практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range xsd:integer .
+    rdfs:range xsd:string ;
+    rdfs:comment "Учебный год прохождения практики в формате 'YYYY/YYYY' (например, '2025/2026')." .
+
+:семестрПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "семестр практики"@ru ;
+    rdfs:domain :Практика ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Литерал 'осенний' либо 'весенний'." .
