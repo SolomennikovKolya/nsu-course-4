@@ -1,35 +1,21 @@
-from __future__ import annotations
-
-import re
 from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import urldefrag
-
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QFontMetrics
-from PySide6.QtWidgets import (
-    QFrame,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QMessageBox,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
-
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, XSD
 from rdflib.util import from_n3
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtWidgets import (
+    QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QMessageBox, QPushButton, QScrollArea, QSizePolicy, QTextEdit,
+    QVBoxLayout, QWidget,
+)
 
 from app.settings import SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple, EditedGraph
 from models.document import Document
-from modules.extractor import ExtractionResult
-from modules.validator import ValidationResult
+from models.extraction_result import ExtractionResult
+from models.validation_result import ValidationResult
 from ui.common.design import UI_COLOR_GRAY, UI_COLOR_GREEN, UI_COLOR_RED, UI_COLOR_YELLOW
 from ui.documents.view.common import read_text_file
 

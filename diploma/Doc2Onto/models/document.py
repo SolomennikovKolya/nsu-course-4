@@ -6,11 +6,11 @@ from enum import StrEnum, auto
 
 from app.context import get_temp_manager
 from app.settings import ORIGINAL_FILE_STEM
-from models.template import TemplateContext
-from core.uddm.model import UDDM
-from modules.extractor import ExtractionResult
-from modules.validator import ValidationResult
 from core.graph.draft_graph import DraftGraph
+from core.uddm.model import UDDM
+from models.template import TemplateContext
+from models.extraction_result import ExtractionResult
+from models.validation_result import ValidationResult
 
 
 @dataclass
