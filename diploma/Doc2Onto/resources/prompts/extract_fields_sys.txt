@@ -31,8 +31,8 @@ root
     "name": string,
     "description": string,
     "template": {
-      "status": boolean,
-      "value": string | null,
+      "status": boolean,         // true — шаблон что-то извлёк, false — не извлёк
+      "value": string | null,    // что именно шаблон извлёк (или null)
       "error": string | null
     }
   }
@@ -75,29 +75,35 @@ root
 
 ---
 
-Сценарии:
+Сценарии (СТРОГО следуй им — другие комбинации запрещены):
 
-1. template-значение корректно:
+1. template.value присутствует и корректно (изменения не нужны):
    status = true
-   value = null
-   error = null
+   value  = null              ← null допустим ТОЛЬКО в этом сценарии
+   error  = null
 
-2. template-значение некорректно, но корректное найдено:
+2. template.value присутствует, но некорректно; правильное значение найдено:
    status = true
-   value = "новое значение"
-   error = "что было не так с предыдущим значением"
+   value  = "новое значение"   ← обязательно непустая строка
+   error  = "что было не так с предыдущим значением"
 
-3. template-значение некорректно, корректное найти не удалось:
+3. template.value присутствует, но некорректно; правильное найти не удалось:
    status = false
-   value = null
-   error = "что пошло не так"
+   value  = null
+   error  = "что пошло не так"
 
-4. template-значение отсутствует, но значение в документе найдено:
+4. template.value отсутствует (null), значение в документе найдено:
    status = true
-   value = "значение"
-   error = null
+   value  = "значение"        ← обязательно непустая строка
+   error  = null
 
-5. template-значение отсутствует и значение не найдено:
+5. template.value отсутствует и значение не найдено:
    status = false
-   value = null
-   error = "ошибка"
+   value  = null
+   error  = "ошибка"
+
+ИНВАРИАНТ (нарушать запрещено):
+- Если status=true И template.value=null → value ОБЯЗАН быть непустой строкой (сценарий 4).
+- Если status=true И template.value присутствует → value либо null (подтверждение, сценарий 1), либо непустая строка (коррекция, сценарий 2).
+- Если status=false → value ОБЯЗАН быть null.
+- value=null при status=true НИКОГДА не означает «значение не найдено» — это значит «template.value уже верный». Если сомневаешься — лучше повторить template.value явной строкой.

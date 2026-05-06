@@ -102,10 +102,24 @@ class Extractor(BaseModule):
 
                 if status is None:
                     result.set_unexpected_error_llm(field.name, "Некорректный формат ответа LLM: status должен быть bool")
+                    continue
+
+                template_value = result.get_value_temp(field.name)
 
                 if status and value:
+                    # LLM сообщила корректное значение (новое или взамен template).
                     result.set_value_llm(field.name, value, error)
+                elif status and value is None and template_value:
+                    # LLM подтвердила, что template-значение уже корректно. Берём template как итоговое value_llm, чтобы дальше по пайплайну ходило одно значение.
+                    result.set_value_llm(field.name, template_value, None)
+                elif status and value is None:
+                    # Контракт промпта нарушен: status=true, но и template, и value пустые. Считаем ошибкой.
+                    result.set_error_llm(
+                        field.name,
+                        error or "LLM сообщила об успехе, но не указала значение (нарушен инвариант промпта)",
+                    )
                 else:
+                    # status=false — LLM определила, что значение некорректно или не найдено.
                     result.set_error_llm(field.name, error or "LLM определила, что значение некорректно")
 
         except Exception:

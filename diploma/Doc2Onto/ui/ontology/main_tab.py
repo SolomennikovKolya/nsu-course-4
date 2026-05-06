@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QLabel,
     QTreeWidget, QTreeWidgetItem, QPushButton, QTableWidget, QTableWidgetItem,
-    QDialog, QTextEdit, QDialogButtonBox, QHeaderView, QFrame, QMessageBox,
-    QSizePolicy, QStackedLayout
+    QDialog, QTextEdit, QHeaderView, QFrame, QMessageBox,
+    QStackedWidget,
 )
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
@@ -18,6 +18,14 @@ from app.settings import SUBJECT_NAMESPACE_IRI
 
 
 _NS = SUBJECT_NAMESPACE_IRI
+
+
+# Цвета подсветки для разных видов URIRef-ссылок в таблицах.
+# Индивиды — синяя «обычная» ссылка, классы — фиолетовая (визуально отличается,
+# чтобы пользователь не путал переход к карточке индивида и к карточке класса).
+_INDIVIDUAL_LINK_COLOR = QColor("#90caf9")
+_CLASS_LINK_COLOR = QColor("#ce93d8")
+_LITERAL_FG = None  # дефолтный цвет темы — не переопределяем
 
 
 # =====================================================================
@@ -50,6 +58,18 @@ def label_of(g: Graph, node: URIRef, lang: str = "ru") -> Optional[str]:
     return fallback
 
 
+def comment_of(g: Graph, node: URIRef, lang: str = "ru") -> Optional[str]:
+    """rdfs:comment@ru, либо rdfs:comment без языка."""
+    fallback: Optional[str] = None
+    for o in g.objects(node, RDFS.comment):
+        if isinstance(o, Literal):
+            if (o.language or "") == lang:
+                return str(o)
+            if not o.language and fallback is None:
+                fallback = str(o)
+    return fallback
+
+
 def predicate_label(g: Graph, p: URIRef) -> str:
     return label_of(g, p) or short_iri(str(p))
 
@@ -60,6 +80,11 @@ def class_label(g: Graph, c: URIRef) -> str:
 
 def is_named_individual(g: Graph, s: URIRef) -> bool:
     return (s, RDF.type, OWL.NamedIndividual) in g
+
+
+def is_class(g: Graph, c: URIRef) -> bool:
+    """Проверяет, что URIRef объявлен как owl:Class или rdfs:Class в графе."""
+    return (c, RDF.type, OWL.Class) in g or (c, RDF.type, RDFS.Class) in g
 
 
 def types_of(g: Graph, s: URIRef) -> Set[URIRef]:
@@ -155,8 +180,16 @@ def class_hierarchy(g: Graph) -> Dict[URIRef, List[URIRef]]:
 
 
 def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
-    """{class -> [individual]} с учётом подклассов (одна сущность может быть в нескольких классах)."""
-    out: Dict[URIRef, List[URIRef]] = {}
+    """
+    Возвращает отображение ``{класс -> [индивиды]}`` для дерева навигации.
+
+    Важно: если индивид типизирован сразу и базовым классом, и его подклассом
+    (например, :Персона + :Студент), в дереве он показывается только в наиболее
+    «узком» классе (:Студент). При этом множественная принадлежность к
+    независимым классам (без отношения subClassOf) сохраняется.
+    """
+    raw_by_individual: Dict[URIRef, Set[URIRef]] = {}
+
     for s, _, c in g.triples((None, RDF.type, None)):
         if not isinstance(s, URIRef) or not isinstance(c, URIRef):
             continue
@@ -167,8 +200,122 @@ def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
            or c == OWL.AnnotationProperty or c == OWL.FunctionalProperty \
            or c == OWL.TransitiveProperty:
             continue
-        out.setdefault(c, []).append(s)
+        raw_by_individual.setdefault(s, set()).add(c)
+
+    subclass_memo: Dict[Tuple[URIRef, URIRef], bool] = {}
+
+    def is_strict_subclass_of(child: URIRef, parent: URIRef) -> bool:
+        if child == parent:
+            return False
+        key = (child, parent)
+        cached = subclass_memo.get(key)
+        if cached is not None:
+            return cached
+
+        stack = [child]
+        seen: Set[URIRef] = set()
+        found = False
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            for sup in g.objects(cur, RDFS.subClassOf):
+                if not isinstance(sup, URIRef):
+                    continue
+                if sup == parent:
+                    found = True
+                    break
+                stack.append(sup)
+            if found:
+                break
+
+        subclass_memo[key] = found
+        return found
+
+    out: Dict[URIRef, List[URIRef]] = {}
+    for ind, classes in raw_by_individual.items():
+        minimal_classes: Set[URIRef] = set()
+        for c in classes:
+            # Убираем только те классы, для которых есть более конкретный тип
+            # этого же индивида в рамках иерархии subClassOf.
+            overshadowed = any(
+                other != c and is_strict_subclass_of(other, c)
+                for other in classes
+            )
+            if not overshadowed:
+                minimal_classes.add(c)
+
+        for c in minimal_classes:
+            out.setdefault(c, []).append(ind)
+
     return out
+
+
+# =====================================================================
+# SourceFactDialog
+# =====================================================================
+
+
+class SourceFactDialog(QDialog):
+    """
+    Модальное окно «Источник факта»: показывает doc/template/policy/даты для триплета
+    и предлагает кнопки перехода к документу и к шаблону.
+
+    Само окно закрывается крестиком — нативной кнопки Close в layout нет.
+    """
+
+    document_requested = Signal(str)
+    template_requested = Signal(str)
+
+    def __init__(self, ev, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Источник факта")
+        self.resize(500, 260)
+
+        text_lines = [
+            f"Документ: {ev.doc_id or '—'}",
+            f"Шаблон:   {ev.template_id or '—'}",
+            f"Политика: {ev.policy or '—'}",
+        ]
+        if ev.effective_date:
+            text_lines.append(f"Дата факта: {ev.effective_date}")
+        if ev.added_at:
+            text_lines.append(f"Добавлено: {ev.added_at}")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 12)
+        layout.setSpacing(10)
+
+        info_label = QLabel("\n".join(text_lines))
+        info_label.setStyleSheet("font-family:monospace;")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(8)
+
+        if ev.doc_id:
+            doc_btn = QPushButton(f"Перейти к документу {ev.doc_id[:8]}…")
+            doc_btn.clicked.connect(lambda: self._on_navigate(ev.doc_id, self.document_requested))
+            buttons_row.addWidget(doc_btn)
+
+        if ev.template_id:
+            tpl_btn = QPushButton(f"Перейти к шаблону {ev.template_id[:8]}…")
+            tpl_btn.clicked.connect(lambda: self._on_navigate(ev.template_id, self.template_requested))
+            buttons_row.addWidget(tpl_btn)
+
+        buttons_row.addStretch()
+        layout.addLayout(buttons_row)
+
+        # Прижимаем содержимое к верху — оставшееся место уходит вниз.
+        layout.addStretch(1)
+
+    def _on_navigate(self, target_id: str, signal: Signal):
+        signal.emit(target_id)
+        self.accept()
 
 
 # =====================================================================
@@ -180,7 +327,9 @@ class IndividualCardWidget(QWidget):
     """Карточка индивида: классы, таблица свойств, входящие ссылки."""
 
     individual_clicked = Signal(URIRef)
+    class_clicked = Signal(URIRef)
     document_clicked = Signal(str)
+    template_clicked = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -290,9 +439,20 @@ class IndividualCardWidget(QWidget):
             if isinstance(o, URIRef):
                 o_text = display_name(g, o, types_of(g, o))
                 o_item = QTableWidgetItem(o_text)
-                o_item.setForeground(QColor("#90caf9"))
-                o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти)")
-                o_item.setData(Qt.ItemDataRole.UserRole, str(o))
+                # Различаем визуально индивиды и классы — это снимает прежнюю
+                # путаницу, когда у класса показывался tooltip «клик — перейти»,
+                # а на деле клик ничего не делал.
+                if is_named_individual(g, o) or types_of(g, o):
+                    o_item.setForeground(_INDIVIDUAL_LINK_COLOR)
+                    o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к индивиду)")
+                    o_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(o)))
+                elif is_class(g, o):
+                    o_item.setForeground(_CLASS_LINK_COLOR)
+                    o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к классу)")
+                    o_item.setData(Qt.ItemDataRole.UserRole, ("class", str(o)))
+                else:
+                    o_item.setToolTip(short_iri(str(o)))
+                    o_item.setData(Qt.ItemDataRole.UserRole, None)
             else:
                 o_item = QTableWidgetItem(str(o))
                 o_item.setData(Qt.ItemDataRole.UserRole, None)
@@ -321,7 +481,7 @@ class IndividualCardWidget(QWidget):
         for r, (s, p) in enumerate(inrows):
             s_text = display_name(g, s, types_of(g, s))
             s_item = QTableWidgetItem(s_text)
-            s_item.setForeground(QColor("#90caf9"))
+            s_item.setForeground(_INDIVIDUAL_LINK_COLOR)
             s_item.setData(Qt.ItemDataRole.UserRole, str(s))
             s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти)")
             self._inbox_table.setItem(r, 0, s_item)
@@ -335,8 +495,13 @@ class IndividualCardWidget(QWidget):
             if item is None:
                 return
             data = item.data(Qt.ItemDataRole.UserRole)
-            if isinstance(data, str):
-                self.individual_clicked.emit(URIRef(data))
+            if not isinstance(data, tuple):
+                return
+            kind, iri = data
+            if kind == "individual":
+                self.individual_clicked.emit(URIRef(iri))
+            elif kind == "class":
+                self.class_clicked.emit(URIRef(iri))
         elif col == 2:
             item = self._props_table.item(row, 2)
             if item is None:
@@ -357,34 +522,9 @@ class IndividualCardWidget(QWidget):
             self.individual_clicked.emit(URIRef(data))
 
     def _show_source_popup(self, ev):
-        text_lines = [
-            f"Документ: {ev.doc_id or '—'}",
-            f"Шаблон:   {ev.template_id or '—'}",
-            f"Политика: {ev.policy or '—'}",
-        ]
-        if ev.effective_date:
-            text_lines.append(f"Дата факта: {ev.effective_date}")
-        if ev.added_at:
-            text_lines.append(f"Добавлено: {ev.added_at}")
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Источник факта")
-        dlg.resize(500, 240)
-        lay = QVBoxLayout(dlg)
-        lab = QLabel("\n".join(text_lines))
-        lab.setStyleSheet("font-family:monospace;")
-        lay.addWidget(lab)
-
-        if ev.doc_id:
-            btn = QPushButton(f"Перейти к документу {ev.doc_id[:8]}…")
-            btn.clicked.connect(lambda: (self.document_clicked.emit(ev.doc_id), dlg.accept()))
-            lay.addWidget(btn)
-
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        bb.rejected.connect(dlg.reject)
-        bb.accepted.connect(dlg.accept)
-        bb.button(QDialogButtonBox.StandardButton.Close).clicked.connect(dlg.accept)
-        lay.addWidget(bb)
+        dlg = SourceFactDialog(ev, self)
+        dlg.document_requested.connect(self.document_clicked)
+        dlg.template_requested.connect(self.template_clicked)
         dlg.exec()
 
     def _on_show_ttl(self):
@@ -412,12 +552,158 @@ class IndividualCardWidget(QWidget):
         view.setPlainText(text)
         view.setStyleSheet("font-family:monospace;")
         lay.addWidget(view)
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        bb.rejected.connect(dlg.reject)
-        bb.accepted.connect(dlg.accept)
-        bb.button(QDialogButtonBox.StandardButton.Close).clicked.connect(dlg.accept)
-        lay.addWidget(bb)
         dlg.exec()
+
+
+# =====================================================================
+# ClassCardWidget
+# =====================================================================
+
+
+class ClassCardWidget(QWidget):
+    """
+    Карточка класса: label, IRI, comment, родительские/дочерние классы,
+    список индивидов этого класса (с кликом-навигацией). Появляется,
+    когда в дереве выбран класс, а не индивид, либо когда пользователь
+    кликнул на ссылку-класс в карточке индивида.
+    """
+
+    class_clicked = Signal(URIRef)
+    individual_clicked = Signal(URIRef)
+
+    def __init__(self):
+        super().__init__()
+        self._graph: Optional[Graph] = None
+        self._iri: Optional[URIRef] = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        self._title_label = QLabel()
+        self._title_label.setStyleSheet("font-size:18px;font-weight:bold;")
+        self._title_label.setWordWrap(True)
+        layout.addWidget(self._title_label)
+
+        self._iri_label = QLabel()
+        self._iri_label.setStyleSheet("color:#888;font-family:monospace;")
+        self._iri_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._iri_label.setWordWrap(True)
+        layout.addWidget(self._iri_label)
+
+        self._parents_label = QLabel()
+        self._parents_label.setWordWrap(True)
+        self._parents_label.setStyleSheet("color:#aaa;")
+        layout.addWidget(self._parents_label)
+
+        self._comment_label = QLabel()
+        self._comment_label.setWordWrap(True)
+        self._comment_label.setStyleSheet("color:#bbb;")
+        self._comment_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(self._comment_label)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep)
+
+        layout.addWidget(QLabel("Подклассы:"))
+        self._subclasses_table = QTableWidget(0, 1)
+        self._subclasses_table.setHorizontalHeaderLabels(["Класс"])
+        self._subclasses_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._subclasses_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._subclasses_table.cellClicked.connect(self._on_subclasses_cell_clicked)
+        layout.addWidget(self._subclasses_table, 1)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(sep2)
+
+        self._individuals_header = QLabel("Индивиды:")
+        layout.addWidget(self._individuals_header)
+        self._individuals_table = QTableWidget(0, 1)
+        self._individuals_table.setHorizontalHeaderLabels(["Индивид"])
+        self._individuals_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._individuals_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._individuals_table.cellClicked.connect(self._on_individuals_cell_clicked)
+        layout.addWidget(self._individuals_table, 2)
+
+    def set_graph(self, graph: Optional[Graph]):
+        self._graph = graph
+
+    def show_class(self, iri: URIRef):
+        self._iri = iri
+        g = self._graph
+        if g is None:
+            return
+
+        self._title_label.setText(class_label(g, iri))
+        self._iri_label.setText(short_iri(str(iri)) + "  (" + str(iri) + ")")
+
+        parents = sorted(
+            (p for p in g.objects(iri, RDFS.subClassOf) if isinstance(p, URIRef)),
+            key=lambda c: class_label(g, c),
+        )
+        if parents:
+            self._parents_label.setText(
+                "Подкласс: " + ", ".join(class_label(g, p) for p in parents)
+            )
+        else:
+            self._parents_label.setText("")
+
+        comment = comment_of(g, iri)
+        if comment:
+            self._comment_label.setText(comment)
+            self._comment_label.setVisible(True)
+        else:
+            self._comment_label.setText("")
+            self._comment_label.setVisible(False)
+
+        # Подклассы
+        subclasses = sorted(
+            (s for s, _, _ in g.triples((None, RDFS.subClassOf, iri)) if isinstance(s, URIRef)),
+            key=lambda c: class_label(g, c),
+        )
+        self._subclasses_table.setRowCount(len(subclasses))
+        for r, sub in enumerate(subclasses):
+            item = QTableWidgetItem(class_label(g, sub))
+            item.setForeground(_CLASS_LINK_COLOR)
+            item.setData(Qt.ItemDataRole.UserRole, str(sub))
+            item.setToolTip(short_iri(str(sub)) + "\n(клик — перейти)")
+            self._subclasses_table.setItem(r, 0, item)
+
+        # Индивиды (с учётом подклассов в TBox: считаем только direct rdf:type)
+        directs: List[URIRef] = []
+        for s, _, o in g.triples((None, RDF.type, iri)):
+            if isinstance(s, URIRef):
+                directs.append(s)
+        directs.sort(key=lambda i: display_name(g, i, types_of(g, i)).lower())
+
+        self._individuals_header.setText(f"Индивиды ({len(directs)}):")
+        self._individuals_table.setRowCount(len(directs))
+        for r, ind in enumerate(directs):
+            item = QTableWidgetItem(display_name(g, ind, types_of(g, ind)))
+            item.setForeground(_INDIVIDUAL_LINK_COLOR)
+            item.setData(Qt.ItemDataRole.UserRole, str(ind))
+            item.setToolTip(short_iri(str(ind)) + "\n(клик — перейти)")
+            self._individuals_table.setItem(r, 0, item)
+
+    def _on_subclasses_cell_clicked(self, row: int, _col: int):
+        item = self._subclasses_table.item(row, 0)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, str):
+            self.class_clicked.emit(URIRef(data))
+
+    def _on_individuals_cell_clicked(self, row: int, _col: int):
+        item = self._individuals_table.item(row, 0)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if isinstance(data, str):
+            self.individual_clicked.emit(URIRef(data))
 
 
 # =====================================================================
@@ -429,6 +715,12 @@ class OntologyTab(QWidget):
     """Третья вкладка приложения — навигация по содержимому онтологии."""
 
     document_navigation_requested = Signal(str)
+    template_navigation_requested = Signal(str)
+
+    # Индексы страниц в правом стэке: empty / class / individual.
+    _PAGE_EMPTY = 0
+    _PAGE_CLASS = 1
+    _PAGE_INDIVIDUAL = 2
 
     def __init__(self):
         super().__init__()
@@ -456,11 +748,31 @@ class OntologyTab(QWidget):
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         splitter.addWidget(self._tree)
 
-        self._card = IndividualCardWidget()
-        self._card.individual_clicked.connect(self._on_card_individual_clicked)
-        self._card.document_clicked.connect(self.document_navigation_requested)
-        splitter.addWidget(self._card)
+        # Правый стэк — три страницы: пусто / класс / индивид.
+        self._stack = QStackedWidget()
 
+        empty_page = QWidget()
+        empty_layout = QVBoxLayout(empty_page)
+        empty_layout.setContentsMargins(12, 12, 12, 12)
+        empty_label = QLabel("Выберите класс или индивид")
+        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_label.setStyleSheet("color:#888;")
+        empty_layout.addWidget(empty_label)
+        self._stack.addWidget(empty_page)
+
+        self._class_card = ClassCardWidget()
+        self._class_card.class_clicked.connect(self._on_class_link_clicked)
+        self._class_card.individual_clicked.connect(self._on_card_individual_clicked)
+        self._stack.addWidget(self._class_card)
+
+        self._individual_card = IndividualCardWidget()
+        self._individual_card.individual_clicked.connect(self._on_card_individual_clicked)
+        self._individual_card.class_clicked.connect(self._on_class_link_clicked)
+        self._individual_card.document_clicked.connect(self.document_navigation_requested)
+        self._individual_card.template_clicked.connect(self.template_navigation_requested)
+        self._stack.addWidget(self._individual_card)
+
+        splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([320, 880])
@@ -478,7 +790,9 @@ class OntologyTab(QWidget):
             self._graph = None
             QMessageBox.warning(self, "Doc2Onto", f"Не удалось загрузить онтологию: {ex}")
 
-        self._card.set_graph(self._graph)
+        self._individual_card.set_graph(self._graph)
+        self._class_card.set_graph(self._graph)
+        self._stack.setCurrentIndex(self._PAGE_EMPTY)
         self._rebuild_tree()
 
     # ------------------------------------------------------------ tree
@@ -552,10 +866,9 @@ class OntologyTab(QWidget):
                 children.append(s)
         children.sort(key=lambda c: class_label(g, c))
 
-        ind_count = len(cls_to_inds.get(cls, []))
-        item = QTreeWidgetItem([f"{class_label(g, cls)} ({ind_count})"])
+        item = QTreeWidgetItem([class_label(g, cls)])
         item.setData(0, Qt.ItemDataRole.UserRole, ("class", str(cls)))
-        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+        # Класс остаётся выбираемым — теперь у него есть собственная карточка.
         parent.addChild(item)
         added[cls] = item
 
@@ -577,37 +890,51 @@ class OntologyTab(QWidget):
     def _on_tree_selection_changed(self):
         items = self._tree.selectedItems()
         if not items:
-            self._card.show_individual(None)
+            self._stack.setCurrentIndex(self._PAGE_EMPTY)
             return
         data = items[0].data(0, Qt.ItemDataRole.UserRole)
         if not isinstance(data, tuple):
-            self._card.show_individual(None)
+            self._stack.setCurrentIndex(self._PAGE_EMPTY)
             return
         kind, iri = data
         if kind == "individual":
-            self._card.show_individual(URIRef(iri))
+            self._individual_card.show_individual(URIRef(iri))
+            self._stack.setCurrentIndex(self._PAGE_INDIVIDUAL)
+        elif kind == "class":
+            self._class_card.show_class(URIRef(iri))
+            self._stack.setCurrentIndex(self._PAGE_CLASS)
         else:
-            self._card.show_individual(None)
+            self._stack.setCurrentIndex(self._PAGE_EMPTY)
 
     def select_individual(self, iri: URIRef):
         target = str(iri)
         for i in range(self._tree.topLevelItemCount()):
             top = self._tree.topLevelItem(i)
-            if self._select_descendant(top, target):
+            if self._select_descendant(top, target, kind="individual"):
                 return
 
-    def _select_descendant(self, item: QTreeWidgetItem, target_iri: str) -> bool:
+    def select_class(self, iri: URIRef):
+        target = str(iri)
+        for i in range(self._tree.topLevelItemCount()):
+            top = self._tree.topLevelItem(i)
+            if self._select_descendant(top, target, kind="class"):
+                return
+
+    def _select_descendant(self, item: QTreeWidgetItem, target_iri: str, *, kind: str) -> bool:
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if isinstance(data, tuple) and data[0] == "individual" and data[1] == target_iri:
+        if isinstance(data, tuple) and data[0] == kind and data[1] == target_iri:
             self._tree.setCurrentItem(item)
             return True
         for j in range(item.childCount()):
-            if self._select_descendant(item.child(j), target_iri):
+            if self._select_descendant(item.child(j), target_iri, kind=kind):
                 return True
         return False
 
     def _on_card_individual_clicked(self, iri: URIRef):
         self.select_individual(iri)
+
+    def _on_class_link_clicked(self, iri: URIRef):
+        self.select_class(iri)
 
     # ------------------------------------------------------------ search
 

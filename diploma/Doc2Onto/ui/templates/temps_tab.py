@@ -130,3 +130,10 @@ class TemplatesTab(QWidget):
 
     def _load_temps_cache(self):
         self._temps_cache.load(self._temp_manager.list())
+
+    def select_template_by_id(self, template_id: str):
+        """Активирует элемент списка для шаблона с заданным id (если найден)."""
+        for i, temp in enumerate(self._temps_cache.items()):
+            if temp.id == template_id:
+                self._list.setCurrentRow(i)
+                return

@@ -305,6 +305,63 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
+    def between_markers(
+        self,
+        left_predicate: ElementPredicate,
+        right_predicate: ElementPredicate,
+        *,
+        include_left: bool = False,
+        include_right: bool = False,
+    ) -> "FieldSelector":
+        """
+        Берёт срез из текущего плоского списка локальных областей между двумя «якорями».
+
+        Левый якорь — первый элемент в области, удовлетворяющий ``left_predicate``.
+        Правый якорь — первый элемент после левого, удовлетворяющий ``right_predicate``.
+        Возвращает все элементы между ними (по умолчанию — без самих маркеров).
+
+        Используется как продолжение `find(...)`, чтобы вырезать из плоской последовательности
+        параграфов/блоков фрагмент «от заголовка до следующего заголовка». Пример:
+
+            sel().find(ElementType.P).between_markers(
+                Predicate.contains_text("Сведения о студенте"),
+                Predicate.contains_text("Сведения о руководителе"),
+            )
+
+        Args:
+            left_predicate: Предикат для поиска левого якоря.
+            right_predicate: Предикат для поиска правого якоря.
+            include_left: Включать ли сам левый якорь в результат. По умолчанию False.
+            include_right: Включать ли сам правый якорь в результат. По умолчанию False.
+
+        Returns:
+            FieldSelector: Тот же селектор. Если хотя бы один маркер не найден, область очищается.
+        """
+        def op() -> List[Element]:
+            scope = self._scope
+            li: Optional[int] = None
+            for i, el in enumerate(scope):
+                if left_predicate(el):
+                    li = i
+                    break
+            if li is None:
+                return []
+
+            ri: Optional[int] = None
+            for j in range(li + 1, len(scope)):
+                if right_predicate(scope[j]):
+                    ri = j
+                    break
+            if ri is None:
+                return []
+
+            start = li if include_left else li + 1
+            end = ri + 1 if include_right else ri
+            return scope[start:end]
+
+        self._operations.append(op)
+        return self
+
     def apply(self, operation: ScopeOperation) -> "FieldSelector":
         """
         Добавляет в цепочку кастомную операцию над текущим списком локальных областей поиска.

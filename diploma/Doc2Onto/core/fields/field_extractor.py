@@ -1,8 +1,32 @@
 import re
 from typing import Callable, List, Optional, Pattern
 
+from core.graph.value_transformer import ValueTransformer
+
 
 ExtractOperation = Callable[[str], Optional[str]]
+
+
+# Базовый набор «шаблонных» подписей, которые встречаются в формах документов
+# и должны вычищаться перед последующей нормализацией. Регулярки максимально
+# консервативные: убирают только те паттерны, которые в осмысленных значениях
+# (ФИО, дата, номер группы и т. п.) встречаться не могут.
+_TEMPLATE_PAREN_RE = re.compile(
+    r"\(\s*(?:ф\s*\.?\s*и\s*\.?\s*о\s*\.?|фио|должность|дата|подпись|инициалы|"
+    r"при\s+наличии|если\s+имеется|расшифровка(?:\s+подписи)?|"
+    r"наименование(?:\s+\w+){0,3}|номер|шифр)\s*\)",
+    re.IGNORECASE,
+)
+# Метка-префикс вида «ФИО:», «Дата:», «Группа №» в начале строки.
+_TEMPLATE_LABEL_RE = re.compile(
+    r"^\s*(?:ф\s*\.?\s*и\s*\.?\s*о\s*\.?|фио|дата|группа(?:\s*№)?|должность|подпись|"
+    r"тема(?:\s+вкр)?|руководитель(?:\s+вкр)?|студент|научный\s+руководитель|"
+    r"кафедра|факультет|направление\s+подготовки|профиль|уч\.?\s*год|учебный\s+год)"
+    r"\s*[:\-—]\s*",
+    re.IGNORECASE,
+)
+# Заполнители: длинные подчёркивания, многоточия, длинные тире-сепараторы.
+_TEMPLATE_FILLERS_RE = re.compile(r"_{2,}|\.{3,}|—{2,}|-{3,}")
 
 
 class FieldExtractor:
@@ -174,6 +198,122 @@ class FieldExtractor:
         """
         compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
         self._operations.append(lambda text: "".join(ch for ch in text if compiled.fullmatch(ch)))
+        return self
+
+    def strip_template_markers(self, *extra_markers: str) -> "FieldExtractor":
+        """
+        Удаляет типовые «шаблонные» подписи из текста бланков:
+
+          * скобочные пометки в начале/середине строки (``(Ф.И.О.)``, ``(должность)``,
+            ``(подпись)``, ``(дата)``, ``(при наличии)`` и т. п.);
+          * лидирующие метки ``ФИО:``, ``Дата:``, ``Группа №``, ``Тема ВКР:`` и т. п.;
+          * заполнители: подряд идущие подчёркивания, многоточия, длинные тире.
+
+        Дополнительно убирает любые подстроки из ``extra_markers`` (без учёта регистра).
+        После вычистки схлопывает пробелы. Возвращает None, если после удаления
+        в строке не осталось содержательного текста.
+
+        Args:
+            *extra_markers: Дополнительные подстроки для удаления (если зашитого
+                списка не хватает — например, специфичные подписи конкретного бланка).
+        """
+        compiled_extra = [
+            re.compile(re.escape(m), re.IGNORECASE) for m in extra_markers if m
+        ]
+
+        def op(text: str) -> Optional[str]:
+            result = _TEMPLATE_LABEL_RE.sub("", text)
+            result = _TEMPLATE_PAREN_RE.sub(" ", result)
+            result = _TEMPLATE_FILLERS_RE.sub(" ", result)
+            for pattern in compiled_extra:
+                result = pattern.sub(" ", result)
+            result = re.sub(r"\s+", " ", result).strip()
+            return result or None
+
+        self._operations.append(op)
+        return self
+
+    def parse_date_iso(self) -> "FieldExtractor":
+        """
+        Распознаёт дату в свободной форме и приводит её к ISO 8601 (``YYYY-MM-DD``).
+
+        Использует :func:`core.graph.value_transformer.ValueTransformer.date`, поэтому
+        принимает все поддерживаемые им форматы: ``19.05.2025``, ``2025-05-19``,
+        ``«29» сентября 2025 г.``, ``20 декабря 2024 г.`` и т. д. Возвращает None,
+        если дату распознать не удалось.
+
+        Удобно ставить непосредственно перед валидацией / литералом xsd:date —
+        тогда нормализация в графе и валидация будут работать с одной и той же ISO-формой.
+        """
+        def op(text: str) -> Optional[str]:
+            try:
+                data = ValueTransformer.date(text)
+            except Exception:
+                return None
+            iso = data.get("iso")
+            return iso or None
+
+        self._operations.append(op)
+        return self
+
+    def normalize_person_name(self) -> "FieldExtractor":
+        """
+        Приводит ФИО к именительному падежу с морфологической нормализацией.
+
+        Использует :func:`core.graph.value_transformer.ValueTransformer.person`,
+        поэтому полностью совпадает с логикой построения IRI индивида ``:Персона``
+        (``b.person(...)`` в шаблоне). Возвращает строку вида ``Фамилия Имя Отчество``
+        в именительном падеже или None, если ФИО распарсить не удалось.
+
+        Полезно ставить ПЕРЕД валидацией — чтобы морфонормализация прошла
+        в декларативном этапе, а не только в LLM-этапе.
+        """
+        def op(text: str) -> Optional[str]:
+            try:
+                data = ValueTransformer.person(text)
+            except Exception:
+                return None
+            name = data.get("name")
+            return name or None
+
+        self._operations.append(op)
+        return self
+
+    def pick_first_match(
+        self,
+        *patterns: str | Pattern[str],
+        group: int | str = 0,
+        flags: int = 0,
+    ) -> "FieldExtractor":
+        """
+        Перебирает регулярные выражения по порядку и возвращает результат первого совпадения.
+
+        Удобно, когда поле может быть записано в одном из нескольких форматов
+        (``Группа: 22204``, ``№ группы — 22204а``, ``группа М-2024-1``) и хочется
+        перечислить все варианты, не строя один длинный «универсальный» regex.
+
+        Args:
+            *patterns: Регулярные выражения (строки или скомпилированные шаблоны)
+                в порядке приоритета.
+            group: Группа для извлечения из совпадения (0 — всё совпадение).
+            flags: Флаги компиляции для строковых паттернов.
+        """
+        compiled: List[Pattern[str]] = [
+            re.compile(p, flags) if isinstance(p, str) else p for p in patterns
+        ]
+
+        def op(text: str) -> Optional[str]:
+            for pat in compiled:
+                m = pat.search(text)
+                if not m:
+                    continue
+                try:
+                    return m.group(group)
+                except (IndexError, KeyError):
+                    continue
+            return None
+
+        self._operations.append(op)
         return self
 
     def apply(self, operation: ExtractOperation) -> "FieldExtractor":
