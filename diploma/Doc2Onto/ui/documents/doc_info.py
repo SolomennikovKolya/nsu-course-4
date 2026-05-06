@@ -62,7 +62,7 @@ class DocumentInfoWidget(QWidget):
         self._stack.addWidget(self._build_empty_page())
         self._stack.addWidget(self._build_document_page())
 
-    # ------------------------------------------------------------ pages
+    # ---------- pages ----------
 
     def _build_empty_page(self) -> QWidget:
         self._empty_page = QWidget()
@@ -125,7 +125,7 @@ class DocumentInfoWidget(QWidget):
 
         return self._document_page
 
-    # ------------------------------------------------------------ public API
+    # ---------- public API ----------
 
     def set_document(self, document: Optional[Document]):
         self._document = document
@@ -169,7 +169,7 @@ class DocumentInfoWidget(QWidget):
 
         self._class_combo.blockSignals(False)
 
-    # ------------------------------------------------------------ slots
+    # ---------- slots ----------
 
     def _on_rename_doc(self, new_name: str):
         doc = self._document
@@ -250,10 +250,11 @@ class DocumentInfoWidget(QWidget):
             self._on_rollback()
 
     def _run_pipeline_to_appropriate_target(self, doc: Document):
-        target = Document.Status.TRIPLES_BUILT if doc.status == Document.Status.UPLOADED \
-            or int(doc.status) < int(Document.Status.TRIPLES_BUILT) else Document.Status.ADDED_TO_MODEL
-        if doc.status == Document.Status.TRIPLES_BUILT:
-            target = Document.Status.ADDED_TO_MODEL
+        # target = Document.Status.TRIPLES_BUILT if doc.status == Document.Status.UPLOADED \
+        #     or int(doc.status) < int(Document.Status.TRIPLES_BUILT) else Document.Status.ADDED_TO_MODEL
+        # if doc.status == Document.Status.TRIPLES_BUILT:
+        #     target = Document.Status.ADDED_TO_MODEL
+        target = Document.Status.ADDED_TO_MODEL
 
         self._pipeline.run(doc, target)
         self._doc_manager.save_metadata(doc)
@@ -287,7 +288,7 @@ class DocumentInfoWidget(QWidget):
             return
 
         doc.status = Document.Status.UPLOADED
-        self._pipeline.run(doc, Document.Status.TRIPLES_BUILT)
+        self._pipeline.run(doc)
         self._doc_manager.save_metadata(doc)
 
         self._status_widget.set_status(doc)
@@ -433,7 +434,7 @@ class DocumentInfoWidget(QWidget):
             lines.append("Изменений нет.")
         return "\n".join(lines)
 
-    # ------------------------------------------------------------ buttons state
+    # ---------- buttons state ----------
 
     def _update_buttons(self):
         doc = self._document
