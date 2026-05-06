@@ -85,7 +85,7 @@ class TemplateCodeLoader:
                 names = ", ".join(sorted(abstract))
                 raise ValueError(f"Класс TemplateCode остаётся абстрактным, не реализованы: {names}.")
 
-            for name in ("classify", "fields", "build_triples"):
+            for name in ("classify", "fields", "build"):
                 if not callable(getattr(code, name, None)):
                     raise ValueError(f"Метод «{name}» отсутствует или не является вызываемым.")
 

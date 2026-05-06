@@ -103,7 +103,7 @@ class Extractor(BaseModule):
                 if status is None:
                     result.set_unexpected_error_llm(field.name, "Некорректный формат ответа LLM: status должен быть bool")
 
-                if status:
+                if status and value:
                     result.set_value_llm(field.name, value, error)
                 else:
                     result.set_error_llm(field.name, error or "LLM определила, что значение некорректно")

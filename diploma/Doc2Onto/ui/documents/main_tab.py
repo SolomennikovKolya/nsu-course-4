@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Dict, Optional, List
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout,
@@ -73,6 +73,8 @@ class DocumentsCache:
 class DocumentsTab(QWidget):
     """Интерфейс для работы с документами."""
 
+    ontology_changed = Signal()  # документ добавлен/откачен/удалён из модели
+
     def __init__(self):
         super().__init__()
         self._pipeline = get_pipeline()
@@ -110,6 +112,7 @@ class DocumentsTab(QWidget):
         self._tree.itemSelectionChanged.connect(self._on_doc_selection_changed)
         self._info_widget.document_changed.connect(self._on_doc_info_changed)
         self._info_widget.document_deleted.connect(self._on_doc_deleted)
+        self._info_widget.ontology_changed.connect(self.ontology_changed)
 
         self._load_docs_cache()
         self._refresh_tree()
@@ -135,8 +138,7 @@ class DocumentsTab(QWidget):
 
             doc = self._doc_manager.add(file_path)
 
-            # Пытаемся извлечь UDDM сразу после загрузки
-            res = self._pipeline.run(doc, final_stage=Document.Status.UDDM_EXTRACTED)
+            res = self._pipeline.run(doc, final_stage=Document.Status.CLASS_DETERMINED)
             if not res:
                 self._doc_manager.delete(doc)
                 QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь UDDM из документа "{file_name}". {res.message}')
@@ -232,3 +234,12 @@ class DocumentsTab(QWidget):
     def _load_docs_cache(self):
         """Однократная загрузка кеша документов с диска при создании вкладки."""
         self._docs_cache.load(self._doc_manager.list())
+
+    def select_document_by_id(self, doc_id: str):
+        """Активирует элемент дерева для документа с заданным id (если найден)."""
+        for group in self._docs_cache.group_names():
+            for doc in self._docs_cache.docs_in_group(group):
+                if doc.id == doc_id:
+                    self._select_doc_in_tree(doc)
+                    self._info_widget.set_document(doc)
+                    return

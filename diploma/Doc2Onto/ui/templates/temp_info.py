@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from app.context import get_doc_manager, get_pipeline, get_temp_manager
 from app.agents import ask_gpt, read_prompt
+from app.ontology_summary import build_schema_summary
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
     ORIGINAL_FILE_STEM,
@@ -367,11 +368,14 @@ class TemplateInfoWidget(QWidget):
         example_uddm_text = example_doc.uddm_file_path().read_text(encoding="utf-8", errors="strict")
         # unfilled_document_text = self._choose_optional_unfilled_document_text()
 
+        ontology_schema = build_schema_summary()
+
         system_prompt = read_prompt(GENERATE_DESCR_SYS_PROMPT_PATH)
         user_prompt = read_prompt(
             GENERATE_DESCR_USER_PROMPT_PATH,
             template_name=temp.name,
             example_uddm_text=example_uddm_text,
+            ontology_schema=ontology_schema,
             # unfilled_document=unfilled_document_text,
         )
 
@@ -411,7 +415,12 @@ class TemplateInfoWidget(QWidget):
             QMessageBox.warning(self, APP_NAME, f"Не удалось прочитать шаблон кода-пример: {exc}")
             return
 
-        system_prompt = read_prompt(GENERATE_TEMP_SYS_PROMPT_PATH)
+        ontology_schema = build_schema_summary()
+
+        system_prompt = read_prompt(
+            GENERATE_TEMP_SYS_PROMPT_PATH,
+            ontology_schema=ontology_schema,
+        )
         user_prompt = read_prompt(
             GENERATE_TEMP_USER_PROMPT_PATH,
             template_description=description,

@@ -5,6 +5,7 @@ charset-normalizer==3.4.7
 cobble==0.1.4
 colorama==0.4.6
 convertapi==2.0.0
+DAWG2-Python==0.9.0
 distro==1.9.0
 dotenv==0.9.9
 h11==0.16.0
@@ -22,6 +23,8 @@ pdoc==16.0.0
 pydantic==2.13.0
 pydantic_core==2.46.0
 Pygments==2.20.0
+pymorphy3==2.0.6
+pymorphy3-dicts-ru==2.4.417150.4580142
 pyparsing==3.3.2
 PySide6==6.10.2
 PySide6_Addons==6.10.2

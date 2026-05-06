@@ -29,8 +29,8 @@ META_FILENAME = "meta.json"
 ORIGINAL_FILE_STEM = "original"
 
 ONTOLOGY_PATH = ONTOLOGY_DIR / "ontology.ttl"
-ONTOLOGY_SCHEMA_PATH = ONTOLOGY_DIR / "schema.ttl"
 ONTOLOGY_HISTORY_PATH = ONTOLOGY_DIR / "history.json"
+FACTS_JOURNAL_PATH = ONTOLOGY_DIR / "facts.jsonl"
 
 APP_LOG_PATH = LOG_DIR / "app.log"
 AGENTS_LOG_PATH = LOG_DIR / "agents.log"
@@ -39,6 +39,8 @@ AGENTS_LOG_PATH = LOG_DIR / "agents.log"
 RESOURCES_DIR = PROJECT_ROOT / "resources"
 PROMPTS_DIR = RESOURCES_DIR / "prompts"
 IMAGES_DIR = RESOURCES_DIR / "images"
+
+ONTOLOGY_SCHEMA_PATH = RESOURCES_DIR / "onto" / "schema.ttl"
 
 TEMPLATE_CODE_EXAMPLE_PATH = RESOURCES_DIR / "template" / "code_example.py"
 

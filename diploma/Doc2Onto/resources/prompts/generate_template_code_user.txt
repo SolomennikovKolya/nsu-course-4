@@ -1,4 +1,4 @@
-Сгенерируй Python-код шаблона извлечения.
+Сгенерируй Python-код шаблона извлечения по описанию ниже.
 
 ### Входные данные
 
@@ -8,87 +8,64 @@ $template_description
 #### 2. Пример документа в формате UDDM
 $example_uddm_text
 
-#### 3. Код шаблона, который тебе надо взять за основу и заполнить
+#### 3. Каркас, который надо заполнить
 $code_example
 
 ### Требования
 
-Реализуй класс TemplateCode (реализуй методы classify, fields и build_triples)
+Реализуй класс TemplateCode (методы classify, fields и build).
 
-#### 1. Требования к classify
-Используй двухуровневую классификацию:
-1. Классификация по имени документа:
-  - Использую ключевые слова
-  - Классификация по имени не должна быть универсальной, но как минимум она должна работать для переданного тебе примера документа
-  - Классификация должна быть специализированной (например, наличие слова "отзыв" не говорит о том, что документ имеет класс "Отзыв руководителя практики Бакалавриат ПИиКН 7 сем")
-2. Классификация по UDDM:
-  - Используй характерные текстовые якоря
-  - Не делай сложную логику
-  - Можешь использовать все методы прямого обрашения к структуре UDDM
+#### classify(self, doc_name: str, uddm: UDDM) -> bool
+Двухуровневая классификация:
+1. Сначала по имени документа (`doc_name.lower()`): несколько ключевых слов через `all(word in name for word in [...])`. Достаточно специфично, чтобы не путать с однотипными классами (например, «отзыв» — недостаточно специфично для «Отзыв руководителя практики Бакалавриат ПИиКН 7 сем»). Минимум — должно срабатывать для прилагаемого примера документа.
+2. Затем фолбэк по содержимому UDDM: `str(uddm.root).lower()` + проверка набора характерных якорных фраз.
 
-#### 2. Требования к fields
-Каждый Field должен соответствовать одному полю из описания.
+#### fields(self) -> List[Field]
+Каждый Field соответствует одному полю из «Описания шаблона».
+- `name` — snake_case, уникальное в шаблоне.
+- `description` — берётся из описания (короткое осмысленное).
+- `selector` — строго по разделу «Где искать». Предпочитай относительные позиции (`next_element()` / `previous_element()` / `inner_element(...)` / `outer_element()`) — структура UDDM может быть зашумлена.
+- `extractor` — строго по разделу «Как извлекать». Помни, что в выбранном строковом представлении кроме нужного значения часто есть мусор (заголовки полей, маркеры). Не делай trim в конце цепочки (он автоматический).
+- `validator` — максимально полезные, но не избыточные проверки. Лучше пустой `val()`, чем бесполезный `min_length(3)`.
+- При нехватке DSL — кастомные функции через `apply(...)` в селекторе/экстракторе/валидаторе.
 
-Параметры Field:
-- name - название в snake_case
-- description - описание поля из описания шаблона 
-- selector
-  - Строго по "Где искать"
-  - Стараться использовать относительные позиции элементов (так как структура UDDM может быть не идеальна и извлекаться с ошибками из исходного документа)
-  - Если в DSL нет подходящих методов для селекции поля, использовать кастомные функции через apply
-- extractor
-  - Строго по "Как извлекать"
-  - Не забывать, что в строке помимо искового значения поля могут быть и мусорные 
-  - Не делать trim в конце цепочки (он и так делается автоматически в ходе работы пайплайна)
-  - Если в DSL нет подходящих методов для извлечения поля, использовать кастомные функции через apply
-- validator
-  - Максимально строгие, но при этом логичные проверки (чтобы не отбросить на самом деле валидное значение поля)
-  - Лучше оставить цепочку валидации пустой, чем писать бесполезные проверки по типу `min_length(3)`
-  - Если в DSL нет подходящих методов для валидации поля, использовать кастомные функции через apply
+#### build(self, b: TemplateGraphBuilder)
+- Используй ТОЛЬКО классы и свойства из онтологической схемы (см. системный промпт). Никаких выдуманных предикатов.
+- Для всех индивидов классов с подсказкой `IRI: b.<helper>(...)` ИСПОЛЬЗУЙ соответствующий хелпер билдера. Хелперы сами добавляют тип и идентифицирующие литералы — НЕ дублируй их вручную.
+- Перечисления (Должность, УченаяСтепень, УченоеЗвание, ВидПрактики, Оценка) выбираются ТОЛЬКО через хелперы `b.position` / `b.degree` / `b.title` / `b.practice_kind` / `b.grade`. Запрещено заводить в шаблоне локальные таблицы синонимов вроде `_POSITION_MAP` или приватные функции для перечислений: эта логика уже в DSL.
+- Для опциональных свойств (например, должность сотрудника, степень, звание) используй `b.add_object_property_optional(...)` — он молча пропустит триплет, если значение отсутствует или не распознано.
+- Низкоуровневое API (`b.field(...).transform(...)`, лямбды) применяй ТОЛЬКО там, где нет подходящего хелпера и где трансформация специфична для данного шаблона.
 
-#### 3. Требования к build_triples
-- Используй все необходиные возможности rdflib
-- Главное - построить граф RDF со всеми необходимыми знаниями
-- Опирайся на переданную онтологию, чтобы согласовать ресурсы
-- Используй FieldsAccessor для создания Literal или URIRef из полей шаблона
-- Базовый namespace: @prefix : <http://doc2onto.org/ontology#> .
+### Дополнительно
 
-#### Примечание
-В случае, если описание шаблона пустое или не содержит четкого описания извлекаемых полей, сам придумай, какие поля извлекать.
-Только извлекай поля, значения которых варьируются от документа к документу в рамках одного класса (постоянную информацию извлекать не надо).
+- Если в описании шаблона нет чёткого списка полей — сам выбери разумный набор полей, ОПИРАЯСЬ на онтологию (только то, что варьируется от документа к документу в рамках одного класса).
+- НЕ извлекай постоянную информацию (например, шапки, фиксированные заголовки), её не нужно класть в граф.
 
-### Ответ
+### Формат ответа
 
-Формат ответа:
-- Полный текст кода (включая импорты)
-- Без пояснений
-- Без markdown
-- Без ``` блоков
+- Верни ПОЛНЫЙ исходник Python-файла шаблона, начиная с импортов.
+- Без объяснений, без markdown, без тройных бэктиков, без лишнего текста.
 
-Перед выводом кода проверь:
-- все поля из описания присутствуют
-- нет несуществующих методов
-- код компилируется логически
+Перед выводом проверь:
+- все поля из описания присутствуют;
+- нет несуществующих методов / namespace-ов / предикатов;
+- классы и предикаты из `ONTO.*` действительно есть в схеме выше;
+- для каждого индивида типа :Персона / :Организация / :Профиль / :Группа / :НаправлениеПодготовки / :ВКР / :Практика использован соответствующий хелпер `b.<helper>(...)`;
+- для каждого индивида перечисления использован соответствующий хелпер (`b.position` / `b.degree` / `b.title` / `b.practice_kind` / `b.grade`);
+- в шаблоне НЕТ модульных констант-таблиц синонимов и приватных функций для перечислений;
+- код синтаксически корректен.
 
-### Примеры
+### Пример готового шаблона (для ориентира)
 
-#### Пример шаблона "Заявление на практику Бакалавриат ПИиКН 7 сем"
+from typing import List
 
-from typing import List, Dict
-
-from core.template.base import BaseTemplateCode
-from core.fields.field import Field
-from core.fields.field_selector import *
-from core.fields.field_extractor import *
-from core.fields.field_validator import *
-from core.uddm.model import *
+from core import *
 
 
 class TemplateCode(BaseTemplateCode):
-
     def classify(self, doc_name: str, uddm: UDDM) -> bool:
         name = (doc_name or "").lower()
-        if all(word in name for word in ["заявление", "на", "практику"]):
+        if all(word in name for word in ["заявление", "на", "практику", "бакалавриат", "пиикн"]):
             return True
 
         full_text = str(uddm.root).lower()
@@ -97,77 +74,77 @@ class TemplateCode(BaseTemplateCode):
     def fields(self) -> List[Field]:
         return [
             Field(
-                name="student_name",
-                description="ФИО обучающегося",
-                selector=select().find(ElementType.P, contains_text("(Ф.И.О.)")),
-                extractor=extract().before("(Ф.И.О.)"),
-                validator=validate().alphabetic().word_count(exact=3),
+                "student_name", "ФИО обучающегося",
+                sel().find(ElementType.P, Predicate.contains_text("(Ф.И.О.)")),
+                ext().before("(Ф.И.О.)").keep_letters_and_spaces().normalize_spaces(),
+                val().alphabetic().word_count(min_words=2, max_words=3),
             ),
             Field(
-                name="course_number",
-                description="Номер курса обучения",
-                selector=select().find(ElementType.P, contains_text("курса")),
-                extractor=extract().regex(r"(\d+)\s*курса", group=1),
-                validator=validate().integer().in_range(1, 4),
+                "group_number", "Номер учебной группы",
+                sel().find(ElementType.P, Predicate.contains_text("группы №")),
+                ext().regex(r"группы\s*№\s*([0-9]+)", group=1),
+                val().integer(),
             ),
             Field(
-                name="group_number",
-                description="Номер учебной группы",
-                selector=select().find(ElementType.P, contains_text("группы №")),
-                extractor=extract().regex(r"группы\s*№\s*([0-9]+)", group=1),
-                validator=validate().integer(),
+                "direction_code", "Код направления подготовки",
+                sel().find(ElementType.P, Predicate.contains_text("направление")),
+                ext().regex(r"(\d{2}\.\d{2}\.\d{2})", group=1),
+                val().regex(r"\d{2}\.\d{2}\.\d{2}", full_match=True),
             ),
             Field(
-                name="direction_code",
-                description="Код направления подготовки",
-                selector=select().find(ElementType.P, contains_text("направление")),
-                extractor=extract().regex(r"(\d{2}\.\d{2}\.\d{2})", group=1),
-                validator=validate().regex(r"\d{2}\.\d{2}\.\d{2}", full_match=True),
+                "direction_name", "Наименование направления подготовки",
+                sel().find(ElementType.P, Predicate.contains_text("(код и наименование направления)")).previous_element(),
+                ext().regex(r"\d{2}\.\d{2}\.\d{2}\s*(.+)$", group=1),
+                val(),
             ),
             Field(
-                name="direction_name",
-                description="Наименование направления подготовки",
-                selector=select().find(ElementType.P, contains_text("(код и наименование направления)")).previous_element(),
-                extractor=extract().after("направление ").after(" ").trim(),
-                validator=validate().alphabetic(),
+                "profile_name", "Наименование профиля подготовки",
+                sel().find(ElementType.P, Predicate.contains_text("направленность (профиль)")),
+                ext().after("направленность (профиль)"),
+                val(),
             ),
             Field(
-                name="profile_name",
-                description="Наименование профиля подготовки",
-                selector=select().find(ElementType.P, contains_text("направленность (профиль)")),
-                extractor=extract().after("направленность (профиль)").trim(),
-                validator=validate().alphabetic(),
+                "organization_full_name", "Полное наименование организации места практики",
+                sel().find(ElementType.P, Predicate.contains_text("(указывается наименование практики)")).previous_element(),
+                ext(),
+                val(),
             ),
             Field(
-                name="organization_full_name",
-                description="Полное наименование организации места практики",
-                selector=select().find(ElementType.P, contains_text("(полное название организации")).previous_element(),
-                extractor=extract(),
-                validator=validate(),
+                "supervisor_name", "ФИО руководителя ВКР",
+                sel().find(ElementType.P, Predicate.contains_text("Руководитель ВКР")),
+                ext().regex(
+                    r"Руководитель ВКР.*?([А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+)",
+                    group=1,
+                ),
+                val().alphabetic().word_count(exact=3),
             ),
             Field(
-                name="application_date",
-                description="Дата заявления",
-                selector=select().find(ElementType.P, contains_text("Дата:")),
-                extractor=extract().after("Дата: ").regex(r"«?\s*(\d{1,2})\s*»?\s*([А-Яа-яЁё]+)\s*(\d{4}\s*г\.)", group=0),
-                validator=validate(),
-            ),
-            Field(
-                name="supervisor_name",
-                description="ФИО руководителя ВКР",
-                selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
-                extractor=extract().regex(r"Руководитель ВКР.*?(?:\(?Ф\.И\.О\. полностью\)?\s*)?(.*?)(?:\s+зав\. кафедрой|\s+\(должность\)|$)",
-                                          group=1).keep_letters_and_spaces().normalize_spaces(),
-                validator=validate().alphabetic().word_count(exact=3),
-            ),
-            Field(
-                name="supervisor_position",
-                description="Должность руководителя ВКР",
-                selector=select().find(ElementType.P, contains_text("Руководитель ВКР")),
-                extractor=extract().regex(r"Руководитель ВКР.*?(?P<position>зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)", group="position"),
-                validator=validate(),
+                "supervisor_position", "Должность руководителя ВКР",
+                sel().find(ElementType.P, Predicate.contains_text("Руководитель ВКР")),
+                ext().regex(
+                    r"(зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)",
+                    group=1,
+                ),
+                val(),
             ),
         ]
 
-    def build_triples(self, fields_values: Dict[str, str]) -> List[Dict]:
-        raise NotImplementedError()  # Примера пока нет
+    def build(self, b: TemplateGraphBuilder):
+        student = b.person("student_name", role=ONTO.Студент)
+        b.add_object_property(student, ONTO.обучаетсяВГруппе, b.group("group_number"))
+        b.add_object_property(
+            student, ONTO.обучаетсяНаНаправлении,
+            b.direction("direction_code", name_field="direction_name"),
+        )
+        b.add_object_property(student, ONTO.имеетПрофиль, b.profile("profile_name"))
+
+        b.organization("organization_full_name", role=ONTO.ВнешняяОрганизация)
+
+        supervisor = b.person("supervisor_name", role=ONTO.Сотрудник)
+        b.add_object_property_optional(
+            supervisor, ONTO.занимаетДолжность, b.position("supervisor_position"),
+        )
+
+        thesis = b.thesis(student=student)
+        b.add_object_property(thesis, ONTO.руководительВКР, supervisor)
+        b.add_object_property(student, ONTO.имеетВКР, thesis)

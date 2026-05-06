@@ -35,6 +35,57 @@
 
 
 # =====================================================================
+# ПОЛИТИКИ СЛИЯНИЯ ФАКТОВ (annotation property + закрытое перечисление)
+# =====================================================================
+
+# При добавлении в общий граф фактов из документа возможны конфликты:
+#   у одной и той же сущности (s, p, ?) уже есть какое-то значение,
+#   а новый документ приносит другое. Поведение задаётся аннотацией
+#   :mergePolicy у самого предиката p.
+# 
+#   :Policy_Set        — single-valued, неизменное во времени:
+#                        полная замена (s, p, *) → (s, p, o_new) без учёта дат.
+#                        Применяется к идентифицирующим свойствам и связям,
+#                        смена которых = ошибка извлечения.
+# 
+#   :Policy_SetByDate  — single-valued, временное:
+#                        замена выполняется только если effective_date нового
+#                        факта ≥ effective_date уже хранящегося. Иначе новый
+#                        факт игнорируется (журналируется как rejected).
+#                        Применяется к свойствам, отражающим состояние
+#                        агента во времени (группа обучения, тема ВКР).
+# 
+#   :Policy_Add        — multi-valued: чистый add, ничего не вытесняет.
+#                        Применяется к множественным свойствам (телефоны,
+#                        учёные звания, варианты наименования и т. п.),
+#                        а также к rdf:type (по умолчанию).
+# 
+#   Дефолт для свойства без явной :mergePolicy — :Policy_Add.
+
+:MergePolicy rdf:type owl:Class ;
+    rdfs:label "Политика слияния фактов"@ru ;
+    rdfs:comment "Класс политик слияния значений предиката при добавлении фактов в общий граф." .
+
+:Policy_Set rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "set"@ru ;
+    rdfs:comment "Single-valued, неизменное во времени: полная замена (s, p, *) → (s, p, o_new)." .
+
+:Policy_SetByDate rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "set-by-date"@ru ;
+    rdfs:comment "Single-valued, временное: замена выполняется только если effective_date нового факта ≥ существующего." .
+
+:Policy_Add rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "add"@ru ;
+    rdfs:comment "Multi-valued: чистый add, ничего не вытесняет (дефолт)." .
+
+:mergePolicy rdf:type owl:AnnotationProperty ;
+    rdfs:label "политика слияния"@ru ;
+    rdfs:domain rdf:Property ;
+    rdfs:range :MergePolicy ;
+    rdfs:comment "Аннотация предиката, определяющая поведение при слиянии фактов о (s, p, ?)." .
+
+
+# =====================================================================
 # КЛАССЫ
 # =====================================================================
 
@@ -290,6 +341,7 @@
     rdfs:label "входит в"@ru ;
     rdfs:domain :Организация ;
     rdfs:range :Организация ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Иерархическая принадлежность подразделения к родительской организации. Транзитивно: кафедра входит в факультет → кафедра входит в университет." .
 
 # ---------- Студент ----------
@@ -297,17 +349,20 @@
 :обучаетсяВГруппе rdf:type owl:ObjectProperty ;
     rdfs:label "обучается в группе"@ru ;
     rdfs:domain :Студент ;
-    rdfs:range :Группа .
+    rdfs:range :Группа ;
+    :mergePolicy :Policy_SetByDate .
 
 :обучаетсяНаНаправлении rdf:type owl:ObjectProperty ;
     rdfs:label "обучается на направлении"@ru ;
     rdfs:domain :Студент ;
-    rdfs:range :НаправлениеПодготовки .
+    rdfs:range :НаправлениеПодготовки ;
+    :mergePolicy :Policy_SetByDate .
 
 :имеетПрофиль rdf:type owl:ObjectProperty ;
     rdfs:label "имеет профиль (направленность)"@ru ;
     rdfs:domain :Студент ;
-    rdfs:range :Профиль .
+    rdfs:range :Профиль ;
+    :mergePolicy :Policy_SetByDate .
 
 # ---------- Сотрудник ----------
 
@@ -315,66 +370,77 @@
     rdfs:label "занимает должность"@ru ;
     rdfs:domain :Сотрудник ;
     rdfs:range :Должность ;
+    :mergePolicy :Policy_Add ;
     rdfs:comment "Сотрудник может занимать несколько должностей одновременно (в т. ч. в разных подразделениях)." .
 
 :работаетВ rdf:type owl:ObjectProperty ;
     rdfs:label "работает в"@ru ;
     rdfs:domain :Сотрудник ;
     rdfs:range :Организация ;
+    :mergePolicy :Policy_Add ;
     rdfs:comment "Место работы сотрудника. Возможно несколько одновременно." .
 
 :имеетУченуюСтепень rdf:type owl:ObjectProperty ;
     rdfs:label "имеет учёную степень"@ru ;
     rdfs:domain :Сотрудник ;
-    rdfs:range :УченаяСтепень .
+    rdfs:range :УченаяСтепень ;
+    :mergePolicy :Policy_Add .
 
 :имеетУченоеЗвание rdf:type owl:ObjectProperty ;
     rdfs:label "имеет учёное звание"@ru ;
     rdfs:domain :Сотрудник ;
-    rdfs:range :УченоеЗвание .
+    rdfs:range :УченоеЗвание ;
+    :mergePolicy :Policy_Add .
 
 # ---------- Связь Студент ↔ ВКР, Студент ↔ Практика ----------
 
-:авторВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:авторВКР rdf:type owl:ObjectProperty ;
     rdfs:label "автор ВКР"@ru ;
     rdfs:domain :ВКР ;
     rdfs:range :Студент ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "У каждой ВКР ровно один автор-студент." .
 
 :имеетВКР rdf:type owl:ObjectProperty ;
     rdfs:label "является автором ВКР"@ru ;
     owl:inverseOf :авторВКР ;
     rdfs:domain :Студент ;
-    rdfs:range :ВКР .
+    rdfs:range :ВКР ;
+    :mergePolicy :Policy_Add .
 
-:практикантВПрактике rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:практикантВПрактике rdf:type owl:ObjectProperty ;
     rdfs:label "практикант"@ru ;
     rdfs:domain :Практика ;
     rdfs:range :Студент ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "У одной практики ровно один практикант-студент." .
 
 :имеетПрактику rdf:type owl:ObjectProperty ;
     rdfs:label "проходит практику"@ru ;
     owl:inverseOf :практикантВПрактике ;
     rdfs:domain :Студент ;
-    rdfs:range :Практика .
+    rdfs:range :Практика ;
+    :mergePolicy :Policy_Add .
 
 # ---------- ВКР: руководители ----------
 
-:руководительВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:руководительВКР rdf:type owl:ObjectProperty ;
     rdfs:label "руководитель ВКР"@ru ;
     rdfs:domain :ВКР ;
-    rdfs:range :Сотрудник .
+    rdfs:range :Сотрудник ;
+    :mergePolicy :Policy_Set .
 
-:соруководительВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:соруководительВКР rdf:type owl:ObjectProperty ;
     rdfs:label "соруководитель ВКР"@ru ;
     rdfs:domain :ВКР ;
-    rdfs:range :Сотрудник .
+    rdfs:range :Сотрудник ;
+    :mergePolicy :Policy_Add .
 
-:консультантВКР rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:консультантВКР rdf:type owl:ObjectProperty ;
     rdfs:label "консультант ВКР"@ru ;
     rdfs:domain :ВКР ;
-    rdfs:range :Сотрудник .
+    rdfs:range :Сотрудник ;
+    :mergePolicy :Policy_Add .
 
 # ---------- Практика: место прохождения и руководители ----------
 
@@ -382,27 +448,32 @@
     rdfs:label "место прохождения практики"@ru ;
     rdfs:domain :Практика ;
     rdfs:range :Организация ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Профильная организация (или подразделение университета) — место прохождения практики." .
 
-:видПрактики rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:видПрактики rdf:type owl:ObjectProperty ;
     rdfs:label "вид практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :ВидПрактики .
+    rdfs:range :ВидПрактики ;
+    :mergePolicy :Policy_Set .
 
-:оценкаПрактики rdf:type owl:ObjectProperty, owl:FunctionalProperty ;
+:оценкаПрактики rdf:type owl:ObjectProperty ;
     rdfs:label "итоговая оценка практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :ОценкаПрактики .
+    rdfs:range :ОценкаПрактики ;
+    :mergePolicy :Policy_Set .
 
 :руководительПрактикиОтУниверситета rdf:type owl:ObjectProperty ;
     rdfs:label "руководитель практики от университета"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :Сотрудник .
+    rdfs:range :Сотрудник ;
+    :mergePolicy :Policy_Set .
 
 :руководительПрактикиОтПрофильнойОрганизации rdf:type owl:ObjectProperty ;
     rdfs:label "руководитель практики от профильной организации"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :Сотрудник .
+    rdfs:range :Сотрудник ;
+    :mergePolicy :Policy_Set .
 
 
 # =====================================================================
@@ -411,25 +482,29 @@
 
 # ---------- Персона ----------
 
-:фамилия rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:фамилия rdf:type owl:DatatypeProperty ;
     rdfs:label "фамилия"@ru ;
     rdfs:domain :Персона ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set .
 
-:имя rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:имя rdf:type owl:DatatypeProperty ;
     rdfs:label "имя"@ru ;
     rdfs:domain :Персона ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set .
 
-:отчество rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:отчество rdf:type owl:DatatypeProperty ;
     rdfs:label "отчество"@ru ;
     rdfs:domain :Персона ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set .
 
 :фио rdf:type owl:DatatypeProperty ;
     rdfs:label "ФИО (полная строка)"@ru ;
     rdfs:domain :Персона ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Add ;
     rdfs:comment """Полное ФИО как одна строка в исходном написании. Может присутствовать
 несколько вариантов (краткая/полная форма имени, инициалы) — все они хранятся вместе.
 Для надёжной идентификации используется не эта строка, а IRI-хеш персоны.""" .
@@ -437,12 +512,14 @@
 :email rdf:type owl:DatatypeProperty ;
     rdfs:label "адрес электронной почты"@ru ;
     rdfs:domain :Персона ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Add .
 
 :телефон rdf:type owl:DatatypeProperty ;
     rdfs:label "номер телефона"@ru ;
     rdfs:domain :Персона ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Add .
 
 # ---------- Организация ----------
 
@@ -450,78 +527,91 @@
     rdfs:label "наименование организации"@ru ;
     rdfs:domain :Организация ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Add ;
     rdfs:comment "Любая известная форма наименования (полная, краткая, аббревиатура). Допускается несколько значений." .
 
 :адресОрганизации rdf:type owl:DatatypeProperty ;
     rdfs:label "адрес организации"@ru ;
     rdfs:domain :Организация ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Add .
 
 # ---------- Группа ----------
 
-:номерГруппы rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:номерГруппы rdf:type owl:DatatypeProperty ;
     rdfs:label "номер группы"@ru ;
     rdfs:domain :Группа ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Номер учебной группы как строка (для совместимости с возможными нечисловыми обозначениями)." .
 
 # ---------- Направление подготовки ----------
 
-:кодНаправления rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:кодНаправления rdf:type owl:DatatypeProperty ;
     rdfs:label "код направления подготовки"@ru ;
     rdfs:domain :НаправлениеПодготовки ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Стандартный код направления подготовки в формате 'XX.XX.XX' (например, '09.03.01')." .
 
 :названиеНаправления rdf:type owl:DatatypeProperty ;
     rdfs:label "наименование направления подготовки"@ru ;
     rdfs:domain :НаправлениеПодготовки ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set .
 
 # ---------- Профиль ----------
 
 :названиеПрофиля rdf:type owl:DatatypeProperty ;
     rdfs:label "наименование профиля"@ru ;
     rdfs:domain :Профиль ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set .
 
 # ---------- ВКР ----------
 
 :темаВКР rdf:type owl:DatatypeProperty ;
     rdfs:label "тема ВКР"@ru ;
     rdfs:domain :ВКР ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_SetByDate .
 
 :обоснованиеТемыВКР rdf:type owl:DatatypeProperty ;
     rdfs:label "обоснование актуальности темы ВКР"@ru ;
     rdfs:domain :ВКР ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_SetByDate .
 
 # ---------- Практика ----------
 
 :темаЗаданияПрактики rdf:type owl:DatatypeProperty ;
     rdfs:label "тема индивидуального задания практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range xsd:string .
+    rdfs:range xsd:string ;
+    :mergePolicy :Policy_SetByDate .
 
-:датаНачалаПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:датаНачалаПрактики rdf:type owl:DatatypeProperty ;
     rdfs:label "дата начала практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range xsd:date .
+    rdfs:range xsd:date ;
+    :mergePolicy :Policy_Set .
 
-:датаОкончанияПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:датаОкончанияПрактики rdf:type owl:DatatypeProperty ;
     rdfs:label "дата окончания практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range xsd:date .
+    rdfs:range xsd:date ;
+    :mergePolicy :Policy_Set .
 
-:учебныйГодПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:учебныйГодПрактики rdf:type owl:DatatypeProperty ;
     rdfs:label "учебный год практики"@ru ;
     rdfs:domain :Практика ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Учебный год прохождения практики в формате 'YYYY/YYYY' (например, '2025/2026')." .
 
-:семестрПрактики rdf:type owl:DatatypeProperty, owl:FunctionalProperty ;
+:семестрПрактики rdf:type owl:DatatypeProperty ;
     rdfs:label "семестр практики"@ru ;
     rdfs:domain :Практика ;
     rdfs:range xsd:string ;
+    :mergePolicy :Policy_Set ;
     rdfs:comment "Литерал 'осенний' либо 'весенний'." .
