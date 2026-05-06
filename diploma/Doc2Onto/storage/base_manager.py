@@ -6,7 +6,7 @@ import hashlib
 from typing import Iterator
 
 from app.settings import META_FILENAME
-from app.utils import smart_asdict
+from utils.general import smart_asdict
 
 
 T = TypeVar("T")  # Объект, которым управляет менеджер

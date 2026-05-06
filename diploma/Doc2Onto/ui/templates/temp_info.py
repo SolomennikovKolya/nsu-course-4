@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 
 from app.context import get_doc_manager, get_pipeline, get_temp_manager
 from app.agents import ask_gpt, read_prompt
-from app.ontology_summary import build_schema_summary
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
     ORIGINAL_FILE_STEM,
@@ -29,6 +28,7 @@ from models.template import Template, TemplateCodeLoader
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from ui.common.design import DELETE_BUTTON_STYLE
+from utils.ontology_summary import build_schema_summary
 
 
 def _open_template_code_in_editor(code_path: Path):

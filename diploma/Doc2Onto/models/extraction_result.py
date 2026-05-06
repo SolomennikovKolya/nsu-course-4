@@ -3,7 +3,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, Optional, TypedDict
 
-from app.utils import parse_dict_field
+from utils.general import parse_dict_field
 
 
 class FieldExtractionData(TypedDict):

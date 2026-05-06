@@ -3,13 +3,13 @@ from logging import INFO, WARNING
 from typing import List
 
 from app.agents import ask_gpt, read_prompt
-from app.utils import parse_dict_field
 from app.settings import VALIDATE_FIELDS_SYS_PROMPT_PATH, VALIDATE_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
 from core.fields.field import Field
 from models.document import DocumentContext
 from models.extraction_result import ExtractionResult
 from models.validation_result import ValidationResult
 from modules.base import BaseModule, ModuleResult
+from utils.general import parse_dict_field
 
 
 class Validator(BaseModule):
