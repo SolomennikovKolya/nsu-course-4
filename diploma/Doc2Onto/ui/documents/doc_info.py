@@ -12,7 +12,7 @@ from app.settings import APP_NAME
 from models.document import Document
 from ui.common.editable_title import EditableTitleWidget
 from ui.documents.status_bar import StatusBarWidget
-from ui.documents.view.doc_view import DocumentViewWidget
+from ui.documents.doc_view import DocumentViewWidget
 from ui.common.design import DELETE_BUTTON_STYLE
 
 

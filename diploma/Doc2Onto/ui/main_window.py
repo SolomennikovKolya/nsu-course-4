@@ -1,8 +1,8 @@
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
-from ui.documents.main_tab import DocumentsTab
-from ui.templates.temps_tab import TemplatesTab
-from ui.ontology.main_tab import OntologyTab
+from ui.documents.documents_tab import DocumentsTab
+from ui.templates.templates_tab import TemplatesTab
+from ui.ontology.ontology_tab import OntologyTab
 
 
 class MainWindow(QMainWindow):
