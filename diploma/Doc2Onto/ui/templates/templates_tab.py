@@ -9,6 +9,7 @@ from app.context import get_temp_manager
 from app.settings import APP_NAME
 from models.template import Template
 from ui.templates.temp_info import TemplateInfoWidget
+from ui.common.design import MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 
 
 class TemplatesCache:
@@ -51,7 +52,7 @@ class TemplatesTab(QWidget):
         self._list = QListWidget()
 
         list_widget = QWidget()
-        list_widget.setMinimumWidth(250)
+        list_widget.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
         list_layout = QVBoxLayout(list_widget)
         list_layout.addWidget(add_button)
         list_layout.addWidget(self._list)
@@ -65,7 +66,7 @@ class TemplatesTab(QWidget):
         splitter.addWidget(self._info_widget)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([300, 900])
+        splitter.setSizes(SPLITTER_RATIO_SIZES)
 
         main_layout = QHBoxLayout(self)
         main_layout.addWidget(splitter)

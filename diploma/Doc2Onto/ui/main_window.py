@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QMainWindow, QTabWidget
 from ui.documents.documents_tab import DocumentsTab
 from ui.templates.templates_tab import TemplatesTab
 from ui.ontology.ontology_tab import OntologyTab
+from ui.common.design import MAIN_WINDOW_W, MAIN_WINDOW_H
 
 
 class MainWindow(QMainWindow):
@@ -11,7 +12,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Doc2Onto")
-        self.resize(900, 600)
+        self.resize(MAIN_WINDOW_W, MAIN_WINDOW_H)
 
         self._tabs = QTabWidget()
 

@@ -11,7 +11,7 @@ from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
 from models.document import Document
 from modules.converter.converter import ConverterRegistry
-from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW
+from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 from ui.documents.doc_info import DocumentInfoWidget
 
 
@@ -88,7 +88,7 @@ class DocumentsTab(QWidget):
         self._tree.setIndentation(20)
 
         tree_widget = QWidget()
-        tree_widget.setMinimumWidth(250)
+        tree_widget.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
         tree_layout = QVBoxLayout(tree_widget)
         tree_layout.addWidget(self._upload_btn)
         tree_layout.addWidget(self._tree)
@@ -102,7 +102,7 @@ class DocumentsTab(QWidget):
         splitter.addWidget(self._info_widget)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([300, 900])
+        splitter.setSizes(SPLITTER_RATIO_SIZES)
 
         main_layout = QHBoxLayout(self)
         main_layout.addWidget(splitter)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Dict, List, Optional, Set, Tuple
 
 from PySide6.QtCore import Qt, Signal, QTimer
@@ -8,27 +6,26 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QLabel,
     QTreeWidget, QTreeWidgetItem, QPushButton, QTableWidget, QTableWidgetItem,
     QDialog, QTextEdit, QHeaderView, QFrame, QMessageBox,
-    QStackedWidget, QLayout,
+    QStackedWidget,
 )
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from app.context import get_ontology_repository
 from app.settings import SUBJECT_NAMESPACE_IRI
+from ui.common.design import (
+    UI_COLOR_LINK_CLASS,
+    UI_COLOR_LINK_INDIVIDUAL,
+    UI_COLOR_TEXT_DIM,
+    UI_COLOR_TEXT_MUTED,
+    UI_COLOR_TEXT_SECONDARY,
+    UI_COLOR_TEXT_SUBTLE,
+    MIN_LEFT_PANEL_WIDTH,
+    SPLITTER_RATIO_SIZES,
+)
 
 
 _NS = SUBJECT_NAMESPACE_IRI
-
-
-# Цвета подсветки для разных видов URIRef-ссылок в таблицах.
-# Индивиды — синяя «обычная» ссылка, классы — фиолетовая (визуально отличается,
-# чтобы пользователь не путал переход к карточке индивида и к карточке класса).
-_INDIVIDUAL_LINK_COLOR = QColor("#90caf9")
-_CLASS_LINK_COLOR = QColor("#ce93d8")
-_LITERAL_FG = None  # дефолтный цвет темы — не переопределяем
-_TREE_CLASS_COLOR = QColor("#ce93d8")
-_TREE_INDIVIDUAL_COLOR = QColor("#90caf9")
-
 _META_RDF_TYPES: Set[URIRef] = {
     OWL.Class,
     RDFS.Class,
@@ -386,14 +383,14 @@ class IndividualCardWidget(QWidget):
         layout.addWidget(self._title_label)
 
         self._iri_label = QLabel()
-        self._iri_label.setStyleSheet("color:#888;font-family:monospace;")
+        self._iri_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};font-family:monospace;")
         self._iri_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._iri_label.setWordWrap(True)
         layout.addWidget(self._iri_label)
 
         self._classes_label = QLabel()
         self._classes_label.setWordWrap(True)
-        self._classes_label.setStyleSheet("color:#aaa;")
+        self._classes_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SUBTLE};")
         layout.addWidget(self._classes_label)
 
         sep = QFrame()
@@ -484,11 +481,11 @@ class IndividualCardWidget(QWidget):
                 # а на деле клик ничего не делал.
                 target_kind = classify_link_target(g, o)
                 if target_kind == "individual":
-                    o_item.setForeground(_INDIVIDUAL_LINK_COLOR)
+                    o_item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к индивиду)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(o)))
                 elif target_kind == "class":
-                    o_item.setForeground(_CLASS_LINK_COLOR)
+                    o_item.setForeground(QColor(UI_COLOR_LINK_CLASS))
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к классу)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("class", str(o)))
                 else:
@@ -508,7 +505,7 @@ class IndividualCardWidget(QWidget):
             else:
                 badge = QTableWidgetItem("—")
                 badge.setData(Qt.ItemDataRole.UserRole, None)
-                badge.setForeground(QColor("#666"))
+                badge.setForeground(QColor(UI_COLOR_TEXT_DIM))
             self._props_table.setItem(r, 2, badge)
 
         # --- входящие ---
@@ -523,11 +520,11 @@ class IndividualCardWidget(QWidget):
             s_item = QTableWidgetItem(s_text)
             target_kind = classify_link_target(g, s)
             if target_kind == "individual":
-                s_item.setForeground(_INDIVIDUAL_LINK_COLOR)
+                s_item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
                 s_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(s)))
                 s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к индивиду)")
             elif target_kind == "class":
-                s_item.setForeground(_CLASS_LINK_COLOR)
+                s_item.setForeground(QColor(UI_COLOR_LINK_CLASS))
                 s_item.setData(Qt.ItemDataRole.UserRole, ("class", str(s)))
                 s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к классу)")
             else:
@@ -639,19 +636,19 @@ class ClassCardWidget(QWidget):
         layout.addWidget(self._title_label)
 
         self._iri_label = QLabel()
-        self._iri_label.setStyleSheet("color:#888;font-family:monospace;")
+        self._iri_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};font-family:monospace;")
         self._iri_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._iri_label.setWordWrap(True)
         layout.addWidget(self._iri_label)
 
         self._parents_label = QLabel()
         self._parents_label.setWordWrap(True)
-        self._parents_label.setStyleSheet("color:#aaa;")
+        self._parents_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SUBTLE};")
         layout.addWidget(self._parents_label)
 
         self._comment_label = QLabel()
         self._comment_label.setWordWrap(True)
-        self._comment_label.setStyleSheet("color:#bbb;")
+        self._comment_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SECONDARY};")
         self._comment_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self._comment_label)
 
@@ -721,7 +718,7 @@ class ClassCardWidget(QWidget):
         self._subclasses_table.setRowCount(len(subclasses))
         for r, sub in enumerate(subclasses):
             item = QTableWidgetItem(class_label(g, sub))
-            item.setForeground(_CLASS_LINK_COLOR)
+            item.setForeground(QColor(UI_COLOR_LINK_CLASS))
             item.setData(Qt.ItemDataRole.UserRole, str(sub))
             item.setToolTip(short_iri(str(sub)) + "\n(клик — перейти)")
             self._subclasses_table.setItem(r, 0, item)
@@ -737,7 +734,7 @@ class ClassCardWidget(QWidget):
         self._individuals_table.setRowCount(len(directs))
         for r, ind in enumerate(directs):
             item = QTableWidgetItem(display_name(g, ind, types_of(g, ind)))
-            item.setForeground(_INDIVIDUAL_LINK_COLOR)
+            item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
             item.setData(Qt.ItemDataRole.UserRole, str(ind))
             item.setToolTip(short_iri(str(ind)) + "\n(клик — перейти)")
             self._individuals_table.setItem(r, 0, item)
@@ -797,7 +794,7 @@ class OntologyTab(QWidget):
 
         self._tree = QTreeWidget()
         self._tree.setHeaderHidden(True)
-        self._tree.setMinimumWidth(280)
+        self._tree.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         splitter.addWidget(self._tree)
 
@@ -809,7 +806,7 @@ class OntologyTab(QWidget):
         empty_layout.setContentsMargins(12, 12, 12, 12)
         empty_label = QLabel("Выберите класс или индивид")
         empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_label.setStyleSheet("color:#888;")
+        empty_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};")
         empty_layout.addWidget(empty_label)
         self._stack.addWidget(empty_page)
 
@@ -828,12 +825,12 @@ class OntologyTab(QWidget):
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([320, 880])
+        splitter.setSizes(SPLITTER_RATIO_SIZES)
         layout.addWidget(splitter, 1)
 
         self.refresh_graph()
 
-    # ------------------------------------------------------------ public
+    # ---------- public ----------
 
     def refresh_graph(self):
         try:
@@ -848,7 +845,7 @@ class OntologyTab(QWidget):
         self._stack.setCurrentIndex(self._PAGE_EMPTY)
         self._rebuild_tree()
 
-    # ------------------------------------------------------------ tree
+    # ---------- tree ----------
 
     def _rebuild_tree(self):
         self._tree.clear()
@@ -922,7 +919,7 @@ class OntologyTab(QWidget):
         children.sort(key=lambda c: class_label(g, c))
 
         item = QTreeWidgetItem([class_label(g, cls)])
-        item.setForeground(0, _TREE_CLASS_COLOR)
+        item.setForeground(0, QColor(UI_COLOR_LINK_CLASS))
         item.setData(0, Qt.ItemDataRole.UserRole, ("class", str(cls)))
         # Класс остаётся выбираемым — теперь у него есть собственная карточка.
         parent.addChild(item)
@@ -939,7 +936,7 @@ class OntologyTab(QWidget):
         sortable.sort(key=lambda t: t[0])
         for _, ind in sortable:
             ind_item = QTreeWidgetItem([display_name(g, ind, types_of(g, ind))])
-            ind_item.setForeground(0, _TREE_INDIVIDUAL_COLOR)
+            ind_item.setForeground(0, QColor(UI_COLOR_LINK_INDIVIDUAL))
             ind_item.setData(0, Qt.ItemDataRole.UserRole, ("individual", str(ind)))
             ind_item.setToolTip(0, short_iri(str(ind)))
             item.addChild(ind_item)
@@ -993,7 +990,7 @@ class OntologyTab(QWidget):
     def _on_class_link_clicked(self, iri: URIRef):
         self.select_class(iri)
 
-    # ------------------------------------------------------------ search
+    # ---------- search ----------
 
     def _on_search_changed(self, _text: str):
         self._search_timer.start()
