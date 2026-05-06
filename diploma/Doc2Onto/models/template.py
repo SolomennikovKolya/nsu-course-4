@@ -104,7 +104,7 @@ class TemplateCodeLoader:
             raise
 
     @staticmethod
-    def load(template: Template) -> Optional[BaseTemplateCode]:
+    def load(template: Template) -> BaseTemplateCode:
         """Загружает код шаблона из файла."""
         try:
             code_path = template.code_file_path()

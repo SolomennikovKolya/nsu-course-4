@@ -5,11 +5,12 @@ import uuid
 from pathlib import Path
 from typing import Optional
 from PySide6.QtCore import Qt, QTimer, Signal, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
-    QPlainTextEdit, QPushButton, QSizePolicy, QSplitter, QStackedWidget,
-    QTextBrowser, QVBoxLayout, QWidget
+    QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
+    QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSplitter,
+    QStackedWidget, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+    QWidget
 )
 
 from app.context import get_doc_manager, get_pipeline, get_temp_manager
@@ -22,13 +23,104 @@ from app.settings import (
     GENERATE_TEMP_SYS_PROMPT_PATH,
     GENERATE_TEMP_USER_PROMPT_PATH,
     TEMPLATE_CODE_EXAMPLE_PATH,
+    ONTOLOGY_SCHEMA_PATH,
 )
+from core.template.validation import validate_template_code, TemplateValidationReport
 from models.document import Document
 from models.template import Template, TemplateCodeLoader, template_context
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
-from ui.common.design import DELETE_BUTTON_STYLE
+from ui.common.design import (
+    DELETE_BUTTON_STYLE,
+    UI_COLOR_GRAY,
+    UI_COLOR_GREEN,
+    UI_COLOR_RED,
+    UI_COLOR_YELLOW,
+)
 from utils.ontology_summary import build_schema_summary
+
+
+_CATEGORY_LABELS = {
+    "structure": "Структура",
+    "security": "Безопасность",
+    "fields": "Поля",
+    "classify": "Классификатор",
+    "build": "Сухой прогон",
+    "ontology": "Онтология",
+}
+
+
+class ValidationResultDialog(QDialog):
+    """Диалог с результатами валидации шаблона."""
+
+    def __init__(self, report: TemplateValidationReport, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Результат валидации шаблона")
+        self.resize(680, 480)
+
+        layout = QVBoxLayout(self)
+
+        # --- Шапка со статусом ---
+        if not report.issues:
+            status_text = "Замечаний нет — шаблон валиден."
+            status_color = UI_COLOR_GREEN
+        elif report.has_errors:
+            n_err = len(report.errors)
+            n_warn = len(report.warnings)
+            status_text = f"Найдено ошибок: {n_err}, предупреждений: {n_warn}."
+            status_color = UI_COLOR_RED
+        else:
+            n_warn = len(report.warnings)
+            status_text = f"Ошибок нет, предупреждений: {n_warn}."
+            status_color = UI_COLOR_YELLOW
+
+        status_label = QLabel(status_text)
+        status_label.setStyleSheet(
+            f"color:{status_color}; padding:2px 0; font-weight:bold;"
+        )
+        layout.addWidget(status_label)
+
+        # --- Дерево замечаний ---
+        self._tree = QTreeWidget()
+        self._tree.setHeaderLabels(["Категория / Сообщение", "Уровень"])
+        self._tree.setColumnWidth(0, 530)
+        self._tree.setColumnWidth(1, 90)
+        self._tree.setAlternatingRowColors(True)
+        self._tree.setWordWrap(True)
+        self._tree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        layout.addWidget(self._tree, 1)
+
+        # Группируем по категориям в порядке категорий
+        category_order = ["structure", "security", "fields", "classify", "build", "ontology"]
+        issues_by_cat: dict[str, list] = {c: [] for c in category_order}
+        for issue in report.issues:
+            bucket = issues_by_cat.setdefault(issue.category, [])
+            bucket.append(issue)
+
+        for cat in category_order:
+            issues = issues_by_cat.get(cat, [])
+            if not issues:
+                continue
+            cat_label = _CATEGORY_LABELS.get(cat, cat)
+            cat_item = QTreeWidgetItem([cat_label, ""])
+            cat_item.setExpanded(True)
+            self._tree.addTopLevelItem(cat_item)
+
+            for issue in issues:
+                level = "Ошибка" if issue.is_error() else "Предупреждение"
+                row = QTreeWidgetItem([issue.message, level])
+                level_color = UI_COLOR_RED if issue.is_error() else UI_COLOR_YELLOW
+                row.setForeground(1, QColor(level_color))
+                if issue.detail:
+                    detail_item = QTreeWidgetItem([issue.detail, ""])
+                    detail_item.setForeground(0, QColor(UI_COLOR_GRAY))
+                    row.addChild(detail_item)
+                cat_item.addChild(row)
+
+        if not report.issues:
+            ok_item = QTreeWidgetItem(["Все проверки пройдены.", ""])
+            ok_item.setForeground(0, QColor(UI_COLOR_GREEN))
+            self._tree.addTopLevelItem(ok_item)
 
 
 def _open_template_code_in_editor(code_path: Path):
@@ -462,20 +554,11 @@ class TemplateInfoWidget(QWidget):
 
         with template_context(self.template) as tctx:
             code = tctx.code
-            if code is None:
-                QMessageBox.warning(
-                    self,
-                    APP_NAME,
-                    "Код шаблона не загружен (ошибка при загрузке code.py). "
-                    "Исправьте файл и перезагрузите шаблоны или перезапустите приложение.",
-                )
-                return
+            code_path = self.template.code_file_path()
 
-            try:
-                TemplateCodeLoader.validate(code)
-                QMessageBox.information(self, APP_NAME, "Шаблон успешно проверен.")
-            except Exception as e:
-                QMessageBox.critical(self, APP_NAME, str(e))
+        report = validate_template_code(code, code_path=code_path, schema_path=ONTOLOGY_SCHEMA_PATH)
+        dialog = ValidationResultDialog(report, self)
+        dialog.exec()
 
     def _on_delete_template(self):
         if self.template is None:
