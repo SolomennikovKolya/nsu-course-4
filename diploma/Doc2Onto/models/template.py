@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, List
 import importlib.util
 import sys
+from contextlib import contextmanager
 
 from app.context import get_logger
 from core.template.base import BaseTemplateCode
@@ -70,6 +71,15 @@ class TemplateContext:
     def unload(self):
         self._code = None
         self._fields = None
+
+
+@contextmanager
+def template_context(temp: Template):
+    ctx = TemplateContext(temp)
+    try:
+        yield ctx
+    finally:
+        ctx.unload()
 
 
 class TemplateCodeLoader:

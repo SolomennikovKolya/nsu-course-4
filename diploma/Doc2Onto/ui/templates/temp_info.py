@@ -24,7 +24,7 @@ from app.settings import (
     TEMPLATE_CODE_EXAMPLE_PATH,
 )
 from models.document import Document
-from models.template import Template, TemplateCodeLoader
+from models.template import Template, TemplateCodeLoader, template_context
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from ui.common.design import DELETE_BUTTON_STYLE
@@ -460,21 +460,22 @@ class TemplateInfoWidget(QWidget):
         if self.template is None:
             return
 
-        code = self.template.code
-        if code is None:
-            QMessageBox.warning(
-                self,
-                APP_NAME,
-                "Код шаблона не загружен (ошибка при загрузке code.py). "
-                "Исправьте файл и перезагрузите шаблоны или перезапустите приложение.",
-            )
-            return
+        with template_context(self.template) as tctx:
+            code = tctx.code
+            if code is None:
+                QMessageBox.warning(
+                    self,
+                    APP_NAME,
+                    "Код шаблона не загружен (ошибка при загрузке code.py). "
+                    "Исправьте файл и перезагрузите шаблоны или перезапустите приложение.",
+                )
+                return
 
-        try:
-            TemplateCodeLoader.validate(code)
-            QMessageBox.information(self, APP_NAME, "Шаблон успешно проверен.")
-        except Exception as e:
-            QMessageBox.critical(self, APP_NAME, str(e))
+            try:
+                TemplateCodeLoader.validate(code)
+                QMessageBox.information(self, APP_NAME, "Шаблон успешно проверен.")
+            except Exception as e:
+                QMessageBox.critical(self, APP_NAME, str(e))
 
     def _on_delete_template(self):
         if self.template is None:
