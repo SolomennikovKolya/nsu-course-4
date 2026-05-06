@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QLabel,
     QTreeWidget, QTreeWidgetItem, QPushButton, QTableWidget, QTableWidgetItem,
     QDialog, QTextEdit, QHeaderView, QFrame, QMessageBox,
-    QStackedWidget,
+    QStackedWidget, QAbstractItemView,
 )
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
@@ -405,6 +405,8 @@ class IndividualCardWidget(QWidget):
         self._props_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self._props_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._props_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._props_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._props_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._props_table.cellClicked.connect(self._on_props_cell_clicked)
         layout.addWidget(self._props_table, 1)
 
@@ -419,6 +421,8 @@ class IndividualCardWidget(QWidget):
         self._inbox_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._inbox_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._inbox_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._inbox_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._inbox_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._inbox_table.cellClicked.connect(self._on_inbox_cell_clicked)
         layout.addWidget(self._inbox_table, 1)
 
@@ -662,6 +666,8 @@ class ClassCardWidget(QWidget):
         self._subclasses_table.setHorizontalHeaderLabels(["Класс"])
         self._subclasses_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._subclasses_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._subclasses_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._subclasses_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._subclasses_table.cellClicked.connect(self._on_subclasses_cell_clicked)
         layout.addWidget(self._subclasses_table, 1)
 
@@ -676,6 +682,8 @@ class ClassCardWidget(QWidget):
         self._individuals_table.setHorizontalHeaderLabels(["Индивид"])
         self._individuals_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._individuals_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._individuals_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._individuals_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._individuals_table.cellClicked.connect(self._on_individuals_cell_clicked)
         layout.addWidget(self._individuals_table, 2)
 
