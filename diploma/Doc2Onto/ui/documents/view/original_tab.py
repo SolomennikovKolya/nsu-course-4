@@ -20,7 +20,6 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QStackedWidget,
     QTextBrowser,
@@ -190,6 +189,7 @@ def build_or_reuse_preview_pdf(original: Path) -> Path:
 
 class OriginalPdfPreviewWidget(QWidget):
     """Встроенный просмотр PDF с зумом (отдельный виджет в этом же модуле)."""
+    open_original_requested = Signal()
 
     def __init__(self):
         super().__init__()
@@ -200,23 +200,27 @@ class OriginalPdfPreviewWidget(QWidget):
         tb = QHBoxLayout(self._toolbar)
         tb.setContentsMargins(0, 0, 0, 0)
 
-        self._zoom_out = QPushButton("−")
-        self._zoom_in = QPushButton("+")
-        self._zoom_out.setFixedWidth(32)
-        self._zoom_in.setFixedWidth(32)
-        self._zoom_out.clicked.connect(self._on_zoom_out)
-        self._zoom_in.clicked.connect(self._on_zoom_in)
+        # self._zoom_out = QPushButton("−")
+        # self._zoom_in = QPushButton("+")
+        # self._zoom_out.setFixedWidth(32)
+        # self._zoom_in.setFixedWidth(32)
+        # self._zoom_out.clicked.connect(self._on_zoom_out)
+        # self._zoom_in.clicked.connect(self._on_zoom_in)
 
         self._fit_width = QPushButton("По ширине")
         self._fit_page = QPushButton("По высоте")
         self._fit_width.clicked.connect(self._on_fit_width)
         self._fit_page.clicked.connect(self._on_fit_page)
 
-        tb.addWidget(self._zoom_out)
-        tb.addWidget(self._zoom_in)
+        self._open_external_btn = QPushButton("Открыть оригинал в программе по умолчанию")
+        self._open_external_btn.clicked.connect(self.open_original_requested.emit)
+
+        tb.addWidget(self._open_external_btn)
+        tb.addStretch(1)
+        # tb.addWidget(self._zoom_out)
+        # tb.addWidget(self._zoom_in)
         tb.addWidget(self._fit_width)
         tb.addWidget(self._fit_page)
-        tb.addStretch(1)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -269,17 +273,17 @@ class OriginalPdfPreviewWidget(QWidget):
             return
         self._pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
 
-    def _on_zoom_in(self):
-        if self._pdf_view is None:
-            return
-        self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
-        self._pdf_view.setZoomFactor(min(5.0, self._pdf_view.zoomFactor() * 1.15))
+    # def _on_zoom_in(self):
+    #     if self._pdf_view is None:
+    #         return
+    #     self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
+    #     self._pdf_view.setZoomFactor(min(5.0, self._pdf_view.zoomFactor() * 1.15))
 
-    def _on_zoom_out(self):
-        if self._pdf_view is None:
-            return
-        self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
-        self._pdf_view.setZoomFactor(max(0.25, self._pdf_view.zoomFactor() / 1.15))
+    # def _on_zoom_out(self):
+    #     if self._pdf_view is None:
+    #         return
+    #     self._pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
+    #     self._pdf_view.setZoomFactor(max(0.25, self._pdf_view.zoomFactor() / 1.15))
 
 
 class _PreviewPdfSignals(QObject):
@@ -323,22 +327,6 @@ class DocumentViewOriginalTab(QWidget):
             Qt.ConnectionType.QueuedConnection,
         )
 
-        self._toolbar = QWidget()
-        toolbar_layout = QVBoxLayout(self._toolbar)
-        toolbar_layout.setContentsMargins(0, 0, 0, 8)
-
-        # disclaimer = QLabel(
-        #     "Предпросмотр через PDF; для DOC/DOCX вид может слегка отличаться от оригинала."
-        # )
-        # disclaimer.setWordWrap(True)
-        # disclaimer.setStyleSheet("QLabel { color: #8a8a8a; }")
-
-        self._open_external_btn = QPushButton()
-        self._open_external_btn.clicked.connect(self._open_original_externally)
-
-        # toolbar_layout.addWidget(disclaimer)
-        toolbar_layout.addWidget(self._open_external_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-
         self._stack = QStackedWidget()
         self._message = QTextBrowser()
         self._message.setReadOnly(True)
@@ -347,14 +335,13 @@ class DocumentViewOriginalTab(QWidget):
         self._stack.addWidget(self._message)
 
         self._pdf_preview = OriginalPdfPreviewWidget()
+        self._pdf_preview.open_original_requested.connect(self._open_original_externally)
         self._stack.addWidget(self._pdf_preview)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._toolbar)
         layout.addWidget(self._stack, 1)
-        self._toolbar.setVisible(False)
 
     def set_document(self, document: Optional[Document]) -> bool:
         self._document = document
@@ -366,7 +353,6 @@ class DocumentViewOriginalTab(QWidget):
 
         self._message.clear()
         self._message.setPlaceholderText("")
-        self._toolbar.setVisible(False)
         self._stack.setCurrentWidget(self._message)
         self._pdf_preview.clear()
 
@@ -390,9 +376,6 @@ class DocumentViewOriginalTab(QWidget):
                 "Встроенный просмотр PDF недоступен: в сборке PySide6 нет модулей QtPdf / QtPdfWidgets."
             )
             return True
-
-        self._toolbar.setVisible(True)
-        self._open_external_btn.setText("Открыть оригинал в программе по умолчанию")
 
         self._message.setPlainText("Подготовка предпросмотра…")
         worker = _PreviewPdfWorker(req_id=req_id, original=path, bridge=self._preview_bridge)

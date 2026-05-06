@@ -385,11 +385,6 @@ class DocumentInfoWidget(QWidget):
         view.setReadOnly(True)
         view.setPlainText(text)
         layout.addWidget(view)
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        bb.rejected.connect(dlg.reject)
-        bb.accepted.connect(dlg.accept)
-        bb.button(QDialogButtonBox.StandardButton.Close).clicked.connect(dlg.accept)
-        layout.addWidget(bb)
         dlg.exec()
 
     @staticmethod
