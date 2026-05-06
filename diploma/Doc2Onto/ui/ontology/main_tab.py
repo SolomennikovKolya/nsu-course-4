@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QLabel,
     QTreeWidget, QTreeWidgetItem, QPushButton, QTableWidget, QTableWidgetItem,
     QDialog, QTextEdit, QHeaderView, QFrame, QMessageBox,
-    QStackedWidget,
+    QStackedWidget, QLayout,
 )
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
@@ -26,6 +26,20 @@ _NS = SUBJECT_NAMESPACE_IRI
 _INDIVIDUAL_LINK_COLOR = QColor("#90caf9")
 _CLASS_LINK_COLOR = QColor("#ce93d8")
 _LITERAL_FG = None  # дефолтный цвет темы — не переопределяем
+_TREE_CLASS_COLOR = QColor("#ce93d8")
+_TREE_INDIVIDUAL_COLOR = QColor("#90caf9")
+
+_META_RDF_TYPES: Set[URIRef] = {
+    OWL.Class,
+    RDFS.Class,
+    OWL.Restriction,
+    RDF.Property,
+    OWL.ObjectProperty,
+    OWL.DatatypeProperty,
+    OWL.AnnotationProperty,
+    OWL.FunctionalProperty,
+    OWL.TransitiveProperty,
+}
 
 
 # =====================================================================
@@ -85,6 +99,33 @@ def is_named_individual(g: Graph, s: URIRef) -> bool:
 def is_class(g: Graph, c: URIRef) -> bool:
     """Проверяет, что URIRef объявлен как owl:Class или rdfs:Class в графе."""
     return (c, RDF.type, OWL.Class) in g or (c, RDF.type, RDFS.Class) in g
+
+
+def is_domain_individual(g: Graph, s: URIRef) -> bool:
+    """
+    Истинно для «предметного» индивида (ABox), а не для TBox-ресурсов
+    вроде классов/свойств/ограничений.
+    """
+    if is_named_individual(g, s):
+        return True
+    for t in types_of(g, s):
+        if t not in _META_RDF_TYPES:
+            return True
+    return False
+
+
+def classify_link_target(g: Graph, node: URIRef) -> Optional[str]:
+    """
+    Определяет, куда должна вести ссылка из UI: `class`, `individual` или None.
+
+    Приоритет класса выше, чтобы ресурсы, которые объявлены как класс и при этом
+    имеют служебные rdf:type, не ошибочно подсвечивались как «индивид».
+    """
+    if is_class(g, node):
+        return "class"
+    if is_domain_individual(g, node):
+        return "individual"
+    return None
 
 
 def types_of(g: Graph, s: URIRef) -> Set[URIRef]:
@@ -271,7 +312,6 @@ class SourceFactDialog(QDialog):
     def __init__(self, ev, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setWindowTitle("Источник факта")
-        self.resize(500, 260)
 
         text_lines = [
             f"Документ: {ev.doc_id or '—'}",
@@ -291,19 +331,19 @@ class SourceFactDialog(QDialog):
         info_label.setStyleSheet("font-family:monospace;")
         info_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        info_label.setWordWrap(True)
+        info_label.setWordWrap(False)
         layout.addWidget(info_label)
 
         buttons_row = QHBoxLayout()
         buttons_row.setSpacing(8)
 
         if ev.doc_id:
-            doc_btn = QPushButton(f"Перейти к документу {ev.doc_id[:8]}…")
+            doc_btn = QPushButton(f"Перейти к документу")
             doc_btn.clicked.connect(lambda: self._on_navigate(ev.doc_id, self.document_requested))
             buttons_row.addWidget(doc_btn)
 
         if ev.template_id:
-            tpl_btn = QPushButton(f"Перейти к шаблону {ev.template_id[:8]}…")
+            tpl_btn = QPushButton(f"Перейти к шаблону")
             tpl_btn.clicked.connect(lambda: self._on_navigate(ev.template_id, self.template_requested))
             buttons_row.addWidget(tpl_btn)
 
@@ -442,11 +482,12 @@ class IndividualCardWidget(QWidget):
                 # Различаем визуально индивиды и классы — это снимает прежнюю
                 # путаницу, когда у класса показывался tooltip «клик — перейти»,
                 # а на деле клик ничего не делал.
-                if is_named_individual(g, o) or types_of(g, o):
+                target_kind = classify_link_target(g, o)
+                if target_kind == "individual":
                     o_item.setForeground(_INDIVIDUAL_LINK_COLOR)
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к индивиду)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(o)))
-                elif is_class(g, o):
+                elif target_kind == "class":
                     o_item.setForeground(_CLASS_LINK_COLOR)
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к классу)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("class", str(o)))
@@ -461,10 +502,9 @@ class IndividualCardWidget(QWidget):
             key = (s.n3(), p.n3(), o.n3())
             ev = journal_index.get(key)
             if ev is not None:
-                badge = QTableWidgetItem(f"[1 ист.]")
+                badge = QTableWidgetItem(f"[ист.]")
                 badge.setData(Qt.ItemDataRole.UserRole, ev)
                 badge.setToolTip("Клик — показать источник")
-                badge.setForeground(QColor("#ffd54f"))
             else:
                 badge = QTableWidgetItem("—")
                 badge.setData(Qt.ItemDataRole.UserRole, None)
@@ -481,9 +521,18 @@ class IndividualCardWidget(QWidget):
         for r, (s, p) in enumerate(inrows):
             s_text = display_name(g, s, types_of(g, s))
             s_item = QTableWidgetItem(s_text)
-            s_item.setForeground(_INDIVIDUAL_LINK_COLOR)
-            s_item.setData(Qt.ItemDataRole.UserRole, str(s))
-            s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти)")
+            target_kind = classify_link_target(g, s)
+            if target_kind == "individual":
+                s_item.setForeground(_INDIVIDUAL_LINK_COLOR)
+                s_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(s)))
+                s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к индивиду)")
+            elif target_kind == "class":
+                s_item.setForeground(_CLASS_LINK_COLOR)
+                s_item.setData(Qt.ItemDataRole.UserRole, ("class", str(s)))
+                s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к классу)")
+            else:
+                s_item.setData(Qt.ItemDataRole.UserRole, None)
+                s_item.setToolTip(short_iri(str(s)))
             self._inbox_table.setItem(r, 0, s_item)
             self._inbox_table.setItem(r, 1, QTableWidgetItem(predicate_label(g, p)))
 
@@ -518,8 +567,12 @@ class IndividualCardWidget(QWidget):
         if item is None:
             return
         data = item.data(Qt.ItemDataRole.UserRole)
-        if isinstance(data, str):
-            self.individual_clicked.emit(URIRef(data))
+        if isinstance(data, tuple):
+            kind, iri = data
+            if kind == "individual":
+                self.individual_clicked.emit(URIRef(iri))
+            elif kind == "class":
+                self.class_clicked.emit(URIRef(iri))
 
     def _show_source_popup(self, ev):
         dlg = SourceFactDialog(ev, self)
@@ -804,17 +857,16 @@ class OntologyTab(QWidget):
 
         g = self._graph
         cls_to_inds = all_classes_with_individuals(g)
+        all_classes = set(collect_classes_with_subclasses(g))
         roots = self._tbox_root_classes(g)
-
-        used_classes = set(cls_to_inds.keys())
-        relevant_classes = self._collect_class_closure(g, used_classes)
+        relevant_classes = all_classes
 
         added: Dict[URIRef, QTreeWidgetItem] = {}
         for root in roots:
             self._add_class_subtree(self._tree.invisibleRootItem(), root, g, cls_to_inds, relevant_classes, added)
 
-        # Добавим классы, корнями не являющиеся, если они не попали никуда
-        for c in cls_to_inds:
+        # Добавим классы, не попавшие в обход от корней (на случай "рваной" TBox).
+        for c in sorted(relevant_classes, key=lambda x: class_label(g, x)):
             if c not in added:
                 self._add_class_subtree(self._tree.invisibleRootItem(), c, g, cls_to_inds, relevant_classes, added)
 
@@ -825,6 +877,9 @@ class OntologyTab(QWidget):
     def _tbox_root_classes(g: Graph) -> List[URIRef]:
         all_cls: Set[URIRef] = set()
         for s in g.subjects(RDF.type, OWL.Class):
+            if isinstance(s, URIRef):
+                all_cls.add(s)
+        for s in g.subjects(RDF.type, RDFS.Class):
             if isinstance(s, URIRef):
                 all_cls.add(s)
         non_roots: Set[URIRef] = set()
@@ -867,6 +922,7 @@ class OntologyTab(QWidget):
         children.sort(key=lambda c: class_label(g, c))
 
         item = QTreeWidgetItem([class_label(g, cls)])
+        item.setForeground(0, _TREE_CLASS_COLOR)
         item.setData(0, Qt.ItemDataRole.UserRole, ("class", str(cls)))
         # Класс остаётся выбираемым — теперь у него есть собственная карточка.
         parent.addChild(item)
@@ -883,6 +939,7 @@ class OntologyTab(QWidget):
         sortable.sort(key=lambda t: t[0])
         for _, ind in sortable:
             ind_item = QTreeWidgetItem([display_name(g, ind, types_of(g, ind))])
+            ind_item.setForeground(0, _TREE_INDIVIDUAL_COLOR)
             ind_item.setData(0, Qt.ItemDataRole.UserRole, ("individual", str(ind)))
             ind_item.setToolTip(0, short_iri(str(ind)))
             item.addChild(ind_item)
