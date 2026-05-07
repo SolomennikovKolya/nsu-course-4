@@ -163,7 +163,7 @@ Field(
      - Если title_field задан и поле непустое: IRI = :ВКР_<sha1> от темы (через ThesisConcept) + литерал :темаВКР.
      - Иначе: IRI вычисляется как hash от IRI студента — ВКР существует, но без литерала темы.
      - В обоих случаях: тип :ВКР и (при наличии student) :авторВКР со студентом — добавляются автоматически.
-   - `b.practice(student=<student_iri>, kind=<kind_iri>, year_field="<поле>")` — :Практика. IRI = :Практика_<sha1> от тройки (студент, вид, год). Автоматически: тип :Практика, :практикантВПрактике, :видПрактики, :учебныйГодПрактики.
+   - `b.practice(student=<student_iri>, kind=<kind_iri>, year=<year_literal>)` — :Практика. IRI = :Практика_<sha1> от тройки (студент, вид, год). Автоматически: тип :Практика, :практикантВПрактике, :видПрактики, :учебныйГодПрактики. Параметр `year` — это DraftNode-литерал; шаблон сам решает, откуда взять год: отдельное поле (`b.field("academic_year").literal()`), производное от даты (`b.field("start_date").part(DateConcept, "year").literal()`), константа (`b.const_literal("2024/2025")`) и т. п.
 
 ДОБАВЛЕНИЕ ТРИПЛЕТОВ:
 - `b.add_object_property(s, p, o)` — обязательный объектный триплет.
@@ -220,12 +220,18 @@ def build(self, b: TemplateGraphBuilder):
 practice = b.practice(
     student=student,
     kind=b.individual("practice_kind", PracticeKindConcept),
-    year_field="academic_year",
+    year=b.field("academic_year").literal(),
 )
 b.add_data_property_optional(practice, ONTO.датаНачалаПрактики,
     b.literal("start_date", DateConcept))
 b.add_data_property_optional(practice, ONTO.датаОкончанияПрактики,
     b.literal("end_date", DateConcept))
+```
+
+Если в документе нет отдельного поля «учебный год», бери год из даты начала:
+```
+year = b.field("start_date").part(DateConcept, "year").literal()
+practice = b.practice(student=student, kind=kind, year=year)
 ```
 
 3. Сотрудник с опциональной должностью/степенью/званием:

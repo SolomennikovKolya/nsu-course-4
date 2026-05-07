@@ -430,24 +430,43 @@ class TemplateGraphBuilder:
         *,
         student: DraftNode,
         kind: DraftNode,
-        year_field: str,
+        year: DraftNode,
     ) -> DraftNode:
         """Индивид :Практика для тройки (студент, вид, год).
 
         IRI считается через :class:`PracticeConcept.from_components` из
-        локальных имён студента и вида + значения ``year_field``.
+        локальных имён студента и вида + строкового значения ``year``.
         Добавляет ``rdf:type :Практика`` и identifying-связи
         ``:практикантВПрактике``, ``:видПрактики``, ``:учебныйГодПрактики``.
+
+        Args:
+            student: Уже построенный индивид :Персона (через
+                ``b.individual(..., PersonConcept, role=ONTO.Студент)``).
+            kind: Уже построенный индивид :ВидПрактики.
+            year: Литерал-DraftNode со значением учебного года. Шаблон
+                сам решает, откуда взять год: отдельное поле
+                (``b.field("academic_year").literal()``), производное
+                значение (``b.field("start_date").part(DateConcept,
+                "year").literal()``), константа
+                (``b.const_literal("2024/2025")``) и т. п. Значение года
+                читается через ``str(year.get_rdf_node())`` и идёт в
+                идентифицирующую тройку IRI Практики.
         """
         if not student.is_complete():
             return DraftNode(DraftNode.Type.IRI, None, "Практика: студент неполный", None)
         if not kind.is_complete():
             return DraftNode(DraftNode.Type.IRI, None, "Практика: вид практики неполный", None)
-
-        year_value = self._field_values.get(year_field)
-        if not year_value:
+        if not year.is_complete():
             return DraftNode(
-                DraftNode.Type.IRI, None, f"Практика: поле '{year_field}' пустое", year_field
+                DraftNode.Type.IRI, None,
+                "Практика: значение года неполное",
+                year.source,
+            )
+
+        year_value = str(year.get_rdf_node())
+        if not year_value.strip():
+            return DraftNode(
+                DraftNode.Type.IRI, None, "Практика: значение года пустое", year.source
             )
 
         student_local = self._extract_local_name(student)
@@ -456,21 +475,21 @@ class TemplateGraphBuilder:
             return DraftNode(
                 DraftNode.Type.IRI, None,
                 "Практика: IRI студента или вида не в пространстве предметной области",
-                year_field,
+                year.source,
             )
 
         try:
             parts = PracticeConcept.from_components(student_local, kind_local, year_value)
             local = PracticeConcept.iri_local(parts)
         except ConceptError as ex:
-            return DraftNode(DraftNode.Type.IRI, None, str(ex), year_field)
+            return DraftNode(DraftNode.Type.IRI, None, str(ex), year.source)
 
-        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, year_field)
+        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, year.source)
 
         self.add_type(iri, ONTO.Практика)
         self.add_object_property(iri, ONTO.практикантВПрактике, student)
         self.add_object_property(iri, ONTO.видПрактики, kind)
-        self.add_data_property(iri, ONTO.учебныйГодПрактики, self.field(year_field).literal())
+        self.add_data_property(iri, ONTO.учебныйГодПрактики, year)
         return iri
 
     # ----- внутренние хелперы для композитов -----
