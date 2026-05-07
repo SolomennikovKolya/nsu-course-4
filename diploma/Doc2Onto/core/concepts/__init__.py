@@ -7,10 +7,15 @@
 триплетов. См. :mod:`core.concepts.base` для подробностей контракта.
 
 Реализованные концепты:
-    * :class:`GroupConcept` — :Группа (CLASS_INDIVIDUAL без хеша).
-    * :class:`DateConcept` — xsd:date (DATATYPE).
-    * :class:`PersonConcept` — :Персона (CLASS_INDIVIDUAL с морфологией
-      ФИО и хешированием sort-key).
+    * Простые/основные: :class:`PersonConcept`, :class:`OrganizationConcept`,
+      :class:`GroupConcept`, :class:`DirectionConcept`, :class:`ProfileConcept`,
+      :class:`ThesisConcept`.
+    * Перечисления: :class:`PositionConcept`, :class:`DegreeConcept`,
+      :class:`TitleConcept`, :class:`PracticeKindConcept`, :class:`GradeConcept`.
+    * Datatype-подобные с собственным IRI:
+      :class:`EmailConcept`, :class:`TelephoneConcept`.
+    * Чистый datatype: :class:`DateConcept` (литерал ``xsd:date``,
+      без индивида).
 """
 from core.concepts.base import (
     BaseConcept,
@@ -19,8 +24,20 @@ from core.concepts.base import (
     ConceptParts,
 )
 from core.concepts.date import DateConcept
+from core.concepts.degree import DegreeConcept
+from core.concepts.direction import DirectionConcept
+from core.concepts.email import EmailConcept
+from core.concepts.grade import GradeConcept
 from core.concepts.group import GroupConcept
+from core.concepts.organization import OrganizationConcept
 from core.concepts.person import PersonConcept
+from core.concepts.position import PositionConcept
+from core.concepts.practice import PracticeConcept
+from core.concepts.practice_kind import PracticeKindConcept
+from core.concepts.profile import ProfileConcept
+from core.concepts.telephone import TelephoneConcept
+from core.concepts.thesis import ThesisConcept
+from core.concepts.title import TitleConcept
 
 __all__ = [
     "BaseConcept",
@@ -28,6 +45,18 @@ __all__ = [
     "ConceptKind",
     "ConceptParts",
     "DateConcept",
+    "DegreeConcept",
+    "DirectionConcept",
+    "EmailConcept",
+    "GradeConcept",
     "GroupConcept",
+    "OrganizationConcept",
     "PersonConcept",
+    "PositionConcept",
+    "PracticeConcept",
+    "PracticeKindConcept",
+    "ProfileConcept",
+    "TelephoneConcept",
+    "ThesisConcept",
+    "TitleConcept",
 ]

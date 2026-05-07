@@ -226,7 +226,7 @@
 :ВидПрактики rdf:type owl:Class ;
     rdfs:label "Вид практики"@ru .
 
-:ОценкаПрактики rdf:type owl:Class ;
+:Оценка rdf:type owl:Class ;
     rdfs:label "Итоговая оценка практики"@ru .
 
 
@@ -321,13 +321,13 @@
 
 # ---------- Итоговые оценки ----------
 
-:Оценка_Отлично rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+:Оценка_Отлично rdf:type owl:NamedIndividual, :Оценка ;
     rdfs:label "отлично"@ru .
-:Оценка_Хорошо rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+:Оценка_Хорошо rdf:type owl:NamedIndividual, :Оценка ;
     rdfs:label "хорошо"@ru .
-:Оценка_Удовлетворительно rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+:Оценка_Удовлетворительно rdf:type owl:NamedIndividual, :Оценка ;
     rdfs:label "удовлетворительно"@ru .
-:Оценка_Неудовлетворительно rdf:type owl:NamedIndividual, :ОценкаПрактики ;
+:Оценка_Неудовлетворительно rdf:type owl:NamedIndividual, :Оценка ;
     rdfs:label "неудовлетворительно"@ru .
 
 
@@ -460,7 +460,7 @@
 :оценкаПрактики rdf:type owl:ObjectProperty ;
     rdfs:label "итоговая оценка практики"@ru ;
     rdfs:domain :Практика ;
-    rdfs:range :ОценкаПрактики ;
+    rdfs:range :Оценка ;
     :mergePolicy :Policy_Set .
 
 :руководительПрактикиОтУниверситета rdf:type owl:ObjectProperty ;
