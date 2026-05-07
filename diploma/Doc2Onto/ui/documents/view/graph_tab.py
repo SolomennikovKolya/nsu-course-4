@@ -15,7 +15,6 @@ from app.settings import SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple, EditedGraph
 from models.document import Document
 from models.extraction_result import ExtractionResult
-from models.validation_result import ValidationResult
 from ui.common.design import UI_COLOR_GRAY, UI_COLOR_GREEN, UI_COLOR_RED, UI_COLOR_YELLOW
 from ui.documents.view.common import read_text_file
 
@@ -71,17 +70,24 @@ def _extraction_warn_level(
     return extraction.get_situation(field).warn_level()
 
 
-def _validation_warn_level(
-    field: Optional[str], validation: Optional[ValidationResult]
+def _normalization_warn_level(
+    field: Optional[str], extraction: Optional[ExtractionResult]
 ) -> int:
+    """Уровень предупреждения по результатам стадии Normalizer.
+
+    0 — поле нормализовано; 1 — нет данных извлечения; 2 — нормализатор
+    отверг поле (или стадия ещё не отработала и значения нет).
+    """
     if not field:
         return 0
-    if validation is None:
+    if extraction is None:
         return 1
-    vdata = validation.get_field(field)
-    if not vdata:
+    data = extraction.get_field(field)
+    if not data:
         return 2
-    return validation.get_situation(field).warn_level()
+    if extraction.is_normalized(field):
+        return 0
+    return 2
 
 
 def _assembly_stage_warn_level(node: DraftNode) -> int:
@@ -99,7 +105,6 @@ def _node_stripe_warn_level(
     triple_index: int,
     role: str,
     extraction: Optional[ExtractionResult],
-    validation: Optional[ValidationResult],
 ) -> int:
     node = _effective_node(edited, triple_index, role)
     original = edited.draft.triples[triple_index].get_node(role)
@@ -112,7 +117,7 @@ def _node_stripe_warn_level(
     field = node.source
     return max(
         _extraction_warn_level(field, extraction),
-        _validation_warn_level(field, validation),
+        _normalization_warn_level(field, extraction),
         _assembly_stage_warn_level(node),
     )
 
@@ -121,10 +126,9 @@ def _triple_badge_warn_level(
     edited: EditedGraph,
     triple_index: int,
     extraction: Optional[ExtractionResult],
-    validation: Optional[ValidationResult],
 ) -> int:
     return max(
-        _node_stripe_warn_level(edited, triple_index, r, extraction, validation)
+        _node_stripe_warn_level(edited, triple_index, r, extraction)
         for r in ("subject", "predicate", "object")
     )
 
@@ -221,29 +225,34 @@ def _extraction_body_warn(
     return _wrap_detail_html(inner), sit.warn_level()
 
 
-def _validation_body_warn(
-    field: Optional[str], validation: Optional[ValidationResult]
+def _normalization_body_warn(
+    field: Optional[str], extraction: Optional[ExtractionResult]
 ) -> Tuple[str, int]:
     if not field:
         return _wrap_detail_html(_html_escape("Нет привязки к полю.")), 0
-    if validation is None:
-        return _wrap_detail_html(_html_escape("Нет данных валидации.")), 1
-    vdata = validation.get_field(field)
-    if not vdata:
-        return _wrap_detail_html(_html_escape("Поле не найдено в результате валидации.")), 2
-    vsit = validation.get_situation(field)
+    if extraction is None:
+        return _wrap_detail_html(_html_escape("Нет данных нормализации.")), 1
+    data = extraction.get_field(field)
+    if not data:
+        return _wrap_detail_html(_html_escape("Поле не найдено в результате нормализации.")), 2
+
+    normalized = data.get("normalized")
+    if normalized is None:
+        status_text = "не запускалось"
+        level = 1
+    elif normalized:
+        status_text = "нормализовано"
+        level = 0
+    else:
+        status_text = "отвергнуто"
+        level = 2
+
     inner = (
-        "<b>Шаблон</b>:<br/>"
-        f"• статус: {_html_escape('валидно' if vdata.get('valid_temp') else 'не валидно')}<br/>"
-        f"• ошибка: {_html_escape(vdata.get('error_temp') or '—')}"
+        f"• статус: {_html_escape(status_text)}<br/>"
+        f"• каноническое значение: {_html_escape(data.get('value_normalized') or '—')}<br/>"
+        f"• ошибка: {_html_escape(data.get('error_normalized') or '—')}"
     )
-    if vdata.get("valid_llm") is not None:
-        inner += (
-            "<br/><br/><b>LLM</b>:<br/>"
-            f"• статус: {_html_escape('валидно' if vdata.get('valid_llm') else 'не валидно')}<br/>"
-            f"• ошибка: {_html_escape(vdata.get('error_llm') or '—')}"
-        )
-    return _wrap_detail_html(inner), vsit.warn_level()
+    return _wrap_detail_html(inner), level
 
 
 def _assembly_body_warn(node: DraftNode) -> Tuple[str, int]:
@@ -330,7 +339,6 @@ class _TripleRowWidget(QFrame):
         edited: EditedGraph,
         nm_graph: Graph,
         extraction: Optional[ExtractionResult],
-        validation: Optional[ValidationResult],
         on_changed: Callable[[], None],
     ):
         super().__init__()
@@ -338,7 +346,6 @@ class _TripleRowWidget(QFrame):
         self.edited = edited
         self.nm_graph = nm_graph
         self.extraction = extraction
-        self.validation = validation
         self.on_changed = on_changed
 
         self._expanded = False
@@ -536,7 +543,7 @@ class _TripleRowWidget(QFrame):
         field = draft_node.source
 
         ex_body, ex_level = _extraction_body_warn(field, self.extraction)
-        va_body, va_level = _validation_body_warn(field, self.validation)
+        va_body, va_level = _normalization_body_warn(field, self.extraction)
         asm_body, asm_level = _assembly_body_warn(draft_node)
 
         path = QHBoxLayout()
@@ -544,7 +551,7 @@ class _TripleRowWidget(QFrame):
         ex_box = _NodeDetailBlock("Извлечение", ex_level, ex_body)
         ar1 = QLabel("→")
         ar1.setStyleSheet("font-size: 18px; color: gray;")
-        va_box = _NodeDetailBlock("Валидация", va_level, va_body)
+        va_box = _NodeDetailBlock("Нормализация", va_level, va_body)
         ar2 = QLabel("→")
         ar2.setStyleSheet("font-size: 18px; color: gray;")
         asm_box = _NodeDetailBlock("Сборка", asm_level, asm_body)
@@ -574,7 +581,7 @@ class _TripleRowWidget(QFrame):
             stripe_color = UI_COLOR_GRAY
         else:
             badge_level = _triple_badge_warn_level(
-                self.edited, idx, self.extraction, self.validation
+                self.edited, idx, self.extraction
             )
             stripe_color = _warn_color(badge_level)
 
@@ -593,7 +600,6 @@ class _TripleRowWidget(QFrame):
                 self.triple_index,
                 role,
                 self.extraction,
-                self.validation,
             )
             stripe.setStyleSheet(f"background-color: {_warn_color(lvl)}; border-radius: 2px;")
             if details.isVisible() and inner.layout() and inner.layout().count():
@@ -614,7 +620,6 @@ class DocumentViewGraphTab(QWidget):
         self._edited: Optional[EditedGraph] = None
         self._nm_graph = _make_prefix_graph()
         self._extraction: Optional[ExtractionResult] = None
-        self._validation: Optional[ValidationResult] = None
         self._triple_widgets: List[_TripleRowWidget] = []
 
         self._scroll = QScrollArea()
@@ -699,7 +704,6 @@ class DocumentViewGraphTab(QWidget):
                 self._edited,
                 self._nm_graph,
                 self._extraction,
-                self._validation,
                 self._on_triple_changed,
             )
             row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -713,7 +717,6 @@ class DocumentViewGraphTab(QWidget):
             self._document = document
             self._edited = None
             self._extraction = None
-            self._validation = None
             self._clear_triples()
             self._supp.clear()
 
@@ -749,13 +752,6 @@ class DocumentViewGraphTab(QWidget):
                 )
             except Exception:
                 self._extraction = None
-
-            try:
-                self._validation = ValidationResult.load(
-                    document.validation_result_file_path()
-                )
-            except Exception:
-                self._validation = None
 
             supp_path = document.supplementary_facts_ttl_path()
             text = read_text_file(supp_path)

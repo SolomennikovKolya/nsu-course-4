@@ -1,10 +1,10 @@
-from core.fields.field_selector import FieldSelector
 from core.fields.field_extractor import FieldExtractor
-from core.fields.field_validator import FieldValidator
+from core.fields.field_normalizer import FieldNormalizer
+from core.fields.field_selector import FieldSelector
 
 
 class Field:
-    """Содержит описание поля документа и информацию о том, как его извлекать и валидировать."""
+    """Описание поля документа: что искать, как извлекать, как нормализовать."""
 
     def __init__(
         self,
@@ -12,18 +12,22 @@ class Field:
         description: str,
         selector: FieldSelector,
         extractor: FieldExtractor,
-        validator: FieldValidator,
+        normalizer: FieldNormalizer,
     ):
         """
         Args:
-            name: Уникальное название поля, используемое в дальнейшем при построении триплетов
-            description: Осмысленное исчерпывающее описание. Используется для извлечения и валидации поля с использованием LLM
-            selector: Где искать? (поиск текста, содержащего значение поля)
-            extractor: Как извлекать? (логика извлечения значения поля из текста, найденного селектором)
-            validator: Как валидировать? (правила проверки корректности извлечённого значения поля)
+            name: Уникальное имя поля (snake_case). Используется как ключ при
+                построении триплетов и в LLM-payload.
+            description: Осмысленное описание поля. Используется LLM-этапом
+                Extractor для проверки соответствия извлечённого значения смыслу.
+            selector: Где искать (поиск элемента UDDM, содержащего значение).
+            extractor: Как извлекать (преобразование текста элемента в строку).
+            normalizer: Как нормализовать (приведение строки к канонической форме
+                + проверка корректности). Возвращает каноническую строку или
+                None — поле в этом случае помечается как невалидное.
         """
         self.name: str = name
         self.description: str = description
         self.selector: FieldSelector = selector
         self.extractor: FieldExtractor = extractor
-        self.validator: FieldValidator = validator
+        self.normalizer: FieldNormalizer = normalizer

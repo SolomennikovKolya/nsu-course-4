@@ -10,7 +10,6 @@ from core.graph.draft_graph import DraftGraph
 from core.uddm.model import UDDM
 from models.template import TemplateContext
 from models.extraction_result import ExtractionResult
-from models.validation_result import ValidationResult
 
 
 @dataclass
@@ -26,8 +25,7 @@ class Document:
         UPLOADED = auto()          # Документ загружен в систему
         UDDM_EXTRACTED = auto()    # Построен UDDM
         CLASS_DETERMINED = auto()  # Определен класс документа
-        FIELDS_EXTRACTED = auto()  # Извлечены поля (индивидуумы + литералы)
-        FIELDS_VALIDATED = auto()  # Поля провалидированы
+        FIELDS_EXTRACTED = auto()  # Поля извлечены и нормализованы (раз стадии слиты)
         TRIPLES_BUILT = auto()     # Построены триплеты
         ADDED_TO_MODEL = auto()    # Знания добавлены в онтологию
 
@@ -37,9 +35,8 @@ class Document:
                 Document.Status.UDDM_EXTRACTED: 1,
                 Document.Status.CLASS_DETERMINED: 2,
                 Document.Status.FIELDS_EXTRACTED: 3,
-                Document.Status.FIELDS_VALIDATED: 4,
-                Document.Status.TRIPLES_BUILT: 5,
-                Document.Status.ADDED_TO_MODEL: 6,
+                Document.Status.TRIPLES_BUILT: 4,
+                Document.Status.ADDED_TO_MODEL: 5,
             }
             return stages[self]
 
@@ -74,9 +71,6 @@ class Document:
     def extraction_result_file_path(self) -> Path:
         return self.directory / "extraction_result.json"
 
-    def validation_result_file_path(self) -> Path:
-        return self.directory / "validation_result.json"
-
     def draft_graph_file_path(self) -> Path:
         return self.directory / "draft_graph.json"
 
@@ -109,8 +103,7 @@ class DocumentContext:
     def __init__(self, doc: Document):
         self.document: Document = doc                         # DTO документа
         self._uddm: Optional[UDDM] = None                     # UDDM документа
-        self._extr_res: Optional[ExtractionResult] = None     # Результат извлечения полей
-        self._val_res: Optional[ValidationResult] = None      # Результат валидации полей
+        self._extr_res: Optional[ExtractionResult] = None     # Результат извлечения и нормализации полей
         self._draft_graph: Optional[DraftGraph] = None        # Черновой граф
         self._template_ctx: Optional[TemplateContext] = None  # Вложенный контекст шаблона
 
@@ -141,20 +134,6 @@ class DocumentContext:
     @extraction_result.setter
     def extraction_result(self, extraction_result: Optional[ExtractionResult]):
         self._extr_res = extraction_result
-
-    @property
-    def validation_result(self) -> Optional[ValidationResult]:
-        if self._val_res is not None:
-            return self._val_res
-        try:
-            self._val_res = ValidationResult.load(self.document.validation_result_file_path())
-            return self._val_res
-        except Exception:
-            return None
-
-    @validation_result.setter
-    def validation_result(self, validation_result: Optional[ValidationResult]):
-        self._val_res = validation_result
 
     @property
     def draft_graph(self) -> Optional[DraftGraph]:
@@ -192,7 +171,6 @@ class DocumentContext:
     def unload(self):
         self._uddm = None
         self._extr_res = None
-        self._val_res = None
         self._draft_graph = None
         if self._template_ctx:
             self._template_ctx.unload()
@@ -210,7 +188,6 @@ def document_context(doc: Document):
         ├── document
         ├── uddm
         ├── extraction_result
-        ├── validation_result
         ├── draft_graph
         └── template_ctx
                 ├── template

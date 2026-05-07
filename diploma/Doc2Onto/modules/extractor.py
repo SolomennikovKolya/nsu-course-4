@@ -13,7 +13,27 @@ from utils.general import parse_dict_field
 
 
 class Extractor(BaseModule):
-    """Извлечение полей (индивидуумы + литералы)."""
+    """Извлечение и нормализация полей.
+
+    Стадия выполняет три подшага последовательно над одним и тем же
+    :class:`ExtractionResult`:
+
+    1. **Декларативное извлечение** (``_extract_fields_declarative``) —
+       прогон ``selector`` + ``extractor`` каждого поля шаблона.
+       Результаты пишутся в ``value_temp`` / ``error_temp``.
+    2. **LLM-проверка/коррекция** (``_extract_fields_with_llm``) — отправка
+       template-значений в LLM с описаниями полей. LLM либо подтверждает
+       template, либо предлагает исправление, либо находит значение там,
+       где template не справился. Результаты — в ``value_llm`` /
+       ``error_llm``.
+    3. **Нормализация** (``_normalize_fields``) — прогон
+       ``field.normalizer`` от raw-значения (LLM в приоритете, fallback
+       на template). Результат — каноническая строка в
+       ``value_normalized`` или причина отказа в ``error_normalized``.
+
+    GraphBuilder работает только с ``value_normalized`` (см.
+    :meth:`ExtractionResult.get_value_normalized`).
+    """
 
     def __init__(self):
         super().__init__()
@@ -42,6 +62,7 @@ class Extractor(BaseModule):
         result = ExtractionResult()
         self._extract_fields_declarative(fields, uddm, result)
         self._extract_fields_with_llm(fields, uddm, result)
+        self._normalize_fields(fields, result)
         self._log_result(result)
         return result
 
@@ -129,6 +150,30 @@ class Extractor(BaseModule):
                 if data.get("extracted_llm") is None:
                     result.set_unexpected_error_llm(field.name, "Непредвиденная ошибка при обработке поля с помощью LLM")
 
+    def _normalize_fields(self, fields: List[Field], result: ExtractionResult):
+        for field in fields:
+            raw = result.get_value_raw(field.name)
+            if raw is None or not str(raw).strip():
+                result.set_not_normalized(field.name, "Поле не извлечено или пустое")
+                continue
+
+            try:
+                canonical = field.normalizer._normalize(raw)
+            except Exception as ex:  # noqa: BLE001 — пользователь должен увидеть причину
+                result.set_not_normalized(
+                    field.name,
+                    f"Непредвиденная ошибка нормализатора: {ex}",
+                )
+                continue
+
+            if canonical is None:
+                result.set_not_normalized(
+                    field.name,
+                    field.normalizer.last_error or "Значение не прошло нормализацию",
+                )
+            else:
+                result.set_normalized(field.name, canonical)
+
     def _log_result(self, result: ExtractionResult):
         for field_name in result.fields.keys():
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
@@ -136,6 +181,7 @@ class Extractor(BaseModule):
             value = result.get_value_final(field_name)
             error_temp = result.get_error_temp(field_name)
             error_llm = result.get_error_llm(field_name)
+            error_norm = result.get_error_normalized(field_name)
             situation = result.get_situation(field_name).short_msg()
 
             text = f'{field_label} {situation}: "{value}"'
@@ -143,6 +189,8 @@ class Extractor(BaseModule):
                 text += f" error_temp: {error_temp}"
             if error_llm is not None:
                 text += f" error_llm: {error_llm}"
+            if error_norm is not None:
+                text += f" error_norm: {error_norm}"
 
             self.log(INFO, text)
 

@@ -50,7 +50,5 @@ GENERATE_TEMP_SYS_PROMPT_PATH = PROMPTS_DIR / "generate_template_code_sys.txt"
 GENERATE_TEMP_USER_PROMPT_PATH = PROMPTS_DIR / "generate_template_code_user.txt"
 EXTRACT_FIELDS_SYS_PROMPT_PATH = PROMPTS_DIR / "extract_fields_sys.txt"
 EXTRACT_FIELDS_USER_PROMPT_PATH = PROMPTS_DIR / "extract_fields_user.txt"
-VALIDATE_FIELDS_SYS_PROMPT_PATH = PROMPTS_DIR / "validate_fields_sys.txt"
-VALIDATE_FIELDS_USER_PROMPT_PATH = PROMPTS_DIR / "validate_fields_user.txt"
 
 ICON_PATH = IMAGES_DIR / "icon.png"

@@ -38,7 +38,7 @@ from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
 from core.fields.field import Field
 from core.fields.field_extractor import FieldExtractor
 from core.fields.field_selector import FieldSelector
-from core.fields.field_validator import FieldValidator
+from core.fields.field_normalizer import FieldNormalizer
 from core.graph.template_graph_builder import TemplateGraphBuilder
 from core.template.base import BaseTemplateCode
 from core.uddm.model import UDDM
@@ -471,8 +471,8 @@ def _validate_fields_list(fields_list: List[Field], report: TemplateValidationRe
             report.add_error("fields", f"Поле `{f.name}`: selector должен быть FieldSelector.")
         if not isinstance(f.extractor, FieldExtractor):
             report.add_error("fields", f"Поле `{f.name}`: extractor должен быть FieldExtractor.")
-        if not isinstance(f.validator, FieldValidator):
-            report.add_error("fields", f"Поле `{f.name}`: validator должен быть FieldValidator.")
+        if not isinstance(f.normalizer, FieldNormalizer):
+            report.add_error("fields", f"Поле `{f.name}`: normalizer должен быть FieldNormalizer.")
 
 
 # ---------------------------------------------------------------------------

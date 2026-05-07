@@ -26,13 +26,12 @@ from ui.common.design import DELETE_BUTTON_STYLE
 #            "warn"     — спрашивать подтверждение;
 #            "locked"   — combo дизаблен.
 ACTIONS_BY_STATUS: Dict[Document.Status, Dict[str, Any]] = {
-    Document.Status.UPLOADED:         {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
-    Document.Status.UDDM_EXTRACTED:   {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
-    Document.Status.CLASS_DETERMINED: {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.FIELDS_EXTRACTED: {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.FIELDS_VALIDATED: {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.TRIPLES_BUILT:    {"main": "add",      "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.ADDED_TO_MODEL:   {"main": "rollback", "restart": False, "delete": True, "class": "locked"},
+    Document.Status.UPLOADED:          {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
+    Document.Status.UDDM_EXTRACTED:    {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
+    Document.Status.CLASS_DETERMINED:  {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
+    Document.Status.FIELDS_EXTRACTED:  {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
+    Document.Status.TRIPLES_BUILT:     {"main": "add",      "restart": True,  "delete": True, "class": "warn"},
+    Document.Status.ADDED_TO_MODEL:    {"main": "rollback", "restart": False, "delete": True, "class": "locked"},
 }
 
 _MAIN_LABELS = {

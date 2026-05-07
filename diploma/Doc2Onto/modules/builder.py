@@ -24,7 +24,10 @@ class GraphBuilder(BaseModule):
         if not extr_res:
             return ModuleResult.failed(message="Не удалось загрузить результат извлечения")
 
-        field_values = {field.name: extr_res.get_value_final(field.name) for field in fields}
+        # GraphBuilder работает только с нормализованными значениями: если
+        # нормализатор отверг поле — оно в граф не попадает (None в словаре
+        # инициирует «неполный» DraftNode с понятной ошибкой источника).
+        field_values = {field.name: extr_res.get_value_normalized(field.name) for field in fields}
         builder = TemplateGraphBuilder(field_values)
 
         try:

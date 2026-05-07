@@ -3,7 +3,7 @@ from typing import Optional, Self
 
 from app.context import get_logger
 from models.document import Document, DocumentContext, document_context
-from modules import Converter, Classifier, Extractor, Validator, GraphBuilder, Connector
+from modules import Converter, Classifier, Extractor, GraphBuilder, Connector
 from modules.base import BaseModule, ModuleResult
 
 
@@ -65,20 +65,14 @@ class Pipeline:
                 module=Classifier()
             ),
             Pipeline.Stage(
-                name="terms_extraction",
+                name="extraction",
                 start_status=Document.Status.CLASS_DETERMINED,
                 target_status=Document.Status.FIELDS_EXTRACTED,
                 module=Extractor()
             ),
             Pipeline.Stage(
-                name="validation",
-                start_status=Document.Status.FIELDS_EXTRACTED,
-                target_status=Document.Status.FIELDS_VALIDATED,
-                module=Validator()
-            ),
-            Pipeline.Stage(
                 name="graph_building",
-                start_status=Document.Status.FIELDS_VALIDATED,
+                start_status=Document.Status.FIELDS_EXTRACTED,
                 target_status=Document.Status.TRIPLES_BUILT,
                 module=GraphBuilder()
             ),
