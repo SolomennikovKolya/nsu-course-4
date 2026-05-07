@@ -33,7 +33,6 @@ from typing import Any, Dict, Optional, Type
 from rdflib import Literal, Namespace, URIRef
 
 from app.settings import SUBJECT_NAMESPACE_IRI
-from core.concepts._hash import short_sha1
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 from core.concepts.date import DateConcept
 from core.concepts.practice import PracticeConcept
@@ -400,142 +399,104 @@ class TemplateGraphBuilder:
             )
         return iri
 
-    def thesis(
-        self,
-        *,
-        title_field: Optional[str] = None,
-        student: Optional[DraftNode] = None,
-    ) -> DraftNode:
-        """Индивид :ВКР.
+    def thesis(self, *, student: DraftNode) -> DraftNode:
+        """Индивид :ВКР для данного студента.
 
-        IRI вычисляется так:
-          * если ``title_field`` задан и непустой — через
-            :class:`ThesisConcept` (от темы);
-          * иначе — ``hash`` от локального имени IRI студента.
+        IRI = хеш от локального имени IRI студента (одна ВКР на студента).
+        ``rdf:type :ВКР`` и связь ``:авторВКР`` со студентом ставятся
+        автоматически. Тема ВКР НЕ часть identity — её надо положить как
+        литерал ``:темаВКР`` отдельным ``b.add_data_property[_optional]``.
 
-        ``rdf:type :ВКР`` и (при наличии ``student``) ``:авторВКР``
-        ставятся автоматически.
+        Args:
+            student: Уже построенный индивид :Персона (через
+                ``b.individual(..., PersonConcept, role=ONTO.Студент)``).
         """
-        iri = self._build_thesis_iri(title_field=title_field, student=student)
+        if not student.is_complete():
+            return DraftNode(DraftNode.Type.IRI, None, "ВКР: студент неполный", None)
 
-        if iri.is_complete():
-            self.add_type(iri, ONTO.ВКР)
-            if student is not None and student.is_complete():
-                self.add_object_property(iri, ONTO.авторВКР, student)
+        student_local = self._extract_local_name(student)
+        if student_local is None:
+            return DraftNode(
+                DraftNode.Type.IRI, None,
+                "ВКР: IRI студента не в пространстве предметной области",
+                None,
+            )
 
+        try:
+            parts = ThesisConcept.from_student(student_local)
+            local = ThesisConcept.iri_local(parts)
+        except ConceptError as ex:
+            return DraftNode(DraftNode.Type.IRI, None, str(ex), None)
+
+        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, student.source)
+        self.add_type(iri, ONTO.ВКР)
+        self.add_object_property(iri, ONTO.авторВКР, student)
         return iri
 
     def practice(
         self,
         *,
         student: DraftNode,
-        kind: DraftNode,
-        year: DraftNode,
+        start_date: DraftNode,
     ) -> DraftNode:
-        """Индивид :Практика для тройки (студент, вид, год).
+        """Индивид :Практика для пары (студент, дата начала).
 
         IRI считается через :class:`PracticeConcept.from_components` из
-        локальных имён студента и вида + строкового значения ``year``.
-        Добавляет ``rdf:type :Практика`` и identifying-связи
-        ``:практикантВПрактике``, ``:видПрактики``, ``:учебныйГодПрактики``.
+        локального имени IRI студента и ISO-строки даты начала.
+        Дата начала — стабильный естественный идентификатор: две
+        практики одного студента не могут начинаться в один день.
+
+        Добавляет ``rdf:type :Практика``, связь ``:практикантВПрактике``
+        со студентом, литерал ``:датаНачалаПрактики`` (xsd:date).
+        Вид практики, тема, дата окончания и прочие свойства
+        добавляются отдельно через ``b.add_data_property[_optional]``.
 
         Args:
             student: Уже построенный индивид :Персона (через
                 ``b.individual(..., PersonConcept, role=ONTO.Студент)``).
-            kind: Уже построенный индивид :ВидПрактики.
-            year: Литерал-DraftNode со значением учебного года. Шаблон
-                сам решает, откуда взять год: отдельное поле
-                (``b.field("academic_year").literal()``), производное
-                значение (``b.field("start_date").part(DateConcept,
-                "year").literal()``), константа
-                (``b.const_literal("2024/2025")``) и т. п. Значение года
-                читается через ``str(year.get_rdf_node())`` и идёт в
-                идентифицирующую тройку IRI Практики.
+            start_date: Литерал даты начала (например,
+                ``b.literal("practice_start_date", DateConcept)``).
+                Должен иметь тип xsd:date, ISO-форму ``YYYY-MM-DD``.
         """
         if not student.is_complete():
             return DraftNode(DraftNode.Type.IRI, None, "Практика: студент неполный", None)
-        if not kind.is_complete():
-            return DraftNode(DraftNode.Type.IRI, None, "Практика: вид практики неполный", None)
-        if not year.is_complete():
+        if not start_date.is_complete():
             return DraftNode(
                 DraftNode.Type.IRI, None,
-                "Практика: значение года неполное",
-                year.source,
+                "Практика: дата начала неполная",
+                start_date.source,
             )
 
-        year_value = str(year.get_rdf_node())
-        if not year_value.strip():
-            return DraftNode(
-                DraftNode.Type.IRI, None, "Практика: значение года пустое", year.source
-            )
-
-        student_local = self._extract_local_name(student)
-        kind_local = self._extract_local_name(kind)
-        if student_local is None or kind_local is None:
+        date_value = str(start_date.get_rdf_node())
+        if not date_value.strip():
             return DraftNode(
                 DraftNode.Type.IRI, None,
-                "Практика: IRI студента или вида не в пространстве предметной области",
-                year.source,
-            )
-
-        try:
-            parts = PracticeConcept.from_components(student_local, kind_local, year_value)
-            local = PracticeConcept.iri_local(parts)
-        except ConceptError as ex:
-            return DraftNode(DraftNode.Type.IRI, None, str(ex), year.source)
-
-        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, year.source)
-
-        self.add_type(iri, ONTO.Практика)
-        self.add_object_property(iri, ONTO.практикантВПрактике, student)
-        self.add_object_property(iri, ONTO.видПрактики, kind)
-        self.add_data_property(iri, ONTO.учебныйГодПрактики, year)
-        return iri
-
-    # ----- внутренние хелперы для композитов -----
-
-    def _build_thesis_iri(
-        self,
-        *,
-        title_field: Optional[str],
-        student: Optional[DraftNode],
-    ) -> DraftNode:
-        # Сначала пробуем построить от темы.
-        if title_field is not None:
-            value = self._field_values.get(title_field)
-            if value and str(value).strip():
-                try:
-                    parts = ThesisConcept.parse(value)
-                    return DraftNode(
-                        DraftNode.Type.IRI,
-                        _RDFLIB_ONTO[ThesisConcept.iri_local(parts)],
-                        None,
-                        title_field,
-                    )
-                except ConceptError as ex:
-                    return DraftNode(DraftNode.Type.IRI, None, str(ex), title_field)
-
-        # Fallback — от IRI студента.
-        if student is None or not student.is_complete():
-            return DraftNode(
-                DraftNode.Type.IRI, None,
-                "Не указан title_field и нет студента — IRI ВКР построить невозможно",
-                None,
+                "Практика: дата начала пустая",
+                start_date.source,
             )
 
         student_local = self._extract_local_name(student)
         if student_local is None:
             return DraftNode(
                 DraftNode.Type.IRI, None,
-                "IRI студента не в пространстве предметной области",
-                None,
+                "Практика: IRI студента не в пространстве предметной области",
+                start_date.source,
             )
-        return DraftNode(
-            DraftNode.Type.IRI,
-            _RDFLIB_ONTO["ВКР_" + short_sha1(student_local)],
-            None,
-            None,
-        )
+
+        try:
+            parts = PracticeConcept.from_components(student_local, date_value)
+            local = PracticeConcept.iri_local(parts)
+        except ConceptError as ex:
+            return DraftNode(DraftNode.Type.IRI, None, str(ex), start_date.source)
+
+        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, start_date.source)
+
+        self.add_type(iri, ONTO.Практика)
+        self.add_object_property(iri, ONTO.практикантВПрактике, student)
+        self.add_data_property(iri, ONTO.датаНачалаПрактики, start_date)
+        return iri
+
+    # ----- внутренние хелперы для композитов -----
 
     @staticmethod
     def _extract_local_name(node: DraftNode) -> Optional[str]:

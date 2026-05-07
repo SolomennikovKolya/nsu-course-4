@@ -479,16 +479,17 @@ class _NodeGeneratorDialog(QDialog):
         from core.concepts.organization import OrganizationConcept
         from core.concepts.person import PersonConcept
         from core.concepts.position import PositionConcept
-        from core.concepts.practice_kind import PracticeKindConcept
         from core.concepts.profile import ProfileConcept
         from core.concepts.telephone import TelephoneConcept
-        from core.concepts.thesis import ThesisConcept
         from core.concepts.title import TitleConcept
 
+        # Composite-концепты (ThesisConcept, PracticeConcept) сюда не
+        # включаем — у них identity составная (от student / student+дата),
+        # ручным вводом одной строки её не построить.
         all_concepts = [
             PersonConcept, OrganizationConcept, GroupConcept, DirectionConcept,
-            ProfileConcept, ThesisConcept, PositionConcept, DegreeConcept,
-            TitleConcept, PracticeKindConcept, GradeConcept,
+            ProfileConcept, PositionConcept, DegreeConcept, TitleConcept,
+            GradeConcept,
             DateConcept, EmailConcept, TelephoneConcept,
         ]
         target_kind = (

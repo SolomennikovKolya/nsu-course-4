@@ -1,37 +1,36 @@
 """Концепт :ВКР — выпускная квалификационная работа."""
 from __future__ import annotations
 
-import re
 from typing import ClassVar, Sequence
 
-from rdflib import Literal, Namespace, URIRef
-from rdflib.namespace import XSD
-
-from app.settings import SUBJECT_NAMESPACE_IRI
 from core.concepts._hash import short_sha1
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 from core.graph.draft_graph import DraftNode, DraftTriple
 
 
-_NS = Namespace(SUBJECT_NAMESPACE_IRI)
-_PRED_THESIS_TITLE: URIRef = _NS["темаВКР"]
-
-
 class ThesisConcept(BaseConcept):
-    """Концепт ``:ВКР`` — ВКР, идентифицируемая темой.
+    """Концепт ``:ВКР`` — выпускная квалификационная работа.
 
-    Парсит тему ВКР: lowercase, удаление кавычек, замена юникод-тире на
-    ASCII-дефис, схлопывание пробелов, удаление концевой пунктуации.
-    IRI = ``ВКР_<sha1[:12](canonical)>``.
+    Identity-стратегия: одна ВКР на студента. IRI = хеш от локального
+    имени IRI студента. Тема ВКР — это литерал ``:темаВКР``, не часть
+    identity; смена формулировки темы обновляет литерал, не порождая
+    нового индивида.
 
-    Когда у документа НЕТ поля с темой, IRI ВКР строит сам
-    :class:`TemplateGraphBuilder` от IRI студента — это уже
-    builder-уровень и в концепт не входит.
+    Использование:
+        * **Сама по себе строка-тема** не описывает ВКР — нужен IRI
+          студента. Поэтому метод :meth:`parse` принимает каноническую
+          форму ``"<person_iri_local>"`` (для контракта
+          :class:`BaseConcept` и идемпотентности), а основной путь —
+          :meth:`from_student` из :class:`TemplateGraphBuilder`.
+        * **Идентифицирующих литералов в графе у ВКР нет.**
+          Тема и связь со студентом (``:авторВКР``) ставятся отдельно
+          builder-ом после создания индивида.
 
     Состав :class:`ConceptParts`:
-        canonical: Тема в нижнем регистре без пунктуации (для хеша).
-        parts.title: Исходный заголовок (``raw.strip()``) — пишется в
-            литерал ``:темаВКР``.
+        canonical: Локальное имя IRI студента (``"Персона_a1b2c3..."``).
+            Используется для хеширования IRI ВКР.
+        parts.person: То же значение (для единообразия с другими
+            composite-концептами).
     """
 
     name: ClassVar[str] = "thesis"
@@ -40,17 +39,15 @@ class ThesisConcept(BaseConcept):
 
     @classmethod
     def parse(cls, raw: str) -> ConceptParts:
+        """Принимает локальное имя IRI студента (``"Персона_..."``).
+
+        Формально нужен для контракта :class:`BaseConcept` и
+        идемпотентности. На практике builder использует
+        :meth:`from_student`.
+        """
         if raw is None or not str(raw).strip():
-            raise ConceptError("Пустая тема ВКР")
-        original = str(raw).strip()
-        text = original.replace("ё", "е").replace("Ё", "Е").lower()
-        text = re.sub(r"[«»\"']+", "", text)
-        text = re.sub(r"[‐-―]", "-", text)
-        text = re.sub(r"\s+", " ", text).strip()
-        text = re.sub(r"\s*[.!?]+\s*$", "", text)
-        if not text:
-            raise ConceptError(f"После нормализации тема ВКР пустая: {raw!r}")
-        return ConceptParts(canonical=text, parts={"title": original})
+            raise ConceptError("Пустой IRI студента для ВКР")
+        return cls.from_student(str(raw).strip())
 
     @classmethod
     def iri_local(cls, parts: ConceptParts) -> str:
@@ -63,15 +60,23 @@ class ThesisConcept(BaseConcept):
         *,
         subject: DraftNode,
     ) -> Sequence[DraftTriple]:
-        title_value = parts.get("title") or parts.canonical
-        predicate = DraftNode(DraftNode.Type.IRI, _PRED_THESIS_TITLE)
-        obj = DraftNode(
-            DraftNode.Type.LITERAL,
-            Literal(title_value, datatype=XSD.string),
-        )
-        return (
-            DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, predicate, obj),
-        )
+        # Тема и связь :авторВКР ставит builder.
+        return ()
+
+    @classmethod
+    def from_student(cls, student_iri_local: str) -> ConceptParts:
+        """Собрать :class:`ConceptParts` из локального имени IRI студента.
+
+        Args:
+            student_iri_local: ``"Персона_a1b2c3d4e5f6"``.
+
+        Raises:
+            ConceptError: если имя пустое.
+        """
+        person = (student_iri_local or "").strip()
+        if not person:
+            raise ConceptError("Пустой IRI студента для ВКР")
+        return ConceptParts(canonical=person, parts={"person": person})
 
 
 __all__ = ["ThesisConcept"]

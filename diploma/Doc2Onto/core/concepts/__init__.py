@@ -11,7 +11,7 @@
       :class:`GroupConcept`, :class:`DirectionConcept`, :class:`ProfileConcept`,
       :class:`ThesisConcept`.
     * Перечисления: :class:`PositionConcept`, :class:`DegreeConcept`,
-      :class:`TitleConcept`, :class:`PracticeKindConcept`, :class:`GradeConcept`.
+      :class:`TitleConcept`, :class:`GradeConcept`.
     * Datatype-подобные с собственным IRI:
       :class:`EmailConcept`, :class:`TelephoneConcept`.
     * Чистый datatype: :class:`DateConcept` (литерал ``xsd:date``,
@@ -33,7 +33,6 @@ from core.concepts.organization import OrganizationConcept
 from core.concepts.person import PersonConcept
 from core.concepts.position import PositionConcept
 from core.concepts.practice import PracticeConcept
-from core.concepts.practice_kind import PracticeKindConcept
 from core.concepts.profile import ProfileConcept
 from core.concepts.telephone import TelephoneConcept
 from core.concepts.thesis import ThesisConcept
@@ -54,7 +53,6 @@ __all__ = [
     "PersonConcept",
     "PositionConcept",
     "PracticeConcept",
-    "PracticeKindConcept",
     "ProfileConcept",
     "TelephoneConcept",
     "ThesisConcept",
