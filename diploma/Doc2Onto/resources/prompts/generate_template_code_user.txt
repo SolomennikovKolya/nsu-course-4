@@ -17,7 +17,7 @@ $code_example
 
 #### classify(self, doc_name: str, uddm: UDDM) -> bool
 Двухуровневая классификация:
-1. Сначала по имени документа (`doc_name.lower()`): несколько ключевых слов через `all(word in name for word in [...])`. Достаточно специфично, чтобы не путать с однотипными классами (например, «отзыв» — недостаточно специфично для «Отзыв руководителя практики Бакалавриат ПИиКН 7 сем»). Минимум — должно срабатывать для прилагаемого примера документа.
+1. Сначала по имени документа (`doc_name.lower()`): несколько ключевых слов через `all(word in name for word in [...])`. Достаточно специфично, чтобы не путать с однотипными классами. Минимум — должно срабатывать для прилагаемого примера документа.
 2. Затем фолбэк по содержимому UDDM: `str(uddm.root).lower()` + проверка набора характерных якорных фраз.
 
 #### fields(self) -> List[Field]
@@ -25,16 +25,16 @@ $code_example
 - `name` — snake_case, уникальное в шаблоне.
 - `description` — берётся из описания (короткое осмысленное).
 - `selector` — строго по разделу «Где искать». Предпочитай относительные позиции (`next_element()` / `previous_element()` / `inner_element(...)` / `outer_element()`) — структура UDDM может быть зашумлена.
-- `extractor` — строго по разделу «Как извлекать». Помни, что в выбранном строковом представлении кроме нужного значения часто есть мусор (заголовки полей, маркеры). Не делай trim в конце цепочки (он автоматический).
-- `validator` — максимально полезные, но не избыточные проверки. Лучше пустой `val()`, чем бесполезный `min_length(3)`.
-- При нехватке DSL — кастомные функции через `apply(...)` в селекторе/экстракторе/валидаторе.
+- `extractor` — строго по разделу «Как извлекать». Помни, что в выбранном строковом представлении кроме нужного значения часто есть мусор. Не делай trim в конце цепочки (он автоматический).
+- `normalizer` — для типичных предметных полей (ФИО, дата, номер группы, код направления, должность, степень, звание, вид практики, оценка) ВСЕГДА используй `norm().concept(SomeConcept)`. Для прочих полей — пустой `norm()` или примитивы (`integer()`, `regex()`, `in_range()` и т. п.).
+- При нехватке DSL — кастомные функции через `apply(...)` в селекторе/экстракторе/нормализаторе.
 
 #### build(self, b: TemplateGraphBuilder)
 - Используй ТОЛЬКО классы и свойства из онтологической схемы (см. системный промпт). Никаких выдуманных предикатов.
-- Для всех индивидов классов с подсказкой `IRI: b.<helper>(...)` ИСПОЛЬЗУЙ соответствующий хелпер билдера. Хелперы сами добавляют тип и идентифицирующие литералы — НЕ дублируй их вручную.
-- Перечисления (Должность, УченаяСтепень, УченоеЗвание, ВидПрактики, Оценка) выбираются ТОЛЬКО через хелперы `b.position` / `b.degree` / `b.title` / `b.practice_kind` / `b.grade`. Запрещено заводить в шаблоне локальные таблицы синонимов вроде `_POSITION_MAP` или приватные функции для перечислений: эта логика уже в DSL.
-- Для опциональных свойств (например, должность сотрудника, степень, звание) используй `b.add_object_property_optional(...)` — он молча пропустит триплет, если значение отсутствует или не распознано.
-- Низкоуровневое API (`b.field(...).transform(...)`, лямбды) применяй ТОЛЬКО там, где нет подходящего хелпера и где трансформация специфична для данного шаблона.
+- Для всех индивидов классов с подсказкой `IRI: b.<helper>(...)` используй `b.individual(field, ConceptCls, role=...)` или соответствующий композитный хелпер (`b.direction`, `b.thesis`, `b.practice`). `b.individual` сам добавляет тип и идентифицирующие литералы — не дублируй их вручную.
+- Перечисления (Должность, УченаяСтепень, УченоеЗвание, ВидПрактики, Оценка) — через `b.individual(field, PositionConcept|DegreeConcept|TitleConcept|PracticeKindConcept|GradeConcept)`. Запрещено заводить локальные таблицы синонимов или приватные функции — эта логика уже в концептах.
+- Для опциональных свойств (например, должность сотрудника) используй `b.add_object_property_optional(...)` — он молча пропустит триплет, если значение отсутствует или концепт не распознал.
+- Низкоуровневое API (`b.field(...).part(...)`, лямбды) применяй ТОЛЬКО там, где нет подходящего хелпера.
 
 ### Дополнительно
 
@@ -50,8 +50,9 @@ $code_example
 - все поля из описания присутствуют;
 - нет несуществующих методов / namespace-ов / предикатов;
 - классы и предикаты из `ONTO.*` действительно есть в схеме выше;
-- для каждого индивида типа :Персона / :Организация / :Профиль / :Группа / :НаправлениеПодготовки / :ВКР / :Практика использован соответствующий хелпер `b.<helper>(...)`;
-- для каждого индивида перечисления использован соответствующий хелпер (`b.position` / `b.degree` / `b.title` / `b.practice_kind` / `b.grade`);
+- для каждого индивида типа :Персона / :Организация / :Профиль / :Группа / :НаправлениеПодготовки / :ВКР / :Практика использован `b.individual(...)` с правильным концептом или композитный хелпер (`b.direction`, `b.thesis`, `b.practice`);
+- для каждого индивида перечисления использован `b.individual(field, PositionConcept|DegreeConcept|TitleConcept|PracticeKindConcept|GradeConcept)`;
+- для каждого предметного поля (ФИО, дата, группа, код направления, должность и т. п.) в нормализаторе указан соответствующий концепт через `norm().concept(...)`;
 - в шаблоне НЕТ модульных констант-таблиц синонимов и приватных функций для перечислений;
 - код синтаксически корректен.
 
@@ -77,37 +78,43 @@ class TemplateCode(BaseTemplateCode):
                 "student_name", "ФИО обучающегося",
                 sel().find(ElementType.P, Predicate.contains_text("(Ф.И.О.)")),
                 ext().before("(Ф.И.О.)").keep_letters_and_spaces().normalize_spaces(),
-                val().alphabetic().word_count(min_words=2, max_words=3),
+                norm().concept(PersonConcept),
             ),
             Field(
                 "group_number", "Номер учебной группы",
                 sel().find(ElementType.P, Predicate.contains_text("группы №")),
                 ext().regex(r"группы\s*№\s*([0-9]+)", group=1),
-                val().integer(),
+                norm().concept(GroupConcept),
             ),
             Field(
                 "direction_code", "Код направления подготовки",
                 sel().find(ElementType.P, Predicate.contains_text("направление")),
                 ext().regex(r"(\d{2}\.\d{2}\.\d{2})", group=1),
-                val().regex(r"\d{2}\.\d{2}\.\d{2}", full_match=True),
+                norm().concept(DirectionConcept),
             ),
             Field(
                 "direction_name", "Наименование направления подготовки",
                 sel().find(ElementType.P, Predicate.contains_text("(код и наименование направления)")).previous_element(),
                 ext().regex(r"\d{2}\.\d{2}\.\d{2}\s*(.+)$", group=1),
-                val(),
+                norm(),
             ),
             Field(
                 "profile_name", "Наименование профиля подготовки",
                 sel().find(ElementType.P, Predicate.contains_text("направленность (профиль)")),
                 ext().after("направленность (профиль)"),
-                val(),
+                norm(),
             ),
             Field(
                 "organization_full_name", "Полное наименование организации места практики",
                 sel().find(ElementType.P, Predicate.contains_text("(указывается наименование практики)")).previous_element(),
                 ext(),
-                val(),
+                norm(),
+            ),
+            Field(
+                "application_date", "Дата заявления",
+                sel().find(ElementType.P, Predicate.contains_text("Дата:")),
+                ext().after("Дата:"),
+                norm().concept(DateConcept),
             ),
             Field(
                 "supervisor_name", "ФИО руководителя ВКР",
@@ -116,7 +123,7 @@ class TemplateCode(BaseTemplateCode):
                     r"Руководитель ВКР.*?([А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+)",
                     group=1,
                 ),
-                val().alphabetic().word_count(exact=3),
+                norm().concept(PersonConcept),
             ),
             Field(
                 "supervisor_position", "Должность руководителя ВКР",
@@ -125,25 +132,25 @@ class TemplateCode(BaseTemplateCode):
                     r"(зав\.\s*кафедрой|доцент|профессор|старший\s+преподаватель|преподаватель)",
                     group=1,
                 ),
-                val(),
+                norm().concept(PositionConcept),
             ),
         ]
 
     def build(self, b: TemplateGraphBuilder):
-        student = b.person("student_name", role=ONTO.Студент)
-        b.add_object_property(student, ONTO.обучаетсяВГруппе, b.group("group_number"))
-        b.add_object_property(
-            student, ONTO.обучаетсяНаНаправлении,
-            b.direction("direction_code", name_field="direction_name"),
-        )
-        b.add_object_property(student, ONTO.имеетПрофиль, b.profile("profile_name"))
+        student = b.individual("student_name", PersonConcept, role=ONTO.Студент)
+        b.add_object_property(student, ONTO.обучаетсяВГруппе,
+            b.individual("group_number", GroupConcept))
+        b.add_object_property(student, ONTO.обучаетсяНаНаправлении,
+            b.direction("direction_code", name_field="direction_name"))
+        b.add_object_property(student, ONTO.имеетПрофиль,
+            b.individual("profile_name", ProfileConcept))
 
-        b.organization("organization_full_name", role=ONTO.ВнешняяОрганизация)
+        b.individual("organization_full_name", OrganizationConcept,
+            role=ONTO.ВнешняяОрганизация)
 
-        supervisor = b.person("supervisor_name", role=ONTO.Сотрудник)
-        b.add_object_property_optional(
-            supervisor, ONTO.занимаетДолжность, b.position("supervisor_position"),
-        )
+        supervisor = b.individual("supervisor_name", PersonConcept, role=ONTO.Сотрудник)
+        b.add_object_property_optional(supervisor, ONTO.занимаетДолжность,
+            b.individual("supervisor_position", PositionConcept))
 
         thesis = b.thesis(student=student)
         b.add_object_property(thesis, ONTO.руководительВКР, supervisor)
