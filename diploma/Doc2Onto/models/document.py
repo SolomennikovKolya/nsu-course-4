@@ -74,6 +74,10 @@ class Document:
     def draft_graph_file_path(self) -> Path:
         return self.directory / "draft_graph.json"
 
+    def build_error_file_path(self) -> Path:
+        """Структурированный отчёт об ошибке стадии GraphBuilder (если была)."""
+        return self.directory / "build_error.json"
+
     def draft_graph_edits_file_path(self) -> Path:
         return self.directory / "draft_graph_edits.json"
 
