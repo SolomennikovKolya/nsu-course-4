@@ -83,9 +83,8 @@ class GroupConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
-        subject = DraftNode(DraftNode.Type.IRI, subject_iri)
         predicate = DraftNode(DraftNode.Type.IRI, _PRED_NUMBER)
         obj = DraftNode(DraftNode.Type.LITERAL, Literal(parts.canonical, datatype=XSD.string))
         return (

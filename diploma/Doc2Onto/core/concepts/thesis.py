@@ -61,10 +61,9 @@ class ThesisConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
         title_value = parts.get("title") or parts.canonical
-        subject = DraftNode(DraftNode.Type.IRI, subject_iri)
         predicate = DraftNode(DraftNode.Type.IRI, _PRED_THESIS_TITLE)
         obj = DraftNode(
             DraftNode.Type.LITERAL,

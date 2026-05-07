@@ -21,7 +21,7 @@ class DraftNode:
         self,
         node_type: Type,
         node: Optional[URIRef | Literal],
-        error: Optional[Exception] = None,
+        error: Optional[str] = None,
         source: Optional[str] = None
     ):
         self.type = node_type  # тип узла
@@ -155,7 +155,7 @@ class DraftGraph:
         """Проверяет, является ли граф полным (все триплеты имеют значения)."""
         return all(triple.is_complete() for triple in self.triples)
 
-    def get_rdf_graph(self) -> Graph:
+    def get_rdf_graph(self) -> Optional[Graph]:
         """Построение реального RDF-графа (из rdflib)."""
         if not self.is_complete():
             return None

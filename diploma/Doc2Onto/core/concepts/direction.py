@@ -63,9 +63,8 @@ class DirectionConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
-        subject = DraftNode(DraftNode.Type.IRI, subject_iri)
         predicate = DraftNode(DraftNode.Type.IRI, _PRED_CODE)
         obj = DraftNode(
             DraftNode.Type.LITERAL,

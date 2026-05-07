@@ -137,10 +137,8 @@ class PersonConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
-        subject = DraftNode(DraftNode.Type.IRI, subject_iri)
-
         triples = []
         # Литералы выдаём только для непустых частей: для большинства
         # людей в документах вуза отчество есть, но иногда его нет (или

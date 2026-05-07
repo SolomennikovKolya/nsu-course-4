@@ -20,9 +20,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, ClassVar, Mapping, Optional, Sequence
 
 if TYPE_CHECKING:
-    from rdflib import URIRef
-
-    from core.graph.draft_graph import DraftTriple
+    from core.graph.draft_graph import DraftNode, DraftTriple
 
 
 class ConceptKind(Enum):
@@ -184,14 +182,13 @@ class BaseConcept(ABC):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: "URIRef",
+        subject: "DraftNode",
     ) -> Sequence["DraftTriple"]:
         """Идентифицирующие триплеты индивида данного концепта.
 
-        Возвращает триплеты помимо ``rdf:type`` — этот добавляет билдер.
+        Возвращает триплеты помимо ``rdf:type`` — его добавляет билдер.
         Например :class:`PersonConcept` выдаёт ``:фио``, ``:фамилия``,
-        ``:имя``, ``:отчество``, а :class:`GroupConcept` —
-        ``:номерГруппы``.
+        ``:имя``, ``:отчество``, а :class:`GroupConcept` — ``:номерГруппы``.
 
         Дефолт — пустая последовательность. Подходит для концептов, у
         которых индивид определяется только своим IRI и литералов в
@@ -200,8 +197,8 @@ class BaseConcept(ABC):
 
         Args:
             parts: Структурированное значение из :meth:`parse`.
-            subject_iri: IRI индивида (полученный из ``iri_local``,
-                префиксованный namespace-ом проекта).
+            subject: Уже построенный :class:`DraftNode` с IRI индивида.
+                Концепт переиспользует его как subject триплетов.
 
         Returns:
             Последовательность :class:`DraftTriple` для добавления в

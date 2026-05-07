@@ -1,8 +1,6 @@
 import re
 from typing import Callable, List, Optional, Pattern
 
-from core.graph.value_transformer import ValueTransformer
-
 
 ExtractOperation = Callable[[str], Optional[str]]
 
@@ -229,52 +227,6 @@ class FieldExtractor:
                 result = pattern.sub(" ", result)
             result = re.sub(r"\s+", " ", result).strip()
             return result or None
-
-        self._operations.append(op)
-        return self
-
-    def parse_date_iso(self) -> "FieldExtractor":
-        """
-        Распознаёт дату в свободной форме и приводит её к ISO 8601 (``YYYY-MM-DD``).
-
-        Использует :func:`core.graph.value_transformer.ValueTransformer.date`, поэтому
-        принимает все поддерживаемые им форматы: ``19.05.2025``, ``2025-05-19``,
-        ``«29» сентября 2025 г.``, ``20 декабря 2024 г.`` и т. д. Возвращает None,
-        если дату распознать не удалось.
-
-        Удобно ставить непосредственно перед валидацией / литералом xsd:date —
-        тогда нормализация в графе и валидация будут работать с одной и той же ISO-формой.
-        """
-        def op(text: str) -> Optional[str]:
-            try:
-                data = ValueTransformer.date(text)
-            except Exception:
-                return None
-            iso = data.get("iso")
-            return iso or None
-
-        self._operations.append(op)
-        return self
-
-    def normalize_person_name(self) -> "FieldExtractor":
-        """
-        Приводит ФИО к именительному падежу с морфологической нормализацией.
-
-        Использует :func:`core.graph.value_transformer.ValueTransformer.person`,
-        поэтому полностью совпадает с логикой построения IRI индивида ``:Персона``
-        (``b.person(...)`` в шаблоне). Возвращает строку вида ``Фамилия Имя Отчество``
-        в именительном падеже или None, если ФИО распарсить не удалось.
-
-        Полезно ставить ПЕРЕД валидацией — чтобы морфонормализация прошла
-        в декларативном этапе, а не только в LLM-этапе.
-        """
-        def op(text: str) -> Optional[str]:
-            try:
-                data = ValueTransformer.person(text)
-            except Exception:
-                return None
-            name = data.get("name")
-            return name or None
 
         self._operations.append(op)
         return self

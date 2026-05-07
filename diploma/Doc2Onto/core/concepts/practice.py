@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from typing import ClassVar, Sequence
 
-from rdflib import URIRef
-
 from core.concepts._hash import short_sha1
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
-from core.graph.draft_graph import DraftTriple
+from core.graph.draft_graph import DraftNode, DraftTriple
 
 
 class PracticeConcept(BaseConcept):
@@ -80,7 +78,7 @@ class PracticeConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
         # Identifying-связи (студент, вид, год) ставит builder — у
         # концепта нет доступа к node'ам student/kind, только к их

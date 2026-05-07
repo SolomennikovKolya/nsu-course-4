@@ -1,17 +1,51 @@
-from rdflib import Namespace
-from rdflib import URIRef, Literal
-from typing import Optional, Dict, Any, Iterable
+"""
+Билдер RDF-графа для использования внутри кода шаблона.
+
+Сужающая обёртка над rdflib, специализированная под предметную область.
+Все знания, специфичные для конкретного концепта (как парсить значение,
+как считать IRI, какие литералы добавлять при регистрации индивида),
+живут в подклассах :class:`BaseConcept`. Билдер — тонкая прослойка,
+которая:
+
+  * читает значение поля из ``field_values`` (уже нормализованное стадией
+    Extractor → ``value_normalized``);
+  * применяет к нему концепт (``parse`` → ``iri_local`` → ``build_triples``);
+  * добавляет результат в граф.
+
+Универсальные методы:
+    * :meth:`TemplateGraphBuilder.individual` — создать индивид по
+      полю + концепту-``CLASS_INDIVIDUAL`` (Персона, Группа, Организация,
+      Профиль, перечисления и т. п.). Опциональный ``role`` добавляет
+      второй ``rdf:type``.
+    * :meth:`TemplateGraphBuilder.literal` — создать типизированный
+      литерал по полю + концепту-``DATATYPE`` (Дата, Email, Телефон).
+
+Композитные хелперы (не вписываются в простую парадигму одно-поле→концепт):
+    * :meth:`TemplateGraphBuilder.direction` — направление подготовки с
+      опциональным литералом названия.
+    * :meth:`TemplateGraphBuilder.thesis` — ВКР: либо от темы, либо
+      хеш от IRI студента.
+    * :meth:`TemplateGraphBuilder.practice` — Практика: composite IRI
+      от тройки (студент, вид, год) + identifying-связи.
+"""
+from typing import Any, Dict, Optional, Type
+
+from rdflib import Literal, Namespace, URIRef
 
 from app.settings import SUBJECT_NAMESPACE_IRI
-from core.graph.draft_graph import DraftNode, DraftTriple, DraftGraph
-from core.graph.value_transformer import ValueTransformFunc, ValueTransformer
+from core.concepts._hash import short_sha1
+from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
+from core.concepts.date import DateConcept
+from core.concepts.practice import PracticeConcept
+from core.concepts.thesis import ThesisConcept
+from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple
 from core.graph.rdflib_draft_outer import OUTER
 
 
 class DomainNamespace:
     """
-    Пространство имен предметной области. Позволяет легко создавать IRI с префиксом пространства имен.
-    Возвращает специальную обёртку над URIRef для работы в шаблоне.
+    Пространство имён предметной области. Возвращает обёртку над URIRef
+    для использования в шаблоне (``ONTO.Студент``, ``ONTO.имеетВКР``).
     """
 
     def __init__(self, ontology_iri: str):
@@ -29,61 +63,34 @@ class DomainNamespace:
         return self._to_draft_node(local_name)
 
     def __getattr__(self, local_name: str) -> DraftNode:
-        # Пропускаем служебные python-атрибуты.
         if local_name.startswith("__"):
             raise AttributeError(local_name)
         return self._to_draft_node(local_name)
 
 
-"""
-Пространство имен предметной области.
-С помощью него можно получить класс, объектное или дата-свойство онтологии.
-Примеры: `ONTO.Студент`, `ONTO.имеетРуководителя`, `ONTO.имеетИмя`
-"""
 ONTO = DomainNamespace(SUBJECT_NAMESPACE_IRI)
+"""Пространство имён онтологии: ``ONTO.Класс`` / ``ONTO.свойство``."""
+
 _RDFLIB_ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
-
-
-_XSD_DATE = OUTER.XSD.date.get_rdf_node()
-_XSD_DATETIME = OUTER.XSD.dateTime.get_rdf_node()
-
-
-def _autonormalize_for_datatype(value: str, datatype_iri: URIRef):
-    """
-    Если ``datatype_iri`` это xsd:date или xsd:dateTime, приводит ``value``
-    к ISO-формату через :class:`ValueTransformer.date`. Возвращает либо
-    нормализованную строку, либо исходную (если для типа нормализация не
-    нужна), либо :class:`Exception` (если нормализация требовалась, но не
-    удалась — её нужно показать пользователю как ошибку поля).
-
-    Для уже-ISO значений (например, ``2025-05-19``) обработка идемпотентна.
-    """
-    if datatype_iri == _XSD_DATE or datatype_iri == _XSD_DATETIME:
-        try:
-            data = ValueTransformer.date(value)
-        except Exception as ex:
-            return ex
-        iso = data.get("iso")
-        return iso if iso else value
-    return value
 
 
 class ValueProxy:
     """
-    Прокси для значения поля. Используется для fluent API.
-    Позволяет писать цепочки вида:
-    ```
-    student_email_domain = b.field("student_email").\\
-        transform(ValueTransformer.email, "domain").\\
-        literal()
-    ```
+    Прокси значения поля для fluent API.
+
+    Позволяет писать:
+        b.field("student_email").part(EmailConcept, "domain").literal()
+
+    :meth:`part` применяет :class:`BaseConcept` к значению и достаёт
+        нужный ключ (``parts.<key>`` или ``canonical``); 
+    :meth:`iri` / :meth:`literal` — терминаторы цепочки.
     """
 
     def __init__(self, field_name: str, field_value: Optional[str]):
-        self._source_field_name: str = field_name              # название поля, от которого было получено значение
-        self._source_field_value: Optional[str] = field_value  # исходное значение поля
-        self._transformed_value: Optional[str] = None          # преобразованное значение поля
-        self._error: Optional[str] = None                      # ошибка в цепочке
+        self._source_field_name: str = field_name
+        self._source_field_value: Optional[str] = field_value
+        self._transformed_value: Optional[str] = None
+        self._error: Optional[str] = None
 
     def _transform_called(self) -> bool:
         return self._transformed_value is not None or self._error is not None
@@ -91,96 +98,87 @@ class ValueProxy:
     def _get_value(self) -> Optional[str]:
         return self._transformed_value or self._source_field_value
 
-    def transform(self, fn: ValueTransformFunc, key: str) -> "ValueProxy":
-        """
-        Преобразование значения поля в данные, пригодные для использования в IRI.
+    def part(self, concept_cls: Type[BaseConcept], key: str = "canonical") -> "ValueProxy":
+        """Применить концепт к значению и взять часть из :class:`ConceptParts`.
 
-        Аргументы:
-            fn: ValueTransformFunc - вспомогательная функция, которая принимает значение поля и возвращает словарь данных.
-            key: str - ключ, по которому нужно получить значение из словаря результата преобразования.
+        Args:
+            concept_cls: Подкласс :class:`BaseConcept`.
+            key: Имя части (``"canonical"`` или ключ из ``parts``,
+                например ``"domain"`` для :class:`EmailConcept` или
+                ``"year"`` для :class:`DateConcept`).
         """
         if self._error is not None:
             return self
 
         value = self._get_value()
         if value is None:
-            self._error = "Значение поля отсутствует; Невозможно применить transform к None"
+            self._error = "Значение поля отсутствует; невозможно применить part к None"
             return self
 
         try:
-            data = fn(value)
-            if key not in data:
-                self._error = f"Ключ {key} не найден в результате преобразования"
-            else:
-                self._transformed_value = data.get(key)
-        except Exception as ex:
+            parts = concept_cls.parse(value)
+        except ConceptError as ex:
             self._error = str(ex)
+            return self
+        except Exception as ex:  # noqa: BLE001
+            self._error = f"{concept_cls.name}: {ex}"
+            return self
+
+        if key == "canonical":
+            self._transformed_value = parts.canonical
+        else:
+            v = parts.get(key)
+            if v is None:
+                self._error = f"Часть '{key}' отсутствует в результате {concept_cls.name}.parse"
+            else:
+                self._transformed_value = v
 
         return self
 
     def iri(self) -> DraftNode:
-        """
-        Построение IRI на основе значения поля. 
-        Является конечной операцией в цепочке.
-        """
+        """Терминатор: построить IRI из текущего значения."""
         def node(value: Optional[URIRef], error: Optional[str]) -> DraftNode:
             return DraftNode(DraftNode.Type.IRI, value, error, self._source_field_name)
 
         if self._error is not None:
             return node(None, self._error)
-
         value = self._get_value()
         if value is None:
-            error = "Значение поля отсутствует; Невозможно построить IRI из None"
-            return node(None, error)
-
+            return node(None, "Значение поля отсутствует; невозможно построить IRI из None")
         return node(_RDFLIB_ONTO[value], None)
 
     def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
-        """
-        Построение Literal на основе значения поля с учётом типа.
-        Является конечной операцией в цепочке.
+        """Терминатор: построить типизированный Literal из текущего значения.
 
-        Для xsd:date / xsd:dateTime значение автоматически нормализуется
-        к ISO-формату через :class:`ValueTransformer.date` (если значение
-        ещё не в ISO). Это позволяет в шаблоне писать
-        ``b.field("start_date").literal(OUTER.XSD.date)`` без явного
-        ``.transform(ValueTransformer.date, key="iso")`` — иначе rdflib
-        отказывается приводить «19.05.2025» к xsd:date и портит граф.
+        Никаких автоматических преобразований формата не делает. Если
+        нужен ``xsd:date`` — значение должно прийти сюда уже в ISO-форме
+        (либо нормализатор поля, либо явный ``.part(DateConcept, "canonical")``
+        перед терминатором).
         """
         def node(value: Optional[Literal], error: Optional[str]) -> DraftNode:
             return DraftNode(DraftNode.Type.LITERAL, value, error, self._source_field_name)
 
         if self._error is not None:
             return node(None, self._error)
-
         value = self._get_value()
         if value is None:
-            error = "Значение поля отсутствует; Невозможно построить Literal из None"
-            return node(None, error)
+            return node(None, "Значение поля отсутствует; невозможно построить Literal из None")
 
         dt_iri = datatype.get_rdf_node() if datatype is not None else OUTER.XSD.string.get_rdf_node()
         if not isinstance(dt_iri, URIRef):
-            error = "Неверный тип datatype: ожидается именованная сущность (имеющая IRI)"
-            return node(None, error)
-
-        if not self._transform_called():
-            normalized = _autonormalize_for_datatype(value, dt_iri)
-            if isinstance(normalized, Exception):
-                return node(None, str(normalized))
-            value = normalized
+            return node(None, "Неверный тип datatype: ожидается именованная сущность (имеющая IRI)")
 
         return node(Literal(value, datatype=dt_iri), None)
 
 
 class NoneValueProxy(ValueProxy):
-    """Заглушка на случай, если поле не существует в шаблоне."""
+    """Заглушка на случай отсутствия поля в шаблоне."""
 
     def __init__(self, field_name: str):
         super().__init__(field_name, None)
         self.ERROR = f"Поле {field_name} не существует в шаблоне"
 
-    def transform(self, fn: ValueTransformFunc, key: str) -> "NoneValueProxy":
+    def part(self, concept_cls: Type[BaseConcept], key: str = "canonical") -> "NoneValueProxy":
         return self
 
     def iri(self) -> DraftNode:
@@ -192,17 +190,9 @@ class NoneValueProxy(ValueProxy):
 
 class TemplateGraphBuilder:
     """
-    Билдер для построения RDF-графа внутри кода шаблона.
-    Является сужающей обёрткой над rdflib специализированной для предметной области.
+    Билдер RDF-графа для шаблона.
 
-    Предоставляет:
-    - Методы для создания IRI и Literal на основе полей шаблона.
-    - Методы для добавления триплетов в граф.
-
-    Приемущества:
-    - Повышение детерминизма за счет ограничения выразительности (по сравнению с чистой rdflib)
-    - Упрощение автоматической генерации шаблонов
-    - Инкапсуляция типизации и построения IRI
+    См. подробности в module-level docstring.
     """
 
     def __init__(self, field_values: Dict[str, str]):
@@ -212,60 +202,45 @@ class TemplateGraphBuilder:
     def _get_draft_graph(self) -> DraftGraph:
         return self._draft_graph
 
-    # ----- доступ к полям шаблона и константным литералам -----
+    # ----- доступ к значениям полей и константам -----
 
     def field(self, field_name: str) -> ValueProxy:
-        """
-        Получение прокси для значения поля (lazy transformation wrapper над значением поля). 
-        Используется для построения цепочек в стиле fluent API.
-
-        Примеры:
-        ```
-        student = b.field("student_name").transform(ValueTransformer.person, "hash").iri()
-        course = b.field("course_number").literal(OUTER.XSD.integer)
-        email_domain = b.field("student_email").transform(ValueTransformer.email, "domain").literal()
-        ```
-        """
+        """Прокси значения поля — для fluent API. См. :class:`ValueProxy`."""
         if field_name not in self._field_values:
             return NoneValueProxy(field_name)
-
-        value = self._field_values.get(field_name)
-        return ValueProxy(field_name, value)
+        return ValueProxy(field_name, self._field_values.get(field_name))
 
     def const_literal(self, value: Any, datatype: Optional[DraftNode] = None) -> DraftNode:
-        """Построение Literal на основе значения (не связано ни с каким полем шаблона)."""
+        """Литерал с произвольным значением, не привязанный к полю."""
         dt_iri = datatype.get_rdf_node() if datatype is not None else None
         if not isinstance(dt_iri, URIRef):
             dt_iri = OUTER.XSD.string.get_rdf_node()
-
         return DraftNode(DraftNode.Type.LITERAL, Literal(value, datatype=dt_iri), None, None)
 
     # ----- добавление триплетов -----
 
     def add_type(self, s: DraftNode, c: DraftNode):
-        """Добавляет триплет вида: (экземпляр, RDF.type, класс)."""
+        """``(subject, rdf:type, class)``."""
         self._add_triple(DraftTriple.Type.TYPE, s, OUTER.RDF.type, c)
 
     def add_object_property(self, s: DraftNode, p: DraftNode, o: DraftNode):
-        """Добавляет триплет вида: (экземпляр, объектное свойство, экземпляр)."""
+        """``(subject, object_property, individual)``."""
         self._add_triple(DraftTriple.Type.OBJECT_PROPERTY, s, p, o)
 
     def add_data_property(self, s: DraftNode, p: DraftNode, l: DraftNode):
-        """Добавляет триплет вида: (экземпляр, дата-свойство, литерал)."""
+        """``(subject, data_property, literal)``."""
         self._add_triple(DraftTriple.Type.DATA_PROPERTY, s, p, l)
 
     def add_object_property_optional(self, s: DraftNode, p: DraftNode, o: DraftNode):
-        """
-        То же, что :meth:`add_object_property`, но молча пропускает триплет, если
-        объект неполный (например, перечисление не найдено или поле пустое).
-        Используется для опциональных связей: должность, степень, звание и т. п.
-        """
+        """То же, что :meth:`add_object_property`, но молча пропускает
+        неполный объект (полезно для опциональных связей: должность,
+        степень, звание и т. п.)."""
         if not o.is_complete():
             return
         self.add_object_property(s, p, o)
 
     def add_data_property_optional(self, s: DraftNode, p: DraftNode, l: DraftNode):
-        """То же, что :meth:`add_data_property`, но пропускает триплет с неполным литералом."""
+        """То же, что :meth:`add_data_property`, но пропускает неполный литерал."""
         if not l.is_complete():
             return
         self.add_data_property(s, p, l)
@@ -273,99 +248,133 @@ class TemplateGraphBuilder:
     def _add_triple(self, triple_type: DraftTriple.Type, s: DraftNode, p: DraftNode, o: DraftNode):
         self._draft_graph.add_triple(DraftTriple(triple_type, s, p, o))
 
-    # ----- высокоуровневые хелперы предметной области -----
+    # ===== Универсальные методы для концептов ============================
 
-    # Эти методы скрывают за собой типовой набор триплетов «индивид + базовые
-    # литералы» для часто встречающихся классов онтологии. Они работают по
-    # принципу: «получи имя поля → построй IRI индивида → добавь тип →
-    # добавь стандартные литералы (фио/название/код)». В случае отсутствия
-    # поля или ошибки трансформации возвращается неполный DraftNode и
-    # триплеты не добавляются — Connector затем пометит граф как неполный.
-
-    def person(
+    def individual(
         self,
-        name_field: str,
+        field_name: str,
+        concept_cls: Type[BaseConcept],
         *,
         role: Optional[DraftNode] = None,
     ) -> DraftNode:
-        """
-        Регистрирует индивида :Персона по полю с ФИО и возвращает его IRI.
+        """Создать индивид онтологии по полю и концепту.
 
-        Делает за один вызов:
-          * IRI = ONTO.person_<sha1[:12]> от канонической формы (морфологически
-            нормализованной к именительному падежу),
-          * rdf:type :Персона и, если задано, ``role`` (например, :Студент или :Сотрудник),
-          * литералы :фио, :фамилия, :имя, :отчество (отчество — только если есть).
+        Применяет ``concept_cls`` к значению поля: ``parse`` → ``iri_local``
+        → ``build_triples``. Добавляет в граф ``rdf:type`` базового класса
+        концепта (``concept_cls.onto_class_local``) и, если задан, ``role``
+        как второй тип. Возвращает :class:`DraftNode` с IRI индивида.
 
-        Если поле отсутствует или ФИО не парсится, возвращает неполный IRI с error.
+        Если поле пустое или концепт отвергает значение, возвращает неполный
+        DraftNode с error — Connector затем пометит граф как неполный.
+
+        Args:
+            field_name: Имя поля шаблона.
+            concept_cls: Подкласс :class:`BaseConcept` с
+                ``kind == CLASS_INDIVIDUAL`` (Персона, Группа, Организация,
+                Профиль, перечисления и т. п.).
+            role: Дополнительный тип (например ``ONTO.Студент`` или
+                ``ONTO.Кафедра``) — добавляется как второй ``rdf:type``.
+
+        Raises:
+            TypeError: если ``concept_cls`` не подкласс :class:`BaseConcept`
+                или его ``kind != CLASS_INDIVIDUAL``.
         """
-        return self._domain_individual(
-            field=name_field,
-            transformer=ValueTransformer.person,
-            base_class=ONTO.Персона,
-            extra_class=role,
-            literals=[
-                (ONTO.фио, "name"),
-                (ONTO.фамилия, "last_name"),
-                (ONTO.имя, "first_name"),
-                (ONTO.отчество, "middle_name"),
-            ],
-            iri_key="hash",
+        cls = self._validate_concept_cls(concept_cls, ConceptKind.CLASS_INDIVIDUAL)
+
+        value = self._field_values.get(field_name)
+        if value is None or not str(value).strip():
+            return DraftNode(DraftNode.Type.IRI, None, f"Поле '{field_name}' пустое", field_name)
+
+        try:
+            parts = cls.parse(value)
+        except ConceptError as ex:
+            return DraftNode(DraftNode.Type.IRI, None, str(ex), field_name)
+        except Exception as ex:  # noqa: BLE001
+            return DraftNode(DraftNode.Type.IRI, None, f"{cls.name}: {ex}", field_name)
+
+        try:
+            local = cls.iri_local(parts)
+        except Exception as ex:  # noqa: BLE001
+            return DraftNode(DraftNode.Type.IRI, None, str(ex), field_name)
+
+        iri_node = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, field_name)
+
+        # rdf:type базового класса концепта.
+        base_class_node = ONTO[cls.onto_class_local] if cls.onto_class_local else None
+        if base_class_node is not None:
+            self.add_type(iri_node, base_class_node)
+        if role is not None and role.is_complete():
+            self.add_type(iri_node, role)
+
+        # Идентифицирующие литералы (:фио, :фамилия и т. п.). subject —
+        # тот же iri_node; концепт переиспользует его без обёртки. Source
+        # на predicate/object проставляем здесь, чтобы концепт об этом
+        # не знал.
+        for triple in cls.build_triples(parts, subject=iri_node):
+            triple.predicate.source = field_name
+            triple.object.source = field_name
+            self._draft_graph.add_triple(triple)
+
+        return iri_node
+
+    def literal(self, field_name: str, concept_cls: Type[BaseConcept]) -> DraftNode:
+        """Создать типизированный Literal по полю и концепту-``DATATYPE``.
+
+        Применяет ``concept_cls.normalize`` к значению поля и заворачивает
+        результат в ``Literal(canonical, datatype=xsd:string)``. Сейчас
+        все DATATYPE-концепты порождают ``xsd:string`` (Email и Телефон —
+        строки; Дата — особый случай через :meth:`field` + ``literal(XSD.date)``).
+
+        Args:
+            field_name: Имя поля шаблона.
+            concept_cls: Подкласс :class:`BaseConcept` с
+                ``kind == DATATYPE``.
+
+        Raises:
+            TypeError: если ``concept_cls`` не DATATYPE.
+        """
+        cls = self._validate_concept_cls(concept_cls, ConceptKind.DATATYPE)
+
+        value = self._field_values.get(field_name)
+        if value is None or not str(value).strip():
+            return DraftNode(
+                DraftNode.Type.LITERAL, None, f"Поле '{field_name}' пустое", field_name
+            )
+
+        try:
+            canonical = cls.normalize(value)
+        except ConceptError as ex:
+            return DraftNode(DraftNode.Type.LITERAL, None, str(ex), field_name)
+        except Exception as ex:  # noqa: BLE001
+            return DraftNode(DraftNode.Type.LITERAL, None, f"{cls.name}: {ex}", field_name)
+
+        # Дата → xsd:date; всё остальное (Email, Телефон) → xsd:string.
+        datatype = OUTER.XSD.date.get_rdf_node() if cls is DateConcept else OUTER.XSD.string.get_rdf_node()
+        return DraftNode(
+            DraftNode.Type.LITERAL,
+            Literal(canonical, datatype=datatype),
+            None,
+            field_name,
         )
 
-    def organization(
-        self,
-        name_field: str,
-        *,
-        role: Optional[DraftNode] = None,
-    ) -> DraftNode:
-        """
-        Регистрирует индивида :Организация по полю с полным наименованием.
+    @staticmethod
+    def _validate_concept_cls(
+        concept_cls: Type[BaseConcept],
+        expected_kind: ConceptKind,
+    ) -> Type[BaseConcept]:
+        if not (isinstance(concept_cls, type) and issubclass(concept_cls, BaseConcept)):
+            raise TypeError(
+                f"Ожидался подкласс BaseConcept, получено {concept_cls!r}"
+            )
+        if concept_cls.kind != expected_kind:
+            method = "individual" if expected_kind == ConceptKind.CLASS_INDIVIDUAL else "literal"
+            raise TypeError(
+                f"{method}() требует концепт с kind={expected_kind.value}, "
+                f"но {concept_cls.name} имеет kind={concept_cls.kind.value}"
+            )
+        return concept_cls
 
-        Делает за один вызов:
-          * IRI = ONTO.org_<sha1[:12]> от нормализованного названия,
-          * rdf:type :Организация и, если задано, ``role`` (:ВнешняяОрганизация / :Университет / :Кафедра / …),
-          * литерал :названиеОрганизации.
-        """
-        return self._domain_individual(
-            field=name_field,
-            transformer=ValueTransformer.organization,
-            base_class=ONTO.Организация,
-            extra_class=role,
-            literals=[(ONTO.названиеОрганизации, "name")],
-            iri_key="hash",
-        )
-
-    def profile(self, name_field: str) -> DraftNode:
-        """
-        Регистрирует индивида :Профиль по полю с названием профиля подготовки.
-
-        Добавляет тип :Профиль и литерал :названиеПрофиля.
-        """
-        return self._domain_individual(
-            field=name_field,
-            transformer=ValueTransformer.profile,
-            base_class=ONTO.Профиль,
-            extra_class=None,
-            literals=[(ONTO.названиеПрофиля, "name")],
-            iri_key="hash",
-        )
-
-    def group(self, number_field: str) -> DraftNode:
-        """
-        Регистрирует индивида :Группа по полю с номером группы.
-
-        IRI — стабильный local-name :Группа_<номер>. Добавляет тип :Группа и
-        литерал :номерГруппы.
-        """
-        return self._domain_individual(
-            field=number_field,
-            transformer=ValueTransformer.group,
-            base_class=ONTO.Группа,
-            extra_class=None,
-            literals=[(ONTO.номерГруппы, "number")],
-            iri_key="local",
-        )
+    # ===== Композитные хелперы (особые случаи) ===========================
 
     def direction(
         self,
@@ -373,26 +382,22 @@ class TemplateGraphBuilder:
         *,
         name_field: Optional[str] = None,
     ) -> DraftNode:
-        """
-        Регистрирует индивида :НаправлениеПодготовки по полю с кодом (XX.XX.XX).
+        """Направление подготовки + опциональный литерал названия.
 
-        IRI — :Направление_XX_XX_XX. Добавляет тип, литерал :кодНаправления и,
-        если задано, литерал :названиеНаправления из ``name_field``.
+        IRI индивида строится из кода через :class:`DirectionConcept`.
+        Если задан ``name_field`` — добавляет литерал
+        ``:названиеНаправления`` из этого поля (само название не входит
+        в identity направления, поэтому хранится отдельно).
         """
-        iri = self._domain_individual(
-            field=code_field,
-            transformer=ValueTransformer.direction,
-            base_class=ONTO.НаправлениеПодготовки,
-            extra_class=None,
-            literals=[(ONTO.кодНаправления, "code")],
-            iri_key="local",
-        )
+        # Локальный импорт, чтобы не вытаскивать DirectionConcept в
+        # module-level scope (он используется только здесь).
+        from core.concepts.direction import DirectionConcept
 
+        iri = self.individual(code_field, DirectionConcept)
         if name_field is not None and iri.is_complete():
             self.add_data_property_optional(
                 iri, ONTO.названиеНаправления, self.field(name_field).literal()
             )
-
         return iri
 
     def thesis(
@@ -401,16 +406,15 @@ class TemplateGraphBuilder:
         title_field: Optional[str] = None,
         student: Optional[DraftNode] = None,
     ) -> DraftNode:
-        """
-        Регистрирует индивида :ВКР.
+        """Индивид :ВКР.
 
         IRI вычисляется так:
-          * если задан ``title_field`` и поле непустое — хеш от нормализованной темы
-            (``thesis_<sha1[:12]>``) + добавляется литерал :темаВКР;
-          * иначе IRI считается от IRI студента (``thesis_<sha1[:12]>``).
+          * если ``title_field`` задан и непустой — через
+            :class:`ThesisConcept` (от темы);
+          * иначе — ``hash`` от локального имени IRI студента.
 
-        Тип :ВКР и (при наличии student) объектное свойство :авторВКР добавляются
-        автоматически.
+        ``rdf:type :ВКР`` и (при наличии ``student``) ``:авторВКР``
+        ставятся автоматически.
         """
         iri = self._build_thesis_iri(title_field=title_field, student=student)
 
@@ -418,11 +422,6 @@ class TemplateGraphBuilder:
             self.add_type(iri, ONTO.ВКР)
             if student is not None and student.is_complete():
                 self.add_object_property(iri, ONTO.авторВКР, student)
-
-            if title_field is not None:
-                self.add_data_property_optional(
-                    iri, ONTO.темаВКР, self.field(title_field).literal()
-                )
 
         return iri
 
@@ -433,11 +432,12 @@ class TemplateGraphBuilder:
         kind: DraftNode,
         year_field: str,
     ) -> DraftNode:
-        """
-        Регистрирует индивида :Практика для (студент, вид практики, учебный год).
+        """Индивид :Практика для тройки (студент, вид, год).
 
-        IRI = ONTO.practice_<sha1[:12]> от тройки. Добавляет тип :Практика,
-        литерал :учебныйГодПрактики, объектные :практикантВПрактике и :видПрактики.
+        IRI считается через :class:`PracticeConcept.from_components` из
+        локальных имён студента и вида + значения ``year_field``.
+        Добавляет ``rdf:type :Практика`` и identifying-связи
+        ``:практикантВПрактике``, ``:видПрактики``, ``:учебныйГодПрактики``.
         """
         if not student.is_complete():
             return DraftNode(DraftNode.Type.IRI, None, "Практика: студент неполный", None)
@@ -446,124 +446,34 @@ class TemplateGraphBuilder:
 
         year_value = self._field_values.get(year_field)
         if not year_value:
-            return DraftNode(DraftNode.Type.IRI, None, f"Практика: поле '{year_field}' пустое", year_field)
+            return DraftNode(
+                DraftNode.Type.IRI, None, f"Практика: поле '{year_field}' пустое", year_field
+            )
+
+        student_local = self._extract_local_name(student)
+        kind_local = self._extract_local_name(kind)
+        if student_local is None or kind_local is None:
+            return DraftNode(
+                DraftNode.Type.IRI, None,
+                "Практика: IRI студента или вида не в пространстве предметной области",
+                year_field,
+            )
 
         try:
-            data = ValueTransformer.practice({
-                "person": str(student.get_rdf_node()),
-                "kind": str(kind.get_rdf_node()),
-                "year": year_value,
-            })
-        except Exception as ex:
+            parts = PracticeConcept.from_components(student_local, kind_local, year_value)
+            local = PracticeConcept.iri_local(parts)
+        except ConceptError as ex:
             return DraftNode(DraftNode.Type.IRI, None, str(ex), year_field)
 
-        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[data["hash"]], None, year_field)
+        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, year_field)
 
         self.add_type(iri, ONTO.Практика)
         self.add_object_property(iri, ONTO.практикантВПрактике, student)
         self.add_object_property(iri, ONTO.видПрактики, kind)
-        self.add_data_property(
-            iri, ONTO.учебныйГодПрактики,
-            self.field(year_field).literal(),
-        )
+        self.add_data_property(iri, ONTO.учебныйГодПрактики, self.field(year_field).literal())
         return iri
 
-    # ----- индивиды перечислений (без побочных эффектов) -----
-
-    def position(self, field_name: str) -> DraftNode:
-        """Возвращает IRI индивида перечисления :Должность по строковому значению поля."""
-        return self._enum_individual(field_name, ValueTransformer.position)
-
-    def degree(self, field_name: str) -> DraftNode:
-        """Возвращает IRI индивида перечисления :УченаяСтепень."""
-        return self._enum_individual(field_name, ValueTransformer.degree)
-
-    def title(self, field_name: str) -> DraftNode:
-        """Возвращает IRI индивида перечисления :УченоеЗвание."""
-        return self._enum_individual(field_name, ValueTransformer.title)
-
-    def practice_kind(self, field_name: str) -> DraftNode:
-        """Возвращает IRI индивида перечисления :ВидПрактики."""
-        return self._enum_individual(field_name, ValueTransformer.practice_kind)
-
-    def grade(self, field_name: str) -> DraftNode:
-        """Возвращает IRI индивида перечисления :Оценка."""
-        return self._enum_individual(field_name, ValueTransformer.grade)
-
-    # ----- утилитарные хелперы для типизированных литералов ---------------
-
-    def date(self, field_name: str) -> DraftNode:
-        """
-        Возвращает Literal с типом xsd:date по строковому значению поля.
-
-        Значение нормализуется через :class:`ValueTransformer.date`, поэтому
-        принимаются и ISO (``2025-05-19``), и русские форматы
-        (``19.05.2025``, ``«29» сентября 2025 г.``). При ошибке парсинга
-        возвращается неполный DraftNode с описанием ошибки — триплет с ним
-        не попадёт в граф (используй вместе с :meth:`add_data_property_optional`,
-        если поле опциональное).
-        """
-        return self.field(field_name).literal(OUTER.XSD.date)
-
-    # ----- внутренние общие реализации высокоуровневых хелперов -----
-
-    def _domain_individual(
-        self,
-        *,
-        field: str,
-        transformer: ValueTransformFunc,
-        base_class: DraftNode,
-        extra_class: Optional[DraftNode],
-        literals: Iterable,
-        iri_key: str,
-    ) -> DraftNode:
-        value = self._field_values.get(field)
-        if value is None or not str(value).strip():
-            return DraftNode(DraftNode.Type.IRI, None, f"Поле '{field}' пустое", field)
-
-        try:
-            data = transformer(value)
-        except Exception as ex:
-            return DraftNode(DraftNode.Type.IRI, None, str(ex), field)
-
-        local = data.get(iri_key)
-        if not local:
-            return DraftNode(
-                DraftNode.Type.IRI, None,
-                f"Трансформер не вернул значение по ключу '{iri_key}'", field,
-            )
-
-        iri = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, field)
-        self.add_type(iri, base_class)
-        if extra_class is not None and extra_class.is_complete():
-            self.add_type(iri, extra_class)
-
-        for predicate, key in literals:
-            literal_value = data.get(key)
-            if literal_value is None or str(literal_value).strip() == "":
-                continue
-            self._add_string_literal(iri, predicate, str(literal_value), source=field)
-
-        return iri
-
-    def _enum_individual(
-        self,
-        field_name: str,
-        transformer: ValueTransformFunc,
-    ) -> DraftNode:
-        value = self._field_values.get(field_name)
-        if value is None or not str(value).strip():
-            return DraftNode(DraftNode.Type.IRI, None, f"Поле '{field_name}' пустое", field_name)
-
-        try:
-            data = transformer(value)
-        except Exception as ex:
-            return DraftNode(DraftNode.Type.IRI, None, str(ex), field_name)
-
-        local = data.get("local")
-        if not local:
-            return DraftNode(DraftNode.Type.IRI, None, "Перечисление не вернуло local", field_name)
-        return DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, field_name)
+    # ----- внутренние хелперы для композитов -----
 
     def _build_thesis_iri(
         self,
@@ -571,17 +481,22 @@ class TemplateGraphBuilder:
         title_field: Optional[str],
         student: Optional[DraftNode],
     ) -> DraftNode:
+        # Сначала пробуем построить от темы.
         if title_field is not None:
             value = self._field_values.get(title_field)
             if value and str(value).strip():
                 try:
-                    data = ValueTransformer.thesis(value)
+                    parts = ThesisConcept.parse(value)
                     return DraftNode(
-                        DraftNode.Type.IRI, _RDFLIB_ONTO[data["hash"]], None, title_field
+                        DraftNode.Type.IRI,
+                        _RDFLIB_ONTO[ThesisConcept.iri_local(parts)],
+                        None,
+                        title_field,
                     )
-                except Exception as ex:
+                except ConceptError as ex:
                     return DraftNode(DraftNode.Type.IRI, None, str(ex), title_field)
 
+        # Fallback — от IRI студента.
         if student is None or not student.is_complete():
             return DraftNode(
                 DraftNode.Type.IRI, None,
@@ -589,32 +504,29 @@ class TemplateGraphBuilder:
                 None,
             )
 
-        student_iri = str(student.get_rdf_node())
-        if not student_iri.startswith(SUBJECT_NAMESPACE_IRI):
+        student_local = self._extract_local_name(student)
+        if student_local is None:
             return DraftNode(
                 DraftNode.Type.IRI, None,
-                f"IRI студента не в пространстве предметной области: {student_iri}",
+                "IRI студента не в пространстве предметной области",
                 None,
             )
-        student_local = student_iri[len(SUBJECT_NAMESPACE_IRI):]
-        h = "ВКР_" + ValueTransformer._hash(student_local)
-        return DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[h], None, None)
-
-    def _add_string_literal(
-        self,
-        s: DraftNode,
-        p: DraftNode,
-        value: Optional[str],
-        *,
-        source: Optional[str],
-    ):
-        if value is None or str(value).strip() == "":
-            return
-
-        node = DraftNode(
-            DraftNode.Type.LITERAL,
-            Literal(value, datatype=OUTER.XSD.string.get_rdf_node()),
+        return DraftNode(
+            DraftNode.Type.IRI,
+            _RDFLIB_ONTO["ВКР_" + short_sha1(student_local)],
             None,
-            source,
+            None,
         )
-        self.add_data_property(s, p, node)
+
+    @staticmethod
+    def _extract_local_name(node: DraftNode) -> Optional[str]:
+        """Локальное имя IRI узла (без префикса проекта). None — если
+        IRI не из пространства предметной области."""
+        rdf_node = node.get_rdf_node()
+        if rdf_node is None:
+            return None
+        s = str(rdf_node)
+        if not s.startswith(SUBJECT_NAMESPACE_IRI):
+            return None
+        local = s[len(SUBJECT_NAMESPACE_IRI):]
+        return local or None

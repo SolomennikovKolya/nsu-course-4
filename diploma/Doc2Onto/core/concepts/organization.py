@@ -81,11 +81,10 @@ class OrganizationConcept(BaseConcept):
         cls,
         parts: ConceptParts,
         *,
-        subject_iri: URIRef,
+        subject: DraftNode,
     ) -> Sequence[DraftTriple]:
         # В литерал кладём parts.name (исходную форму), не canonical.
         name_value = parts.get("name") or parts.canonical
-        subject = DraftNode(DraftNode.Type.IRI, subject_iri)
         predicate = DraftNode(DraftNode.Type.IRI, _PRED_NAME)
         obj = DraftNode(
             DraftNode.Type.LITERAL,
