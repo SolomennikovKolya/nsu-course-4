@@ -23,12 +23,13 @@ from urllib.parse import urldefrag
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, XSD
 from rdflib.util import from_n3
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMessageBox, QPushButton, QScrollArea,
-    QSizePolicy, QSplitter, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
+    QComboBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
+    QScrollArea, QSizePolicy, QSplitter, QStackedWidget, QTextEdit,
+    QVBoxLayout, QWidget,
 )
 
 from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
@@ -36,8 +37,10 @@ from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple, EditedGra
 from models.document import Document
 from models.extraction_result import ExtractionResult
 from ui.common.design import (
+    UI_COLOR_DARK_GRAY,
     UI_COLOR_GRAY,
     UI_COLOR_GREEN,
+    UI_COLOR_LINK_INDIVIDUAL,
     UI_COLOR_RED,
     UI_COLOR_TEXT_MUTED,
     UI_COLOR_TEXT_SECONDARY,
@@ -94,13 +97,18 @@ def _term_n3_short(nm_graph: Graph, term: object) -> str:
 
 
 def _draft_node_from_n3_input(
-    kind: DraftNode.Type, n3_text: str, source: Optional[str]
+    kind: DraftNode.Type,
+    n3_text: str,
+    source: Optional[str],
+    nsm=None,
 ) -> DraftNode:
+    """Распарсить N3-форму узла. ``nsm`` нужен, чтобы корректно
+    разрешать префиксованные IRI вроде ``:Персона_xxx`` и ``rdf:type``."""
     t = (n3_text or "").strip()
     if not t or t == "—":
         return DraftNode(kind, None, None, source)
     try:
-        parsed = from_n3(t)
+        parsed = from_n3(t, nsm=nsm) if nsm is not None else from_n3(t)
         if kind == DraftNode.Type.IRI and not isinstance(parsed, URIRef):
             return DraftNode(kind, None, "ожидался IRI", source)
         if kind == DraftNode.Type.LITERAL and not isinstance(parsed, Literal):
@@ -194,6 +202,20 @@ def _triple_warn_level(
         _node_warn_level(edited, triple_index, r, extr)
         for r in ("subject", "predicate", "object")
     )
+
+
+def _can_generate_for_role(role: str, triple_type: DraftTriple.Type) -> bool:
+    """Имеет ли смысл «сгенерировать значение через концепт» для данного
+    узла. Концепты онтологии умеют считать IRI индивидов с хешем и
+    типизированные литералы; для предикатов (свойств) и классов
+    (object-роль в TYPE-триплете) такой генерации нет — они выбираются
+    руками из онтологии.
+    """
+    if role == "predicate":
+        return False
+    if role == "object" and triple_type == DraftTriple.Type.TYPE:
+        return False
+    return True
 
 
 # =====================================================================
@@ -321,13 +343,242 @@ class _BuildErrorDialog(QDialog):
 
 
 # =====================================================================
+# Помощник генерации значения узла через концепты
+# =====================================================================
+
+
+class _NodeGeneratorDialog(QDialog):
+    """Помощник: построить IRI индивида или типизированный литерал через
+    выбранный концепт онтологии.
+
+    Какие концепты показывать определяется типом узла:
+        * для IRI — все ``CLASS_INDIVIDUAL``-концепты (Persona, Group,
+          Direction, Profile, Organization, Thesis, перечисления).
+        * для LITERAL — ``DATATYPE``-концепты (Date, Email, Telephone).
+
+    Live-предпросмотр считает результат прямо при вводе значения, OK
+    активна только если предпросмотр валидный.
+    """
+
+    def __init__(self, kind: DraftNode.Type, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Сгенерировать значение узла")
+        self.resize(580, 420)
+        self.result_n3: str = ""
+        self._kind = kind
+        self._n3: str = ""
+        self._concepts = self._collect_concepts(kind)
+
+        mono = QFont("Consolas")
+        if not mono.exactMatch():
+            mono = QFont("Courier New")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        # --- Шапка-объяснение ---
+        kind_text = "IRI индивида" if kind == DraftNode.Type.IRI else "типизированный литерал"
+        header = QLabel(
+            f"<b>Помощник:</b> построить {kind_text} с помощью концепта онтологии. "
+            f"Концепт сам нормализует значение и посчитает каноническую форму "
+            f"(хеш в IRI, ISO-дату, ссылку на индивид перечисления и т. п.)."
+        )
+        header.setWordWrap(True)
+        header.setStyleSheet(
+            "padding:8px 10px; "
+            "background:rgba(80,140,220,0.12); "
+            "border-left:3px solid #5a8bd6; "
+            "border-radius:2px; "
+            f"color:{UI_COLOR_TEXT_SECONDARY};"
+        )
+        layout.addWidget(header)
+
+        # --- Сгруппированные поля формы ---
+        form = QFrame()
+        # form.setStyleSheet(
+        #     "QFrame { "
+        #     "background:rgba(255,255,255,0.04); "
+        #     "border:1px solid rgba(255,255,255,0.08); "
+        #     "border-radius:4px; "
+        #     "}"
+        # )
+        form_lay = QVBoxLayout(form)
+        form_lay.setContentsMargins(12, 10, 12, 12)
+        form_lay.setSpacing(6)
+
+        form_lay.addWidget(QLabel("<b>Концепт онтологии:</b>"))
+        self._combo = QComboBox()
+        for cls in self._concepts:
+            label = cls.onto_class_local or cls.name
+            self._combo.addItem(f"{label}  ({cls.name})", cls)
+        form_lay.addWidget(self._combo)
+
+        form_lay.addSpacing(4)
+        form_lay.addWidget(QLabel("<b>Сырое значение:</b>"))
+        self._input = QLineEdit()
+        self._input.setFont(mono)
+        self._input.setPlaceholderText("например: Иванов Иван Иванович")
+        form_lay.addWidget(self._input)
+
+        layout.addWidget(form)
+
+        # --- Предпросмотр результата ---
+        layout.addWidget(QLabel("<b>Предпросмотр результата:</b>"))
+        self._preview = QLabel()
+        self._preview.setFont(mono)
+        self._preview.setWordWrap(True)
+        self._preview.setMinimumHeight(64)
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._preview.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._preview.setStyleSheet(
+            "padding:10px 12px; "
+            "background:rgba(255,255,255,0.06); "
+            "border:1px solid rgba(255,255,255,0.10); "
+            "border-radius:3px; "
+            f"color:{UI_COLOR_TEXT_SECONDARY};"
+        )
+        layout.addWidget(self._preview)
+        layout.addStretch(1)
+
+        # --- Кнопки ---
+        self._buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self._buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Подставить")
+        self._buttons.accepted.connect(self._on_accept)
+        self._buttons.rejected.connect(self.reject)
+        layout.addWidget(self._buttons)
+
+        self._input.textChanged.connect(self._update_preview)
+        self._combo.currentIndexChanged.connect(self._update_preview)
+
+        if not self._concepts:
+            self._preview.setText(
+                f"<span style='color:{UI_COLOR_RED};'>"
+                f"Нет подходящих концептов для этого типа узла."
+                f"</span>"
+            )
+            self._input.setEnabled(False)
+            self._buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+        else:
+            self._update_preview()
+
+    @staticmethod
+    def _collect_concepts(kind: DraftNode.Type):
+        """Все доступные концепты, отфильтрованные по типу узла."""
+        # Локальный импорт: запросто может тяжёлый pymorphy3 (PersonConcept) —
+        # подгружаем лениво, только при открытии диалога.
+        from core.concepts.base import ConceptKind
+        from core.concepts.date import DateConcept
+        from core.concepts.degree import DegreeConcept
+        from core.concepts.direction import DirectionConcept
+        from core.concepts.email import EmailConcept
+        from core.concepts.grade import GradeConcept
+        from core.concepts.group import GroupConcept
+        from core.concepts.organization import OrganizationConcept
+        from core.concepts.person import PersonConcept
+        from core.concepts.position import PositionConcept
+        from core.concepts.practice_kind import PracticeKindConcept
+        from core.concepts.profile import ProfileConcept
+        from core.concepts.telephone import TelephoneConcept
+        from core.concepts.thesis import ThesisConcept
+        from core.concepts.title import TitleConcept
+
+        all_concepts = [
+            PersonConcept, OrganizationConcept, GroupConcept, DirectionConcept,
+            ProfileConcept, ThesisConcept, PositionConcept, DegreeConcept,
+            TitleConcept, PracticeKindConcept, GradeConcept,
+            DateConcept, EmailConcept, TelephoneConcept,
+        ]
+        target_kind = (
+            ConceptKind.CLASS_INDIVIDUAL
+            if kind == DraftNode.Type.IRI
+            else ConceptKind.DATATYPE
+        )
+        return [c for c in all_concepts if c.kind == target_kind]
+
+    def _current_concept(self):
+        idx = self._combo.currentIndex()
+        if 0 <= idx < len(self._concepts):
+            return self._concepts[idx]
+        return None
+
+    def _update_preview(self):
+        from core.concepts.base import ConceptError, ConceptKind
+        from core.concepts.date import DateConcept
+
+        ok_btn = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
+        cls = self._current_concept()
+        raw = self._input.text()
+        self._n3 = ""
+
+        if cls is None or not raw.strip():
+            self._preview.setText("(введите значение)")
+            ok_btn.setEnabled(False)
+            return
+
+        try:
+            parts = cls.parse(raw)
+        except ConceptError as ex:
+            self._preview.setText(
+                f"<span style='color:{UI_COLOR_RED};'>Ошибка: {_html_escape(str(ex))}</span>"
+            )
+            ok_btn.setEnabled(False)
+            return
+        except Exception as ex:  # noqa: BLE001
+            self._preview.setText(
+                f"<span style='color:{UI_COLOR_RED};'>Непредвиденная ошибка: {_html_escape(str(ex))}</span>"
+            )
+            ok_btn.setEnabled(False)
+            return
+
+        nm = _make_prefix_graph().namespace_manager
+        if cls.kind == ConceptKind.CLASS_INDIVIDUAL:
+            try:
+                local = cls.iri_local(parts)
+            except Exception as ex:  # noqa: BLE001
+                self._preview.setText(
+                    f"<span style='color:{UI_COLOR_RED};'>Ошибка построения IRI: {_html_escape(str(ex))}</span>"
+                )
+                ok_btn.setEnabled(False)
+                return
+            iri = URIRef(SUBJECT_NAMESPACE_IRI + local)
+            n3 = iri.n3(nm)
+            self._preview.setText(f"<b>IRI индивида:</b> <code>{_html_escape(n3)}</code>")
+        else:
+            datatype = XSD.date if cls is DateConcept else XSD.string
+            lit = Literal(parts.canonical, datatype=datatype)
+            n3 = lit.n3(nm)
+            self._preview.setText(f"<b>Литерал:</b> <code>{_html_escape(n3)}</code>")
+
+        self._n3 = n3
+        ok_btn.setEnabled(True)
+
+    def _on_accept(self):
+        if not self._n3:
+            self.reject()
+            return
+        self.result_n3 = self._n3
+        self.accept()
+
+
+# =====================================================================
 # Левая панель: компактная строка триплета
 # =====================================================================
 
 
 class _TripleListItem(QFrame):
     """Одна строка списка триплетов — без раскрытия. Только цветной стрипп
-    и краткое N3-резюме."""
+    и краткое N3-резюме.
+
+    Высота подстраивается под длину текста (с word-wrap), но не меньше
+    двух строк — см. :meth:`compute_height_for_width`. Главный виджет
+    пересчитывает sizeHint каждой строки при изменении ширины списка.
+    """
+
+    # Минимум — две строки текста + вертикальные отступы.
+    _MIN_TEXT_LINES = 2
 
     def __init__(self, triple_index: int, edited: EditedGraph, nm_graph: Graph):
         super().__init__()
@@ -336,7 +587,8 @@ class _TripleListItem(QFrame):
         self.nm_graph = nm_graph
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Минимум — высота 2 строк, максимум растёт по контенту.
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(4, 4, 4, 4)
@@ -389,7 +641,7 @@ class _TripleListItem(QFrame):
         if excluded:
             stripe_color = UI_COLOR_GRAY
             self.setStyleSheet(
-                "QFrame { background: rgba(0,0,0,0.25); color: " + UI_COLOR_TEXT_MUTED + "; }"
+                "QFrame { background: " + UI_COLOR_DARK_GRAY + "; color: " + UI_COLOR_TEXT_MUTED + "; }"
             )
         else:
             level = _triple_warn_level(self.edited, idx, extraction)
@@ -397,6 +649,29 @@ class _TripleListItem(QFrame):
             self.setStyleSheet("")
 
         self._stripe.setStyleSheet(f"background-color: {stripe_color}; border-radius: 1px;")
+
+    def compute_height_for_width(self, total_width: int) -> int:
+        """Высота строки для заданной общей ширины (для setSizeHint).
+
+        Учитывает: фиксированную ширину стрипа/индекса + spacing + margins;
+        на оставшуюся ширину считает height-of-text у summary через
+        word-wrap. Возвращает максимум(текст, MIN_TEXT_LINES * lineSpacing).
+        """
+        # Ширина «несжимаемых» элементов: стрипп (4) + индекс-лейбл (40) +
+        # 2 отступа по 6px между виджетами + outer-margins (4+4) + запас.
+        fixed_w = 4 + 40 + (6 * 2) + (4 + 4) + 8
+        avail_w = max(80, total_width - fixed_w)
+
+        fm = self._summary.fontMetrics()
+        text = self._summary.text() or "X"
+        # boundingRect c TextWordWrap даёт честную высоту для нескольких строк.
+        rect = fm.boundingRect(0, 0, avail_w, 100000, int(Qt.TextFlag.TextWordWrap), text)
+        h_text = rect.height()
+        h_min = fm.lineSpacing() * self._MIN_TEXT_LINES
+        h_content = max(h_text, h_min)
+
+        # Вертикальные внешние отступы (4 + 4) + небольшой запас на штрихи.
+        return h_content + 12
 
 
 # =====================================================================
@@ -437,7 +712,13 @@ class _TripleDetailPanel(QWidget):
         # Три блока узлов (subject / predicate / object).
         self._node_blocks: Dict[str, _NodeEditorBlock] = {}
         for role in ("subject", "predicate", "object"):
-            block = _NodeEditorBlock(role, self._nm_graph, self._on_role_edit_finished)
+            block = _NodeEditorBlock(
+                role,
+                self._nm_graph,
+                on_edit_finished=self._on_role_edit_finished,
+                on_reset=self._on_role_reset,
+                on_generate=self._on_role_generate,
+            )
             outer.addWidget(block)
             self._node_blocks[role] = block
 
@@ -455,7 +736,7 @@ class _TripleDetailPanel(QWidget):
         outer.addWidget(self._hints_lbl)
 
         # Used-in (другие триплеты, где встречается выбранная нода).
-        self._usedin_label = QLabel("Эта нода также встречается:")
+        self._usedin_label = QLabel("Номера триплетов, в которых встречается:")
         self._usedin_label.setStyleSheet(
             f"color:{UI_COLOR_TEXT_MUTED}; font-style:italic;"
         )
@@ -504,11 +785,24 @@ class _TripleDetailPanel(QWidget):
 
             tr = self._edited.draft.triples[self._triple_index]
             excluded = self._triple_index in self._edited.excluded
+            overrides_set = {
+                role for (ti, role) in self._edited.node_overrides
+                if ti == self._triple_index
+            }
 
-            self._title.setText(
+            title_marks: List[str] = []
+            if excluded:
+                title_marks.append("ИСКЛЮЧЁН")
+            if overrides_set:
+                title_marks.append(
+                    "ИЗМЕНЕН (" + ", ".join(sorted(overrides_set)) + ")"
+                )
+            title_text = (
                 f"Триплет #{self._triple_index} ({_TRIPLE_TYPE_LABELS[tr.triple_type]})"
-                + ("  ·  ИСКЛЮЧЁН" if excluded else "")
             )
+            if title_marks:
+                title_text += "  ·  " + "  ·  ".join(title_marks)
+            self._title.setText(title_text)
 
             role_titles = _role_titles(tr.triple_type)
             for role, block in self._node_blocks.items():
@@ -521,6 +815,8 @@ class _TripleDetailPanel(QWidget):
                     warn_level=level,
                     extraction=self._extraction,
                     used_in_count=len(used_in),
+                    is_overridden=(role in overrides_set),
+                    can_generate=_can_generate_for_role(role, tr.triple_type),
                 )
 
             self._refresh_hints(tr)
@@ -585,10 +881,7 @@ class _TripleDetailPanel(QWidget):
             used = self._find_used_in(node, exclude_index=self._triple_index)
             if not used:
                 continue
-            head = f"<b>{role}</b>: ещё в {len(used)} триплете(ах) — "
-            head += ", ".join(f"#{i}" for i in used[:10])
-            if len(used) > 10:
-                head += f", … (всего {len(used)})"
+            head = f"<b>{role}</b>: " + ", ".join(f"{i}" for i in used)
             sections.append(head)
 
         if not sections:
@@ -620,9 +913,42 @@ class _TripleDetailPanel(QWidget):
         tr = self._edited.draft.triples[self._triple_index]
         kind = tr.get_node(role).type
         source = tr.get_node(role).source
-        new_node = _draft_node_from_n3_input(kind, n3_text, source)
+        # Передаём nsm, иначе ":Персона_xxx" / "rdf:type" не разрешаются
+        # до полного IRI и узел получается невалидным.
+        new_node = _draft_node_from_n3_input(
+            kind, n3_text, source, nsm=self._nm_graph.namespace_manager
+        )
         self._edited.set_node(self._triple_index, role, new_node)
         self._on_changed()
+
+    def _on_role_reset(self, role: str):
+        """Сбросить ручную правку у узла: записать оригинальный узел —
+        :meth:`EditedGraph.set_node` сам убирает override, когда узел
+        совпадает с исходным."""
+        if self._edited is None or self._triple_index is None:
+            return
+        original = self._edited.draft.triples[self._triple_index].get_node(role)
+        # Копия, чтобы не разделять идентичность с исходным узлом графа.
+        self._edited.set_node(self._triple_index, role, original.copy())
+        self._on_changed()
+
+    def _on_role_generate(self, role: str):
+        """Открыть :class:`_NodeGeneratorDialog` и подставить результат
+        в N3-поле узла, как если бы пользователь сам ввёл и нажал Enter."""
+        if self._edited is None or self._triple_index is None:
+            return
+        tr = self._edited.draft.triples[self._triple_index]
+        kind = tr.get_node(role).type
+        dialog = _NodeGeneratorDialog(kind, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        n3_text = dialog.result_n3
+        if not n3_text:
+            return
+        # Подставляем визуально и применяем как обычное редактирование.
+        block = self._node_blocks[role]
+        block.set_n3(n3_text)
+        self._on_role_edit_finished(role, n3_text)
 
     def _on_toggle_exclude(self):
         if self._edited is None or self._triple_index is None:
@@ -648,11 +974,15 @@ class _NodeEditorBlock(QFrame):
         role: str,
         nm_graph: Graph,
         on_edit_finished: Callable[[str, str], None],
+        on_reset: Callable[[str], None],
+        on_generate: Callable[[str], None],
     ):
         super().__init__()
         self._role = role
         self._nm_graph = nm_graph
         self._on_edit_finished = on_edit_finished
+        self._on_reset = on_reset
+        self._on_generate = on_generate
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         outer = QHBoxLayout(self)
@@ -673,6 +1003,15 @@ class _NodeEditorBlock(QFrame):
         self._role_lbl = QLabel()
         self._role_lbl.setStyleSheet("font-weight:bold;")
         head.addWidget(self._role_lbl)
+
+        # Бейдж «ИЗМЕНЕН» — виден, когда у узла есть override.
+        self._override_badge = QLabel("ИЗМЕНЕН")
+        self._override_badge.setStyleSheet(
+            f"color:{UI_COLOR_LINK_INDIVIDUAL}; font-weight:bold; font-size:10px;"
+        )
+        self._override_badge.setVisible(False)
+        head.addWidget(self._override_badge)
+
         head.addStretch(1)
         self._used_in_lbl = QLabel()
         self._used_in_lbl.setStyleSheet(
@@ -681,13 +1020,45 @@ class _NodeEditorBlock(QFrame):
         head.addWidget(self._used_in_lbl)
         right.addLayout(head)
 
+        # Поле ввода + 2 маленькие кнопки в одной строке.
+        edit_row = QHBoxLayout()
+        edit_row.setContentsMargins(0, 0, 0, 0)
+        edit_row.setSpacing(4)
+
         mono = QFont("Consolas")
         if not mono.exactMatch():
             mono = QFont("Courier New")
         self._edit = QLineEdit()
         self._edit.setFont(mono)
         self._edit.editingFinished.connect(self._emit_edit_finished)
-        right.addWidget(self._edit)
+        edit_row.addWidget(self._edit, stretch=1)
+
+        # Кнопка сброса ручной правки.
+        self._reset_btn = QPushButton("↺")
+        self._reset_btn.setFixedWidth(28)
+        self._reset_btn.setToolTip(
+            "Сбросить ручную правку и вернуть исходное значение, "
+            "посчитанное стадией сборки графа."
+        )
+        self._reset_btn.clicked.connect(self._emit_reset)
+        self._reset_btn.setVisible(False)
+        edit_row.addWidget(self._reset_btn)
+
+        # Кнопка-помощник: открывает _NodeGeneratorDialog.
+        # Видимость задаётся в set_state на основе типа триплета и роли:
+        # она имеет смысл только для индивидов и литералов; для предикатов
+        # (свойств) и классов (object роль в TYPE-триплете) — нет.
+        self._gen_btn = QPushButton("⚙")
+        self._gen_btn.setFixedWidth(28)
+        self._gen_btn.setToolTip(
+            "Сгенерировать значение через концепт онтологии "
+            "(IRI индивида с хешем или типизированный литерал)."
+        )
+        self._gen_btn.clicked.connect(self._emit_generate)
+        self._gen_btn.setVisible(False)
+        edit_row.addWidget(self._gen_btn)
+
+        right.addLayout(edit_row)
 
         self._meta_lbl = QLabel()
         self._meta_lbl.setWordWrap(True)
@@ -718,12 +1089,26 @@ class _NodeEditorBlock(QFrame):
         warn_level: int,
         extraction: Optional[ExtractionResult],
         used_in_count: int,
+        is_overridden: bool,
+        can_generate: bool,
     ):
         self.setEnabled(True)
         self._role_lbl.setText(f"{role_label}:")
+        self._gen_btn.setVisible(can_generate)
+
+        # Стрипп: красный важнее всего; иначе override → голубой; иначе обычный warn.
+        if warn_level >= 2:
+            stripe_color = _warn_color(warn_level)
+        elif is_overridden:
+            stripe_color = UI_COLOR_LINK_INDIVIDUAL
+        else:
+            stripe_color = _warn_color(warn_level)
         self._stripe.setStyleSheet(
-            f"background-color:{_warn_color(warn_level)}; border-radius:1px;"
+            f"background-color:{stripe_color}; border-radius:1px;"
         )
+
+        self._override_badge.setVisible(is_overridden)
+        self._reset_btn.setVisible(is_overridden)
 
         n3 = node._to_json_dict().get("n3") or ""
         self._edit.blockSignals(True)
@@ -762,6 +1147,15 @@ class _NodeEditorBlock(QFrame):
         self._meta_lbl.setText("")
         self._pipeline_lbl.setText("")
         self._used_in_lbl.setVisible(False)
+        self._override_badge.setVisible(False)
+        self._reset_btn.setVisible(False)
+        self._gen_btn.setVisible(False)
+
+    def set_n3(self, n3_text: str):
+        """Программно подставить N3-значение в поле ввода (без сигналов)."""
+        self._edit.blockSignals(True)
+        self._edit.setText(n3_text)
+        self._edit.blockSignals(False)
 
     # ---------- pipeline ----------
 
@@ -812,6 +1206,12 @@ class _NodeEditorBlock(QFrame):
 
     def _emit_edit_finished(self):
         self._on_edit_finished(self._role, self._edit.text())
+
+    def _emit_reset(self):
+        self._on_reset(self._role)
+
+    def _emit_generate(self):
+        self._on_generate(self._role)
 
 
 # =====================================================================
@@ -864,6 +1264,9 @@ class DocumentViewGraphTab(QWidget):
         self._list_widget = QListWidget()
         self._list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self._list_widget.itemSelectionChanged.connect(self._on_selection_changed)
+        # При изменении ширины viewport — пересчитать высоту каждой строки,
+        # чтобы word-wrap влез без обрезки.
+        self._list_widget.viewport().installEventFilter(self)
         left_splitter.addWidget(self._list_widget)
 
         # Supplementary turtle.
@@ -880,7 +1283,8 @@ class DocumentViewGraphTab(QWidget):
         left_splitter.addWidget(supp_box)
 
         left_splitter.setStretchFactor(0, 3)
-        left_splitter.setStretchFactor(1, 1)
+        left_splitter.setStretchFactor(1, 0)
+        left_splitter.setSizes([500, 100])
 
         # Правая часть — стек: пусто / детальная карточка.
         self._detail_stack = QStackedWidget()
@@ -961,8 +1365,13 @@ class DocumentViewGraphTab(QWidget):
 
             edits_path = document.draft_graph_edits_file_path()
             try:
+                # Сигнатура: EditedGraph.load(draft, edits_path).
+                # До этого был перепутан порядок → exists() падал на DraftGraph,
+                # except глотал, edits отбрасывались. Теперь правильно.
                 self._edited = (
-                    EditedGraph.load(edits_path, draft) if edits_path.exists() else EditedGraph(draft)
+                    EditedGraph.load(draft, edits_path)
+                    if edits_path.exists()
+                    else EditedGraph(draft)
                 )
             except Exception:  # noqa: BLE001
                 self._edited = EditedGraph(draft)
@@ -997,14 +1406,35 @@ class DocumentViewGraphTab(QWidget):
             row = _TripleListItem(i, self._edited, self._nm_graph)
             row.refresh(self._extraction)
             list_item = QListWidgetItem(self._list_widget)
-            list_item.setSizeHint(row.sizeHint())
             self._list_widget.addItem(list_item)
             self._list_widget.setItemWidget(list_item, row)
             self._items.append(row)
+        # Высоту считаем после всех addItem — viewport уже знает свою ширину.
+        self._update_list_item_heights()
 
     def _refresh_list_items(self):
         for item in self._items:
             item.refresh(self._extraction)
+        # После refresh текст мог измениться (другая длина) → пересчитать.
+        self._update_list_item_heights()
+
+    def _update_list_item_heights(self):
+        avail_w = self._list_widget.viewport().width()
+        if avail_w < 50 or not self._items:
+            return
+        for i, row in enumerate(self._items):
+            list_item = self._list_widget.item(i)
+            if list_item is None:
+                continue
+            h = row.compute_height_for_width(avail_w)
+            current = list_item.sizeHint()
+            if current.height() != h or current.width() != avail_w:
+                list_item.setSizeHint(QSize(avail_w, h))
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt API
+        if event.type() == QEvent.Type.Resize and obj is self._list_widget.viewport():
+            self._update_list_item_heights()
+        return super().eventFilter(obj, event)
 
     def _on_selection_changed(self):
         if self._loading:

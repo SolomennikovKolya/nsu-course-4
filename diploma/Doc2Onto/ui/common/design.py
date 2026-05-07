@@ -6,6 +6,7 @@ UI_COLOR_YELLOW = "#FFC107"
 UI_COLOR_RED = "#FF5252"
 UI_COLOR_RED_DARK = "#D32F2F"
 UI_COLOR_GRAY = "#9e9e9e"
+UI_COLOR_DARK_GRAY = "#1E1E1E"
 
 # --- Тектовые и ссылочные цвета ---
 UI_COLOR_TEXT_MUTED = "#888"
