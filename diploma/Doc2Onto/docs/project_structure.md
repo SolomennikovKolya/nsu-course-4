@@ -1,21 +1,5 @@
-## Doc2Onto
+# Структура проекта
 
-Настольное приложение для автоматизированного пополнения онтологической
-модели кафедры знаниями, извлечёнными из документов.
-
-### Инструкция по запуску
-
-1. `py -3.11 -m venv .venv` — создание окружения (нужен Python 3.11)
-2. `.venv\Scripts\activate` — активация окружения
-3. `python -m pip install --upgrade pip setuptools wheel` — обновление инструментов
-4. `pip install -r requirements.txt` — зависимости
-5. Скопируйте `.env.example` в `.env` и задайте переменные:
-    - `OPENAI_API_KEY` — ключ OpenAI (используется на этапе извлечения полей и для генерации шаблонов)
-    - `CONVERTAPI_SECRET` — ключ ConvertAPI (используется при PDF → DOCX нормализации)
-6. Установите LibreOffice (https://www.libreoffice.org/) — нужен для DOC → DOCX и для предпросмотра документов в UI. На Windows как альтернативу можно использовать установленный Microsoft Word (через `pywin32`)
-7. `python main.py` — запуск приложения
-
-### Структура проекта
 ```python
 Doc2Onto/
 ├── README.md                          # Этот файл
@@ -137,8 +121,3 @@ Doc2Onto/
         ├── app.log                    # Лог работы приложения
         └── agents.log                 # Лог работы LLM-агентов (полные prompt + response)
 ```
-
-### Дополнительно
-- `python.analysis.typeCheckingMode` — настройка VS Code для проверки типов
-- `Ctrl + Shift + P` → `Python: Select Interpreter` — выбор интерпретатора (например `.venv`)
-- `Ctrl + Shift + P` → `Restart Language Server` — перезапуск языкового сервера Python
