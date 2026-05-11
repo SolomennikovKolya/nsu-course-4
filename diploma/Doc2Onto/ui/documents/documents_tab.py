@@ -11,7 +11,12 @@ from app.context import get_pipeline, get_doc_manager, get_temp_manager
 from app.settings import APP_NAME
 from models.document import Document
 from modules.converter.converter import ConverterRegistry
-from ui.common.design import UI_COLOR_GREEN, UI_COLOR_YELLOW, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
+from ui.common.design import (
+    UI_COLOR_GREEN,
+    UI_COLOR_YELLOW,
+    MIN_LEFT_PANEL_WIDTH,
+    SPLITTER_RATIO_SIZES,
+)
 from ui.documents.doc_info import DocumentInfoWidget
 
 
@@ -139,10 +144,12 @@ class DocumentsTab(QWidget):
             doc = self._doc_manager.add(file_path)
 
             res = self._pipeline.run(doc, final_stage=Document.Status.CLASS_DETERMINED)
-            if not res:
+            if not res and doc.status < Document.Status.CLASS_DETERMINED:
                 self._doc_manager.delete(doc)
                 QMessageBox.critical(self, APP_NAME, f'Не удалось извлечь UDDM из документа "{file_name}". {res.message}')
                 continue
+            elif not res:
+                QMessageBox.warning(self, APP_NAME, f'Документ "{file_name}" был загружен, но класс не определен. {res.message}')
 
             self._doc_manager.save_metadata(doc)
             self._docs_cache.add_or_update(doc)
@@ -206,7 +213,9 @@ class DocumentsTab(QWidget):
                     return
 
     def _get_doc_in_tree_color(self, doc_status: Document.Status) -> QColor:
-        if doc_status == Document.Status.UPLOADED or doc_status == Document.Status.UDDM_EXTRACTED:
+        if (doc_status == Document.Status.UPLOADED
+            or doc_status == Document.Status.UDDM_EXTRACTED
+                or doc_status == Document.Status.CLASS_DETERMINED):
             return QColor("white")
         elif doc_status == Document.Status.ADDED_TO_MODEL:
             return QColor(UI_COLOR_GREEN)

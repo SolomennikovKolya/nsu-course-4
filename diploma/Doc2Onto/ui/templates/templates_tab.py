@@ -20,6 +20,7 @@ class TemplatesCache:
 
     def load(self, templates: list[Template]):
         self._items = list(templates)
+        self._items.sort(key=lambda t: t.name.lower())
 
     def items(self) -> list[Template]:
         return self._items
@@ -32,6 +33,7 @@ class TemplatesCache:
     def add_or_update(self, template: Template):
         self.remove(template)
         self._items.append(template)
+        self._items.sort(key=lambda t: t.name.lower())
 
     def remove(self, template: Template):
         self._items = [t for t in self._items if t is not template and t.id != template.id]
