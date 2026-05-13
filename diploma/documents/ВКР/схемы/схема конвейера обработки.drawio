@@ -1,0 +1,63 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Страница-1" id="SzSYrfOWlbLeIF4Ebcz5">
+    <mxGraphModel dx="709" dy="487" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" background="none" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="FCmJWMNjXJTivIWvc21K-8" edge="1" parent="1" source="FCmJWMNjXJTivIWvc21K-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="FCmJWMNjXJTivIWvc21K-7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-19" connectable="0" parent="FCmJWMNjXJTivIWvc21K-8" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="конвертер" vertex="1">
+          <mxGeometry relative="1" x="-0.268" y="-1" as="geometry">
+            <mxPoint x="1" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-1" parent="1" style="html=1;whiteSpace=wrap;" value="Оригинал документа" vertex="1">
+          <mxGeometry height="50" width="110" x="159" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-10" edge="1" parent="1" source="FCmJWMNjXJTivIWvc21K-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="FCmJWMNjXJTivIWvc21K-9" value="классифи-&lt;div&gt;катор&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-7" parent="1" style="html=1;whiteSpace=wrap;" value="Унифицированное представление&amp;nbsp;" vertex="1">
+          <mxGeometry height="50" width="110" x="159" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-12" edge="1" parent="1" source="FCmJWMNjXJTivIWvc21K-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="FCmJWMNjXJTivIWvc21K-11" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-20" connectable="0" parent="FCmJWMNjXJTivIWvc21K-12" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="экстрактор" vertex="1">
+          <mxGeometry relative="1" x="0.0631" y="-1" as="geometry">
+            <mxPoint x="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-9" parent="1" style="html=1;whiteSpace=wrap;" value="Класс документа" vertex="1">
+          <mxGeometry height="50" width="110" x="359" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-14" edge="1" parent="1" source="FCmJWMNjXJTivIWvc21K-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="FCmJWMNjXJTivIWvc21K-13" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-21" connectable="0" parent="FCmJWMNjXJTivIWvc21K-14" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="сборщик" vertex="1">
+          <mxGeometry relative="1" x="-0.4904" y="-1" as="geometry">
+            <mxPoint x="17" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-11" parent="1" style="html=1;whiteSpace=wrap;" value="Канонические значения полей&amp;nbsp;" vertex="1">
+          <mxGeometry height="50" width="110" x="359" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-18" edge="1" parent="1" source="FCmJWMNjXJTivIWvc21K-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="FCmJWMNjXJTivIWvc21K-17" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-22" connectable="0" parent="FCmJWMNjXJTivIWvc21K-18" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="коннектор" vertex="1">
+          <mxGeometry relative="1" x="-0.201" as="geometry">
+            <mxPoint y="2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-13" parent="1" style="html=1;whiteSpace=wrap;" value="Черновой граф фактов" vertex="1">
+          <mxGeometry height="50" width="110" x="559" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="FCmJWMNjXJTivIWvc21K-17" parent="1" style="html=1;whiteSpace=wrap;" value="Факты в онтологической модели" vertex="1">
+          <mxGeometry height="50" width="110" x="559" y="440" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

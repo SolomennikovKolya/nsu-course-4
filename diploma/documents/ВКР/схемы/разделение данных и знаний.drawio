@@ -1,0 +1,27 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 OPR/123.0.0.0 (Edition ms_store)">
+  <diagram name="Страница — 1" id="E3-8TGkmNqJtvDd0LPEB">
+    <mxGraphModel dx="857" dy="588" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="0ckYysqi0ax0KkcTddqa-3" edge="1" parent="1" source="0ckYysqi0ax0KkcTddqa-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="0ckYysqi0ax0KkcTddqa-2" value="">
+          <mxGeometry relative="1" x="0.025" y="29" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="0ckYysqi0ax0KkcTddqa-1" parent="1" style="html=1;whiteSpace=wrap;" value="Данные" vertex="1">
+          <mxGeometry height="50" width="110" x="113" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="0ckYysqi0ax0KkcTddqa-5" edge="1" parent="1" source="0ckYysqi0ax0KkcTddqa-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="0ckYysqi0ax0KkcTddqa-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="0ckYysqi0ax0KkcTddqa-2" parent="1" style="html=1;whiteSpace=wrap;" value="Унифицированный формат" vertex="1">
+          <mxGeometry height="50" width="110" x="303" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="0ckYysqi0ax0KkcTddqa-4" parent="1" style="html=1;whiteSpace=wrap;" value="Формализованные знания" vertex="1">
+          <mxGeometry height="50" width="110" x="493" y="300" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
