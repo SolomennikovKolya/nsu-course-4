@@ -118,3 +118,35 @@ k8s/
   worker.yaml           Deployment replicas=2 (/metrics на :9100)
   monitoring.yaml       Prometheus + Grafana + RBAC + dashboard
 ```
+
+## Хранение
+
+Request (коллекция requests)
+Одна запись = один запрос клиента.
+{
+  "_id":         "730a04e6-..."    # = requestId, отдаётся клиенту
+  "hash":        "e2fc714c..."     # целевой MD5
+  "maxLength":   4                 # из тела POST
+  "totalTasks":  17                # на сколько чанков разбили
+  "doneTasks":   17                # счётчик завершённых (инкрементится в _on_result)
+  "results":     ["abcd"]          # найденные строки (мёрджатся через $addToSet)
+  "status":      "IN_PROGRESS"     # IN_PROGRESS | READY | ERROR
+  "createdAt":   1715683200.123
+  "finishedAt":  1715683206.456    # появляется, когда статус стал READY
+}
+
+Task (коллекция tasks)
+Одна запись = один чанк работы для воркера.
+{
+  "_id":         "9c1f3a2b-..."   # = taskId
+  "requestId":   "730a04e6-..."   # к какому request'у относится
+  "startIndex":  100000            # глобальный индекс начала
+  "count":       100000            # сколько комбинаций перебрать
+  "targetHash":  "e2fc714c..."     # копия hash (чтобы worker'у не ходить в Mongo)
+  "maxLength":   4                 # копия maxLength
+  "status":      "QUEUED"          # PENDING | QUEUED | DONE
+  "createdAt":   1715683200.123
+  "finishedAt":  1715683205.789    # ставится в _on_result
+  "workerStatus":  "DONE"          # что прислал воркер (DONE | ERROR)
+  "workerResults": ["abcd"]        # сырой результат от воркера до мёрджа
+}
