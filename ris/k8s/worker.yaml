@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels: { app: worker }
+spec:
+  replicas: 2                            # настраивается: kubectl scale deploy worker --replicas=N
+  selector:
+    matchLabels: { app: worker }
+  template:
+    metadata:
+      labels: { app: worker }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+    spec:
+      containers:
+        - name: worker
+          image: crack-worker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9100
+              name: metrics
+          env:
+            - name: RABBIT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: crack-config
+                  key: RABBIT_URL
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits:   { cpu: 1000m, memory: 256Mi }

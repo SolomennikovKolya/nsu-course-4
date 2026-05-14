@@ -1,0 +1,44 @@
+# Percona MongoDB exporter — отдельный Pod, ходит в replica set.
+# Без auth: подключается напрямую к headless service.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-exporter
+  labels: { app: mongodb-exporter }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mongodb-exporter }
+  template:
+    metadata:
+      labels: { app: mongodb-exporter }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9216"
+    spec:
+      containers:
+        - name: exporter
+          image: percona/mongodb_exporter:0.40
+          args:
+            - "--mongodb.uri=mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/?replicaSet=rs0"
+            - "--collect-all"
+            - "--compatible-mode"
+          ports:
+            - containerPort: 9216
+              name: metrics
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-exporter
+  labels: { app: mongodb-exporter }
+spec:
+  selector: { app: mongodb-exporter }
+  ports:
+    - port: 9216
+      targetPort: 9216
+      name: metrics

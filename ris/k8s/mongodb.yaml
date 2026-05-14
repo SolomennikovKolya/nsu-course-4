@@ -1,0 +1,102 @@
+# MongoDB ReplicaSet: 1 primary + 2 secondary.
+# Auth отключён — для лабы упрощает (без keyfile между нодами).
+# Каждый под получает стабильное DNS-имя через headless Service: mongo-{0,1,2}.mongo.
+# Replica set инициализируется одноразовым Job'ом ниже.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo          # headless service — даёт DNS для каждого пода
+  labels: { app: mongo }
+spec:
+  clusterIP: None
+  selector: { app: mongo }
+  ports:
+    - port: 27017
+      name: mongo
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: mongo
+  replicas: 3
+  podManagementPolicy: Parallel    # все три пода стартуют одновременно
+  selector:
+    matchLabels: { app: mongo }
+  template:
+    metadata:
+      labels: { app: mongo }
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: mongo
+          image: mongo:7
+          command:
+            - mongod
+            - --replSet=rs0
+            - --bind_ip_all
+            - --port=27017
+          ports:
+            - containerPort: 27017
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 1000m, memory: 768Mi }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ ReadWriteOnce ]
+        resources:
+          requests: { storage: 1Gi }
+---
+# Job: ждёт пока все 3 пода mongo поднимутся, потом инициирует replica set.
+# Идемпотентно: если rs уже инициирован, скрипт это увидит и завершится.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-init
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: mongo:7
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              for h in mongo-0.mongo mongo-1.mongo mongo-2.mongo; do
+                echo "waiting for $h..."
+                until mongosh --host $h --quiet --eval "db.runCommand('ping').ok" 2>/dev/null | grep -q 1; do sleep 2; done
+              done
+              echo "checking replica set status..."
+              if mongosh --host mongo-0.mongo --quiet --eval "rs.status().ok" 2>/dev/null | grep -q 1; then
+                echo "rs already initiated"
+                exit 0
+              fi
+              echo "initiating replica set rs0..."
+              mongosh --host mongo-0.mongo --quiet --eval '
+                rs.initiate({
+                  _id: "rs0",
+                  members: [
+                    { _id: 0, host: "mongo-0.mongo:27017", priority: 2 },
+                    { _id: 1, host: "mongo-1.mongo:27017", priority: 1 },
+                    { _id: 2, host: "mongo-2.mongo:27017", priority: 1 }
+                  ]
+                })
+              '
+              echo "waiting for primary to be elected..."
+              until mongosh --host mongo-0.mongo --quiet --eval "rs.status().members.filter(m=>m.stateStr==='PRIMARY').length" | grep -q 1; do sleep 2; done
+              echo "rs ready"

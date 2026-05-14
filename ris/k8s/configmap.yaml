@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crack-config
+data:
+  # MongoDB ReplicaSet: pymongo сам делает failover при падении primary.
+  # Имена mongo-{0,1,2}.mongo резолвятся через headless Service "mongo".
+  MONGO_URL: "mongodb://mongo-0.mongo:27017,mongo-1.mongo:27017,mongo-2.mongo:27017/?replicaSet=rs0"
+
+  RABBIT_URL: "amqp://user:password@rabbitmq:5672/"
+
+  CHUNK_SIZE: "100000"
+  MAX_ALLOWED_LENGTH: "5"

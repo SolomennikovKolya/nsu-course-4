@@ -1,0 +1,50 @@
+# Этап 2: прототип без Kubernetes.
+# Один Mongo (без replica set — это будет Этап 4) и один RabbitMQ.
+# Воркеров можно отмасштабировать: docker compose up --scale worker=3
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # management UI: http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  manager:
+    build: ./manager
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
+      CHUNK_SIZE: "100000"
+      MAX_ALLOWED_LENGTH: "5"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: ./worker
+    environment:
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
