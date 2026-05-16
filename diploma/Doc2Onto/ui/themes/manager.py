@@ -1,7 +1,8 @@
+"""Менеджер тем: загрузка/сохранение, применение к QApplication, сигнал смены."""
+
 from __future__ import annotations
 
 import json
-from typing import Dict, Type
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
@@ -11,7 +12,7 @@ from ui.themes.base import BaseAppTheme
 from ui.themes.dark import DarkTheme
 from ui.themes.light import LightTheme
 
-THEME_REGISTRY: Dict[str, Type[BaseAppTheme]] = {
+THEME_REGISTRY: dict[str, type[BaseAppTheme]] = {
     DarkTheme.theme_id: DarkTheme,
     LightTheme.theme_id: LightTheme,
 }
@@ -28,7 +29,7 @@ class ThemeManager(QObject):
     def __init__(self):
         super().__init__()
         self._theme_id: str = LightTheme.theme_id  # Идентификатор текущей темы
-        self._app: QApplication | None = None      # Приложение, к которому применяется тема
+        self._app: QApplication | None = None  # Приложение, к которому применяется тема
         self._load()
 
     def _load(self):

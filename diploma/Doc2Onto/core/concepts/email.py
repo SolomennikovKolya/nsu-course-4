@@ -1,4 +1,5 @@
 """Концепт ``email`` — литерал электронной почты."""
+
 from __future__ import annotations
 
 from typing import ClassVar
@@ -31,9 +32,7 @@ class EmailConcept(BaseConcept):
         text = str(raw).strip()
         parts = text.split("@")
         if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise ConceptError(
-                f"Email должен содержать ровно одну '@' и непустые части: {raw!r}"
-            )
+            raise ConceptError(f"Email должен содержать ровно одну '@' и непустые части: {raw!r}")
         local, domain = parts
         canonical = f"{local}@{domain}".lower()
         return ConceptParts(

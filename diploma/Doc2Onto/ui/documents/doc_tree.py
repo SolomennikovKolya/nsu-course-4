@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QStyle, QStyleOptionViewItem, QStyledItemDelegate,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from app.context import get_temp_manager, get_doc_manager, get_theme_manager
+from app.context import get_doc_manager, get_temp_manager, get_theme_manager
 from models.document import Document
-
 
 # UserRole — объект Document; KindRole — семантический тон строки для раскраски.
 _TREE_KIND_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -68,7 +70,7 @@ class _DocumentsCache:
 
     def __init__(self):
         self._doc_manager = get_doc_manager()
-        self._groups: Dict[str, List[Document]] = {}
+        self._groups: dict[str, list[Document]] = {}
 
     def clear(self):
         self._groups.clear()
@@ -78,10 +80,10 @@ class _DocumentsCache:
         for doc in self._doc_manager.iterate():
             self.add_or_update(doc)
 
-    def group_names(self) -> List[str]:
+    def group_names(self) -> list[str]:
         return sorted(self._groups.keys())
 
-    def docs_in_group(self, group: str) -> List[Document]:
+    def docs_in_group(self, group: str) -> list[Document]:
         return self._groups.get(group, [])
 
     def add_or_update(self, doc: Document):
@@ -102,7 +104,7 @@ class _DocumentsCache:
 
     def sync_groups_with_meta(self):
         """Перечитывает метаданные для всех закешированных документов и пересобирает группы."""
-        docs: List[Document] = []
+        docs: list[Document] = []
         for group_docs in self._groups.values():
             docs.extend(group_docs)
         for doc in docs:
@@ -125,7 +127,7 @@ class DocumentTreeWidget(QWidget):
 
     document_selected = Signal(object)  # Document | None
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
 
         self._cache = _DocumentsCache()
@@ -164,7 +166,7 @@ class DocumentTreeWidget(QWidget):
         self._cache.sync_groups_with_meta()
         self._refresh(selected_doc=selected, restore_focus=True)
 
-    def current_document(self) -> Optional[Document]:
+    def current_document(self) -> Document | None:
         """Возвращает выделенный в дереве документ или None, если ничего не выделено или выделена папка."""
         item = self._tree.currentItem()
         if not item:
@@ -190,7 +192,7 @@ class DocumentTreeWidget(QWidget):
 
     # ---------- internals ----------
 
-    def _refresh(self, selected_doc: Optional[Document] = None, restore_focus: bool = False):
+    def _refresh(self, selected_doc: Document | None = None, restore_focus: bool = False):
         had_focus = restore_focus and self._tree.hasFocus()
         self._tree.clear()
 
@@ -215,6 +217,9 @@ class DocumentTreeWidget(QWidget):
     def _select_in_tree(self, doc_to_select: Document):
         for i in range(self._tree.topLevelItemCount()):
             folder = self._tree.topLevelItem(i)
+            if folder is None:
+                continue
+
             for j in range(folder.childCount()):
                 item = folder.child(j)
                 item_doc = item.data(0, Qt.ItemDataRole.UserRole)

@@ -1,37 +1,57 @@
+"""
+Правая панель при выборе шаблона: отображение метаданных, предпросмотр кода,
+действия — редактирование, генерация, удаление.
+"""
+
+from __future__ import annotations
+
 import shutil
 import subprocess
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Optional
-from PySide6.QtCore import Qt, QTimer, Signal, QUrl
+
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
-    QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QInputDialog, QLabel,
-    QMessageBox, QPlainTextEdit, QPushButton, QSizePolicy, QSplitter,
-    QStackedWidget, QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-    QWidget
+    QAbstractItemView,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QTextBrowser,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from app.context import get_doc_manager, get_pipeline, get_temp_manager, get_theme_manager
 from app.agents import ask_gpt, read_prompt
+from app.context import get_doc_manager, get_pipeline, get_temp_manager, get_theme_manager
 from app.settings import (
-    PROJECT_ROOT, APP_NAME,
-    ORIGINAL_FILE_STEM,
+    APP_NAME,
     GENERATE_DESCR_SYS_PROMPT_PATH,
     GENERATE_DESCR_USER_PROMPT_PATH,
     GENERATE_TEMP_SYS_PROMPT_PATH,
     GENERATE_TEMP_USER_PROMPT_PATH,
-    TEMPLATE_CODE_EXAMPLE_PATH,
     ONTOLOGY_SCHEMA_PATH,
+    ORIGINAL_FILE_STEM,
+    PROJECT_ROOT,
+    TEMPLATE_CODE_EXAMPLE_PATH,
 )
-from core.template.validation import validate_template_code, TemplateValidationReport
+from core.template.validation import TemplateValidationReport, validate_template_code
 from models.document import Document
-from models.template import Template, TemplateCodeLoader, template_context
+from models.template import Template, template_context
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from utils.ontology_summary import build_schema_summary
-
 
 _CATEGORY_LABELS = {
     "structure": "Структура",
@@ -69,9 +89,7 @@ class ValidationResultDialog(QDialog):
             status_color = t.color_status_warning
 
         status_label = QLabel(status_text)
-        status_label.setStyleSheet(
-            f"color:{status_color}; padding:2px 0; font-weight:bold;"
-        )
+        status_label.setStyleSheet(f"color:{status_color}; padding:2px 0; font-weight:bold;")
         layout.addWidget(status_label)
 
         # --- Дерево замечаний ---
@@ -143,13 +161,13 @@ class TemplateInfoWidget(QWidget):
     """Правая панель: метаданные шаблона, предпросмотр кода, действия."""
 
     template_name_changed = Signal(Template)  # Сигнал, что имя шаблона изменилось
-    template_deleted = Signal()               # Сигнал, что шаблон удален
+    template_deleted = Signal()  # Сигнал, что шаблон удален
 
     def __init__(self):
         super().__init__()
 
         self.temp_manager = get_temp_manager()
-        self.template: Optional[Template] = None
+        self.template: Template | None = None
         self._loading_fields = False
 
         self._desc_timer = QTimer(self)
@@ -236,7 +254,9 @@ class TemplateInfoWidget(QWidget):
 
         actions_layout = QHBoxLayout()
         self.edit_btn = QPushButton("Редактировать шаблон")
-        self.edit_btn.setToolTip("Открыть code.py в VS Code (если доступен командой code), иначе в редакторе по умолчанию")
+        self.edit_btn.setToolTip(
+            "Открыть code.py в VS Code (если доступен командой code), иначе в редакторе по умолчанию"
+        )
         self.edit_btn.clicked.connect(self._on_edit_code)
 
         self.generate_template_btn = QPushButton("Сгенерировать шаблон")
@@ -278,7 +298,7 @@ class TemplateInfoWidget(QWidget):
         if self.template is not None:
             self._set_code_preview(self.template)
 
-    def set_template(self, template: Optional[Template]):
+    def set_template(self, template: Template | None):
         self.template = template
         if template is None:
             self.title.setToolTip("")
@@ -309,7 +329,9 @@ class TemplateInfoWidget(QWidget):
         try:
             source = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            msg = plain_message_to_preview_html(f"(не удалось прочитать code.py: {exc})", style=sty, message_color=fg)
+            msg = plain_message_to_preview_html(
+                f"(не удалось прочитать code.py: {exc})", style=sty, message_color=fg
+            )
             self.code_preview.setHtml(msg)
             return
 
@@ -365,13 +387,14 @@ class TemplateInfoWidget(QWidget):
         else:
             self._set_description_edit_mode(True)
 
-    def _choose_example_document(self) -> Optional[Document]:
+    def _choose_example_document(self) -> Document | None:
         """Выбирает пример документа с UDDM-представлением."""
         docs = [doc for doc in get_doc_manager().iterate() if doc.uddm_tree_view_file_path().exists()]
         if not docs:
             QMessageBox.warning(
-                self, APP_NAME,
-                "Нет документов с UDDM-представлением. Сначала загрузите и обработайте документ до этапа UDDM."
+                self,
+                APP_NAME,
+                "Нет документов с UDDM-представлением. Сначала загрузите и обработайте документ до этапа UDDM.",
             )
             return None
 
@@ -379,9 +402,7 @@ class TemplateInfoWidget(QWidget):
         names = [d.name for d in docs]
 
         selected_name, ok = QInputDialog.getItem(
-            self, APP_NAME,
-            "Выберите пример документа:",
-            names, 0, False
+            self, APP_NAME, "Выберите пример документа:", names, 0, False
         )
         if not ok or not selected_name:
             return None
@@ -534,7 +555,6 @@ class TemplateInfoWidget(QWidget):
 
             code_path = temp.code_file_path()
             code_path.write_text(generated_code + "\n", encoding="utf-8")
-            temp.code = TemplateCodeLoader.load(temp)
 
             self._set_code_preview(temp)
             QMessageBox.information(self, APP_NAME, "Код шаблона успешно сгенерирован.")

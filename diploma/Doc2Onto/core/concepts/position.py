@@ -1,14 +1,14 @@
 """Концепт :Должность — должность сотрудника (перечисление)."""
+
 from __future__ import annotations
 
-from typing import ClassVar, List, Tuple
+from typing import ClassVar
 
 from core.concepts._enum import match_enum
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 
-
 # Порядок важен: более специфичные синонимы идут перед общими.
-_SYNONYMS: List[Tuple[str, str]] = [
+_SYNONYMS: list[tuple[str, str]] = [
     ("заведующий кафедрой", "Должность_ЗаведующийКафедрой"),
     ("зав. кафедрой", "Должность_ЗаведующийКафедрой"),
     ("зав кафедрой", "Должность_ЗаведующийКафедрой"),

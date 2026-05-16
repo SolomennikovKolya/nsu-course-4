@@ -31,17 +31,18 @@ None». Это убирает противоречие, при котором в
 ``last_error`` хранит сообщение). Цепочка автоматически делает ``strip``
 на входе и отвергает пустое значение до первого правила.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Callable, List, Optional, Pattern, Tuple, Type
+from collections.abc import Callable
+from re import Pattern
 
 from core.concepts.base import BaseConcept, ConceptError
 
-
 # Правило нормализации: (value) -> новая строка | None.
 # Возврат None означает «значение не соответствует правилу».
-NormalizationRule = Callable[[str], Optional[str]]
+NormalizationRule = Callable[[str], str | None]
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +50,7 @@ NormalizationRule = Callable[[str], Optional[str]]
 # ---------------------------------------------------------------------------
 
 
-def _parse_int(value: str) -> Optional[int]:
+def _parse_int(value: str) -> int | None:
     s = value.strip()
     if not s:
         return None
@@ -59,7 +60,7 @@ def _parse_int(value: str) -> Optional[int]:
         return None
 
 
-def _parse_float(value: str) -> Optional[float]:
+def _parse_float(value: str) -> float | None:
     s = value.strip().replace(",", ".")
     try:
         return float(s)
@@ -67,7 +68,7 @@ def _parse_float(value: str) -> Optional[float]:
         return None
 
 
-def _parse_numeric(value: str) -> Optional[float]:
+def _parse_numeric(value: str) -> float | None:
     vi = _parse_int(value)
     if vi is not None:
         return float(vi)
@@ -98,14 +99,14 @@ class FieldNormalizer:
     """
 
     def __init__(self):
-        self._rules: List[Tuple[str, NormalizationRule]] = []
-        self._last_error: Optional[str] = None
+        self._rules: list[tuple[str, NormalizationRule]] = []
+        self._last_error: str | None = None
 
     # ------------------------------------------------------------------
     # Запуск
     # ------------------------------------------------------------------
 
-    def _normalize(self, value: Optional[str]) -> Optional[str]:
+    def _normalize(self, value: str | None) -> str | None:
         """Применить цепочку. Вернуть каноническую строку или None."""
         self._last_error = None
         if value is None:
@@ -133,7 +134,7 @@ class FieldNormalizer:
         return current
 
     @property
-    def last_error(self) -> Optional[str]:
+    def last_error(self) -> str | None:
         """Сообщение об ошибке после последнего вызова :meth:`_normalize`
         (None, если значение прошло цепочку)."""
         return self._last_error
@@ -146,7 +147,7 @@ class FieldNormalizer:
     # Универсальные методы
     # ------------------------------------------------------------------
 
-    def concept(self, concept_cls: Type[BaseConcept]) -> "FieldNormalizer":
+    def concept(self, concept_cls: type[BaseConcept]) -> FieldNormalizer:
         """Делегировать парсинг и нормализацию подклассу :class:`BaseConcept`.
 
         Заменяет значение на ``concept_cls.normalize(value)``. Работает
@@ -171,13 +172,11 @@ class FieldNormalizer:
             TypeError: если ``concept_cls`` не подкласс ``BaseConcept``.
         """
         if not (isinstance(concept_cls, type) and issubclass(concept_cls, BaseConcept)):
-            raise TypeError(
-                f"concept(): ожидается подкласс BaseConcept, получено {concept_cls!r}"
-            )
+            raise TypeError(f"concept(): ожидается подкласс BaseConcept, получено {concept_cls!r}")
 
         label = f"concept:{concept_cls.name}"
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             try:
                 return concept_cls.normalize(text)
             except ConceptError as ex:
@@ -192,7 +191,7 @@ class FieldNormalizer:
         fn: NormalizationRule,
         *,
         label: str = "apply",
-    ) -> "FieldNormalizer":
+    ) -> FieldNormalizer:
         """Пользовательское правило ``(value) -> Optional[str]``.
 
         Возврат строки — нормализованное значение для следующего правила;
@@ -218,7 +217,7 @@ class FieldNormalizer:
         *,
         flags: int = 0,
         full_match: bool = False,
-    ) -> "FieldNormalizer":
+    ) -> FieldNormalizer:
         """Проверка по регулярному выражению. Значение не меняется.
 
         Args:
@@ -230,7 +229,7 @@ class FieldNormalizer:
         """
         compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             ok = compiled.fullmatch(text) if full_match else compiled.match(text)
             if ok is None:
                 self._reject(f"Не соответствует шаблону: {compiled.pattern}")
@@ -240,31 +239,35 @@ class FieldNormalizer:
         self._rules.append((f"regex({compiled.pattern})", rule))
         return self
 
-    def integer(self) -> "FieldNormalizer":
+    def integer(self) -> FieldNormalizer:
         """Целое число в десятичной записи. Значение не меняется."""
-        def rule(text: str) -> Optional[str]:
+
+        def rule(text: str) -> str | None:
             if _parse_int(text) is None:
                 self._reject("Ожидается целое число")
                 return None
             return text
+
         self._rules.append(("integer", rule))
         return self
 
-    def numeric(self) -> "FieldNormalizer":
+    def numeric(self) -> FieldNormalizer:
         """Целое или вещественное число (запятая допустима как разделитель)."""
-        def rule(text: str) -> Optional[str]:
+
+        def rule(text: str) -> str | None:
             if _parse_numeric(text) is None:
                 self._reject("Некорректное числовое значение")
                 return None
             return text
+
         self._rules.append(("numeric", rule))
         return self
 
-    def in_range(self, min_val: int | float, max_val: int | float) -> "FieldNormalizer":
+    def in_range(self, min_val: int | float, max_val: int | float) -> FieldNormalizer:
         """Число в диапазоне ``[min_val, max_val]`` (включительно)."""
         lo, hi = float(min_val), float(max_val)
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             v = _parse_numeric(text)
             if v is None:
                 self._reject("Некорректное числовое значение")
@@ -277,11 +280,11 @@ class FieldNormalizer:
         self._rules.append((f"in_range[{min_val},{max_val}]", rule))
         return self
 
-    def less_than(self, bound: int | float, *, inclusive: bool = False) -> "FieldNormalizer":
+    def less_than(self, bound: int | float, *, inclusive: bool = False) -> FieldNormalizer:
         """Число строго меньше ``bound`` (или ``<=`` при ``inclusive=True``)."""
         b = float(bound)
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             v = _parse_numeric(text)
             if v is None:
                 self._reject("Некорректное числовое значение")
@@ -297,11 +300,11 @@ class FieldNormalizer:
         self._rules.append((f"less_than({bound})", rule))
         return self
 
-    def greater_than(self, bound: int | float, *, inclusive: bool = False) -> "FieldNormalizer":
+    def greater_than(self, bound: int | float, *, inclusive: bool = False) -> FieldNormalizer:
         """Число строго больше ``bound`` (или ``>=`` при ``inclusive=True``)."""
         b = float(bound)
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             v = _parse_numeric(text)
             if v is None:
                 self._reject("Некорректное числовое значение")
@@ -317,23 +320,25 @@ class FieldNormalizer:
         self._rules.append((f"greater_than({bound})", rule))
         return self
 
-    def alphabetic(self) -> "FieldNormalizer":
+    def alphabetic(self) -> FieldNormalizer:
         """Только буквы и пробелы. Значение не меняется."""
-        def rule(text: str) -> Optional[str]:
+
+        def rule(text: str) -> str | None:
             if any(not (ch.isalpha() or ch.isspace()) for ch in text):
                 self._reject("Допустимы только буквы и пробелы")
                 return None
             return text
+
         self._rules.append(("alphabetic", rule))
         return self
 
     def word_count(
         self,
         *,
-        exact: Optional[int] = None,
-        min_words: Optional[int] = None,
-        max_words: Optional[int] = None,
-    ) -> "FieldNormalizer":
+        exact: int | None = None,
+        min_words: int | None = None,
+        max_words: int | None = None,
+    ) -> FieldNormalizer:
         """Количество «слов» (последовательности непробельных символов).
 
         Указывается либо ``exact``, либо ``min_words``/``max_words`` (можно
@@ -342,7 +347,7 @@ class FieldNormalizer:
         if exact is not None and (min_words is not None or max_words is not None):
             raise ValueError("Укажите либо exact, либо min_words/max_words")
 
-        def rule(text: str) -> Optional[str]:
+        def rule(text: str) -> str | None:
             n = _word_count(text)
             if exact is not None:
                 if n != exact:
@@ -360,23 +365,27 @@ class FieldNormalizer:
         self._rules.append(("word_count", rule))
         return self
 
-    def min_length(self, n: int) -> "FieldNormalizer":
+    def min_length(self, n: int) -> FieldNormalizer:
         """Минимальная длина строки (после ``strip``). Значение не меняется."""
-        def rule(text: str) -> Optional[str]:
+
+        def rule(text: str) -> str | None:
             if len(text) < n:
                 self._reject(f"Длина меньше {n} символов")
                 return None
             return text
+
         self._rules.append((f"min_length({n})", rule))
         return self
 
-    def max_length(self, n: int) -> "FieldNormalizer":
+    def max_length(self, n: int) -> FieldNormalizer:
         """Максимальная длина строки (после ``strip``). Значение не меняется."""
-        def rule(text: str) -> Optional[str]:
+
+        def rule(text: str) -> str | None:
             if len(text) > n:
                 self._reject(f"Длина больше {n} символов")
                 return None
             return text
+
         self._rules.append((f"max_length({n})", rule))
         return self
 
@@ -384,17 +393,17 @@ class FieldNormalizer:
     # Преобразования (меняют значение)
     # ------------------------------------------------------------------
 
-    def lowercase(self) -> "FieldNormalizer":
+    def lowercase(self) -> FieldNormalizer:
         """Перевод значения в нижний регистр."""
         self._rules.append(("lowercase", lambda t: t.lower()))
         return self
 
-    def collapse_spaces(self) -> "FieldNormalizer":
+    def collapse_spaces(self) -> FieldNormalizer:
         """Все последовательности пробельных символов → одиночный пробел."""
         self._rules.append(("collapse_spaces", lambda t: " ".join(t.split())))
         return self
 
-    def replace(self, old: str, new: str) -> "FieldNormalizer":
+    def replace(self, old: str, new: str) -> FieldNormalizer:
         """Замена подстроки во всех вхождениях."""
         self._rules.append((f"replace({old!r},{new!r})", lambda t: t.replace(old, new)))
         return self

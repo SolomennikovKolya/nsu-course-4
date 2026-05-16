@@ -1,10 +1,10 @@
-"""
-Концепт :Группа — учебная группа.
-"""
+"""Концепт :Группа — учебная группа."""
+
 from __future__ import annotations
 
 import re
-from typing import ClassVar, Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from rdflib import Literal, Namespace, URIRef
 from rdflib.namespace import XSD
@@ -12,7 +12,6 @@ from rdflib.namespace import XSD
 from app.settings import SUBJECT_NAMESPACE_IRI
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 from core.graph.draft_graph import DraftNode, DraftTriple
-
 
 _NS = Namespace(SUBJECT_NAMESPACE_IRI)
 _PRED_NUMBER: URIRef = _NS["номерГруппы"]
@@ -87,9 +86,7 @@ class GroupConcept(BaseConcept):
     ) -> Sequence[DraftTriple]:
         predicate = DraftNode(DraftNode.Type.IRI, _PRED_NUMBER)
         obj = DraftNode(DraftNode.Type.LITERAL, Literal(parts.canonical, datatype=XSD.string))
-        return (
-            DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, predicate, obj),
-        )
+        return (DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, predicate, obj),)
 
 
 __all__ = ["GroupConcept"]

@@ -1,27 +1,27 @@
-from typing import Dict, Type, List, Optional
+from __future__ import annotations
+
 from pathlib import Path
 
-from models.document import DocumentContext
 from core.uddm.model import UDDM
+from models.document import DocumentContext
 from modules.base import BaseModule, ModuleResult
-
+from modules.converter.external.base import BaseExternalConverter
+from modules.converter.internal.base import BaseInternalConverter
+from modules.converter.internal.docx_converter import DocxToUDDM
 from modules.converter.normalizers.base import BaseNormalizer
 from modules.converter.normalizers.doc_to_docx import DocToDocx
 from modules.converter.normalizers.pdf_to_docx import PdfToDocx
-from modules.converter.internal.base import BaseInternalConverter
-from modules.converter.internal.docx_converter import DocxToUDDM
-from modules.converter.external.base import BaseExternalConverter
-from modules.converter.reverse.to_txt import UDDMToText
 from modules.converter.reverse.to_html import UDDMToHTML
 from modules.converter.reverse.to_tree import UDDMToTree
+from modules.converter.reverse.to_txt import UDDMToText
 
 
 class ConverterRegistry:
     """Реестр всех доступных преобразований."""
 
-    normalizers: Dict[str, Type[BaseNormalizer]] = {}                 # Lossless конвертеры форматов
-    internal_converters: Dict[str, Type[BaseInternalConverter]] = {}  # Внутренние конвертеры
-    external_converters: Dict[str, Type[BaseExternalConverter]] = {}  # Внешние конвертеры
+    normalizers: dict[str, type[BaseNormalizer]] = {}  # Lossless конвертеры форматов  # noqa: RUF012
+    internal_converters: dict[str, type[BaseInternalConverter]] = {}  # Внутренние конвертеры  # noqa: RUF012
+    external_converters: dict[str, type[BaseExternalConverter]] = {}  # Внешние конвертеры  # noqa: RUF012
 
     # Инициализация реестра
     normalizers["doc"] = DocToDocx
@@ -29,22 +29,24 @@ class ConverterRegistry:
     internal_converters["docx"] = DocxToUDDM
 
     @staticmethod
-    def get_normalizer(format_name: str) -> Optional[Type[BaseNormalizer]]:
+    def get_normalizer(format_name: str) -> type[BaseNormalizer] | None:
         return ConverterRegistry.normalizers.get(format_name)
 
     @staticmethod
-    def get_internal(format_name: str) -> Optional[Type[BaseInternalConverter]]:
+    def get_internal(format_name: str) -> type[BaseInternalConverter] | None:
         return ConverterRegistry.internal_converters.get(format_name)
 
     @staticmethod
-    def get_external(format_name: str) -> Optional[Type[BaseExternalConverter]]:
+    def get_external(format_name: str) -> type[BaseExternalConverter] | None:
         return ConverterRegistry.external_converters.get(format_name)
 
     @staticmethod
-    def get_supported_formats() -> List[str]:
-        return list(set(ConverterRegistry.normalizers.keys()) |
-                    set(ConverterRegistry.internal_converters.keys()) |
-                    set(ConverterRegistry.external_converters.keys()))
+    def get_supported_formats() -> list[str]:
+        return list(
+            set(ConverterRegistry.normalizers.keys())
+            | set(ConverterRegistry.internal_converters.keys())
+            | set(ConverterRegistry.external_converters.keys())
+        )
 
     @staticmethod
     def is_format_supported(format_name: str) -> bool:

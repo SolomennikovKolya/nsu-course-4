@@ -1,8 +1,20 @@
-from typing import Optional
+"""
+Вкладка для управления шаблонами: создание, удаление, редактирование.
+Список шаблонов слева, информация и настройки выбранного шаблона справа.
+"""
+
+from __future__ import annotations
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QPushButton,
-    QInputDialog, QSplitter, QMessageBox
+    QHBoxLayout,
+    QInputDialog,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.context import get_temp_manager
@@ -24,7 +36,7 @@ class TemplatesCache:
     def items(self) -> list[Template]:
         return self._items
 
-    def get_by_index(self, index: int) -> Optional[Template]:
+    def get_by_index(self, index: int) -> Template | None:
         if 0 <= index < len(self._items):
             return self._items[index]
         return None
@@ -99,7 +111,7 @@ class TemplatesTab(QWidget):
         self._refresh_list(temp_to_select=temp.id)
         self.templates_changed.emit()
 
-    def _refresh_list(self, temp_to_select: Optional[str] = None):
+    def _refresh_list(self, temp_to_select: str | None = None):
         self._list.clear()
         for i, temp in enumerate(self._temps_cache.items()):
             self._list.addItem(temp.name)
@@ -114,7 +126,7 @@ class TemplatesTab(QWidget):
 
         self._info_widget.set_template(temp)
 
-    def _get_selected_temp(self) -> Optional[Template]:
+    def _get_selected_temp(self) -> Template | None:
         row = self._list.currentRow()
         return self._temps_cache.get_by_index(row)
 

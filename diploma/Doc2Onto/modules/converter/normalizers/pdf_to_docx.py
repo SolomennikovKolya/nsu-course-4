@@ -5,16 +5,17 @@
 Результат — один ``.docx`` рядом с исходным PDF (то же имя, расширение ``.docx``).
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Optional
 
 import convertapi
 
 from modules.converter.normalizers.base import BaseNormalizer
 
 
-def _api_secret() -> Optional[str]:
+def _api_secret() -> str | None:
     return os.getenv("CONVERTAPI_SECRET")
 
 

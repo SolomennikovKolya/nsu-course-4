@@ -1,9 +1,15 @@
+"""
+Модуль для представления чернового графа, который может содержать неполные триплеты (ноды без значения)
+и правки к ним перед загрузкой в онтологию.
+"""
+
 from __future__ import annotations
 
+import contextlib
 import json
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from rdflib import Graph, Literal, Node, URIRef
 from rdflib.util import from_n3
@@ -14,26 +20,29 @@ class DraftNode:
 
     class Type(Enum):
         """Возможные типы узла триплета (в системе можно создать только эти типы)."""
+
         IRI = auto()
         LITERAL = auto()
 
     def __init__(
         self,
         node_type: Type,
-        node: Optional[URIRef | Literal],
-        error: Optional[str] = None,
-        source: Optional[str] = None
+        node: URIRef | Literal | None,
+        error: str | None = None,
+        source: str | None = None,
     ):
         self.type = node_type  # тип узла
-        self.rdf_node = node   # значение узла (node != None <=> error == None)
-        self.error = error     # ошибка, поясняющая причину отсутствия значения
-        self.source = source   # источник (название поля шаблона или None, если значение не связано с каким-либо полем)
+        self.rdf_node = node  # значение узла (node != None <=> error == None)
+        self.error = error  # ошибка, поясняющая причину отсутствия значения
+        self.source = (
+            source  # источник (название поля шаблона или None, если значение не связано с каким-либо полем)
+        )
 
     def is_complete(self) -> bool:
         """Проверяет, является ли узел полным (содержащим значение)."""
         return self.rdf_node is not None
 
-    def get_rdf_node(self) -> Optional[URIRef | Literal]:
+    def get_rdf_node(self) -> URIRef | Literal | None:
         return self.rdf_node
 
     def copy(self) -> DraftNode:
@@ -44,7 +53,7 @@ class DraftNode:
         """Совпадение с другим узлом по сериализованному виду (как при сравнении правок)."""
         return self._to_json_dict() == other._to_json_dict()
 
-    def _to_json_dict(self) -> Dict[str, Any]:
+    def _to_json_dict(self) -> dict[str, Any]:
         n = self.rdf_node
         return {
             "kind": self.type.name,
@@ -54,14 +63,14 @@ class DraftNode:
         }
 
     @classmethod
-    def _from_json_dict(cls, d: Dict[str, Any]) -> DraftNode:
+    def _from_json_dict(cls, d: dict[str, Any]) -> DraftNode:
         try:
             kind = cls.Type[d["kind"]]
         except KeyError as ex:
             raise ValueError(f"некорректный kind узла: {d.get('kind')!r}") from ex
 
         n3 = d.get("n3")
-        rdf_node: Optional[URIRef | Literal] = None
+        rdf_node: URIRef | Literal | None = None
         if n3 is not None and n3 != "":
             parsed = from_n3(n3)
             if parsed is None or not isinstance(parsed, (URIRef, Literal)):
@@ -89,15 +98,16 @@ class DraftTriple:
 
     class Type(Enum):
         """Возможные типы триплета (в системе можно создать только эти типы)."""
+
         TYPE = auto()
         OBJECT_PROPERTY = auto()
         DATA_PROPERTY = auto()
 
     def __init__(self, triple_type: Type, s: DraftNode, p: DraftNode, o: DraftNode):
         self.triple_type = triple_type  # тип триплета
-        self.subject = s                # субъект
-        self.predicate = p              # предикат
-        self.object = o                 # объект
+        self.subject = s  # субъект
+        self.predicate = p  # предикат
+        self.object = o  # объект
 
     def get_node(self, role: str) -> DraftNode:
         """Узел по роли: ``subject`` | ``predicate`` | ``object``."""
@@ -113,13 +123,13 @@ class DraftTriple:
         """Проверяет, является ли триплет полным."""
         return self.subject.is_complete() and self.predicate.is_complete() and self.object.is_complete()
 
-    def get_rdf_triple(self) -> Optional[Tuple[Node, Node, Node]]:
+    def get_rdf_triple(self) -> tuple[Node, Node, Node] | None:
         if not self.is_complete():
             return None
 
-        return (self.subject.get_rdf_node(), self.predicate.get_rdf_node(), self.object.get_rdf_node())
+        return (self.subject.get_rdf_node(), self.predicate.get_rdf_node(), self.object.get_rdf_node())  # type: ignore
 
-    def _to_json_dict(self) -> Dict[str, Any]:
+    def _to_json_dict(self) -> dict[str, Any]:
         return {
             "triple_type": self.triple_type.name,
             "subject": self.subject._to_json_dict(),
@@ -128,7 +138,7 @@ class DraftTriple:
         }
 
     @classmethod
-    def _from_json_dict(cls, d: Dict[str, Any]) -> DraftTriple:
+    def _from_json_dict(cls, d: dict[str, Any]) -> DraftTriple:
         try:
             tt = cls.Type[d["triple_type"]]
         except KeyError as ex:
@@ -145,7 +155,7 @@ class DraftGraph:
     """Черновой граф (триплеты могут быть неполными)."""
 
     def __init__(self):
-        self.triples: List[DraftTriple] = []
+        self.triples: list[DraftTriple] = []
 
     def add_triple(self, triple: DraftTriple):
         """Добавляет черновой триплет в граф."""
@@ -155,24 +165,24 @@ class DraftGraph:
         """Проверяет, является ли граф полным (все триплеты имеют значения)."""
         return all(triple.is_complete() for triple in self.triples)
 
-    def get_rdf_graph(self) -> Optional[Graph]:
+    def get_rdf_graph(self) -> Graph | None:
         """Построение реального RDF-графа (из rdflib)."""
         if not self.is_complete():
             return None
 
         graph = Graph()
         for triple in self.triples:
-            graph.add(triple.get_rdf_triple())
+            graph.add(triple.get_rdf_triple())  # type: ignore
 
         return graph
 
     # --- сериализация/десериализация ---
 
-    def _to_json_dict(self) -> Dict[str, Any]:
+    def _to_json_dict(self) -> dict[str, Any]:
         return {"triples": [t._to_json_dict() for t in self.triples]}
 
     @classmethod
-    def _from_json_dict(cls, data: Dict[str, Any]) -> DraftGraph:
+    def _from_json_dict(cls, data: dict[str, Any]) -> DraftGraph:
         triples = data.get("triples")
         if not isinstance(triples, list):
             raise ValueError("поле triples должно быть списком")
@@ -206,8 +216,8 @@ class EditedGraph:
 
     def __init__(self, draft: DraftGraph):
         self.draft = draft
-        self.excluded: Set[int] = set()
-        self.node_overrides: Dict[Tuple[int, str], DraftNode] = {}
+        self.excluded: set[int] = set()
+        self.node_overrides: dict[tuple[int, str], DraftNode] = {}
 
     def _triple_index_in_range(self, index: int):
         n = len(self.draft.triples)
@@ -252,20 +262,18 @@ class EditedGraph:
             out.add_triple(DraftTriple(tr.triple_type, s, p, o))
         return out
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Сериализация только правок (исходный граф не входит в результат)."""
-        overrides: List[Dict[str, Any]] = []
+        overrides: list[dict[str, Any]] = []
         for (ti, role), node in sorted(self.node_overrides.items()):
-            overrides.append(
-                {"triple_index": ti, "role": role, "node": node._to_json_dict()}
-            )
+            overrides.append({"triple_index": ti, "role": role, "node": node._to_json_dict()})
         return {
             "excluded_triple_indices": sorted(self.excluded),
             "node_overrides": overrides,
         }
 
     @classmethod
-    def from_dict(cls, draft: DraftGraph, data: Dict[str, Any]) -> EditedGraph:
+    def from_dict(cls, draft: DraftGraph, data: dict[str, Any]) -> EditedGraph:
         """Восстановление правок по словарю :meth:`to_dict` и ссылке на исходный граф."""
         eg = cls(draft)
         ex = data.get("excluded_triple_indices")
@@ -309,10 +317,8 @@ class EditedGraph:
         """Загружает правки из UTF-8 JSON и сочетает их с переданным исходным графом."""
         edits_data = None
         if edits_path.exists():
-            try:
+            with contextlib.suppress(Exception):
                 edits_data = json.loads(edits_path.read_text(encoding="utf-8"))
-            except Exception:
-                pass
 
         if edits_data:
             return cls.from_dict(draft, edits_data)

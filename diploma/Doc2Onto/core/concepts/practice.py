@@ -1,7 +1,9 @@
 """Концепт :Практика — практика студента."""
+
 from __future__ import annotations
 
-from typing import ClassVar, Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from core.concepts._hash import short_sha1
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
@@ -60,9 +62,7 @@ class PracticeConcept(BaseConcept):
             raise ConceptError("Пустое значение практики")
         parts = str(raw).split("|")
         if len(parts) != 2:
-            raise ConceptError(
-                f"Ожидался формат 'person|start_date', получено: {raw!r}"
-            )
+            raise ConceptError(f"Ожидался формат 'person|start_date', получено: {raw!r}")
         person, start_date = (p.strip() for p in parts)
         return cls.from_components(person, start_date)
 

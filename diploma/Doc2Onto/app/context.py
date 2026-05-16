@@ -1,20 +1,23 @@
+"""Модуль для глобального контекста приложения, хранящего сервисы и настройки, необходимые во всём проекте."""
+
 from __future__ import annotations
 
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from app.settings import DOCUMENTS_DIR, TEMPLATES_DIR, APP_LOG_PATH
+from app.settings import APP_LOG_PATH, DOCUMENTS_DIR, TEMPLATES_DIR
 
 # Импорты импользуются только локально или для проверки типов,
 # чтобы избежать циклических зависимостей
 if TYPE_CHECKING:
     import logging
-    from ui.themes.manager import ThemeManager
+
+    from app.pipeline import Pipeline
     from storage.document_manager import DocumentManager
     from storage.ontology_repository import OntologyRepository
     from storage.template_manager import TemplateManager
-    from app.pipeline import Pipeline
+    from ui.themes.manager import ThemeManager
 
-_app_context: Optional["AppContext"] = None
+_app_context: AppContext | None = None
 
 
 class AppContext:
@@ -36,17 +39,23 @@ def init_app_context() -> AppContext:
     _app_context = AppContext()
 
     from app.logger import create_app_logger
+
     _app_context.logger = create_app_logger(APP_LOG_PATH)
     from storage.document_manager import DocumentManager
+
     _app_context.doc_manager = DocumentManager(DOCUMENTS_DIR)
     from storage.template_manager import TemplateManager
+
     _app_context.temp_manager = TemplateManager(TEMPLATES_DIR)
     from storage.ontology_repository import OntologyRepository
+
     _app_context.ontology_repository = OntologyRepository()
     _app_context.ontology_repository.warmup(_app_context.logger)
     from app.pipeline import Pipeline
+
     _app_context.pipeline = Pipeline()
     from ui.themes.manager import ThemeManager
+
     _app_context.theme_manager = ThemeManager()
 
     return _app_context
@@ -54,7 +63,9 @@ def init_app_context() -> AppContext:
 
 def _ctx() -> AppContext:
     if _app_context is None:
-        raise RuntimeError("Контекст приложения не инициализирован. Вызовите init_app_context() перед использованием")
+        raise RuntimeError(
+            "Контекст приложения не инициализирован. Вызовите init_app_context() перед использованием"
+        )
     return _app_context
 
 

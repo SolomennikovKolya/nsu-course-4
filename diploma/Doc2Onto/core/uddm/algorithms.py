@@ -1,4 +1,8 @@
-from typing import Iterator, List
+"""Модуль с алгоритмами для работы с UDDM деревьями, такими как обходы, индексация и фильтрация узлов."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
 
 from core.uddm.model import Element, P
 
@@ -41,7 +45,7 @@ def euler_tin_tout(scope_root: Element) -> tuple[dict[Element, int], dict[Elemen
     return tin, tout
 
 
-def innermost_only(candidates: List[Element], scope_root: Element) -> List[Element]:
+def innermost_only(candidates: list[Element], scope_root: Element) -> list[Element]:
     """
     Возвращает только те узлы из списка candidates, которые не содержат других кандидатов в своих поддеревьях
     (т.е. являются самыми глубокими совпадениями среди вложенных друг в друга элементов).
@@ -55,7 +59,7 @@ def innermost_only(candidates: List[Element], scope_root: Element) -> List[Eleme
     # Сначала более глубокие (больший tin в preorder)
     # Среди уже отобранных - только листья совпадений
     ordered = sorted(candidates, key=lambda x: tin[x], reverse=True)
-    result: List[Element] = []
+    result: list[Element] = []
     for c in ordered:
         # Есть ли уже отобранный узел строго внутри c?
         if any(tin[c] < tin[s] <= tout[c] for s in result):
@@ -66,10 +70,10 @@ def innermost_only(candidates: List[Element], scope_root: Element) -> List[Eleme
 
 def build_parent_index(scope_root: Element) -> dict[Element, tuple[Element, int]]:
     """
-    Строит индекс соответствия «ребёнок → (родитель, индекс_ребёнка_в_родителе)» 
+    Строит индекс соответствия «ребёнок → (родитель, индекс_ребёнка_в_родителе)»
     для всех элементов в поддереве, корнем которого является `scope_root`.
-    Позволяет быстро находить родителей и позиции вложенных элементов, 
-    что полезно для навигации внутри UDDM (например, поиска следующего/предыдущего 
+    Позволяет быстро находить родителей и позиции вложенных элементов,
+    что полезно для навигации внутри UDDM (например, поиска следующего/предыдущего
     или внешнего элемента относительно заданного).
     """
     parent_index: dict[Element, tuple[Element, int]] = {}

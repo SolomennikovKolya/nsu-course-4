@@ -22,31 +22,31 @@
 ``warning``. Конечный отчёт — :class:`TemplateValidationReport` — годен и для
 программной проверки (``has_errors``), и для отображения в UI.
 """
+
 from __future__ import annotations
 
 import ast
 import re
 import traceback
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Optional, Set
 
-from rdflib import Graph, OWL, RDF, URIRef
+from rdflib import OWL, RDF, Graph, URIRef
 from rdflib.namespace import RDFS
 
 from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
 from core.fields.field import Field
 from core.fields.field_extractor import FieldExtractor
-from core.fields.field_selector import FieldSelector
 from core.fields.field_normalizer import FieldNormalizer
+from core.fields.field_selector import FieldSelector
 from core.graph.template_graph_builder import TemplateGraphBuilder
 from core.template.base import BaseTemplateCode
 from core.uddm.model import UDDM
 
-
 # Разрешённые root-имена модулей для импорта в коде шаблона.
 # Сюда входят все необходимые проектные пакеты и безопасные стандартные модули.
-_ALLOWED_IMPORT_ROOTS: Set[str] = {
+_ALLOWED_IMPORT_ROOTS: set[str] = {
     # Внутренние пакеты проекта — без них шаблон не работает
     "core",
     "app",
@@ -121,7 +121,7 @@ _FORBIDDEN_BUILTIN_CALLS: dict[str, str] = {
 }
 
 # Запрещённые «магические» атрибуты, через которые можно сломать sandbox.
-_FORBIDDEN_ATTRIBUTES: Set[str] = {
+_FORBIDDEN_ATTRIBUTES: set[str] = {
     "__subclasses__",
     "__globals__",
     "__getattribute__",
@@ -146,10 +146,10 @@ _FIELD_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 class ValidationIssue:
     """Одно замечание валидации шаблона."""
 
-    severity: str        # "error" | "warning"
-    category: str        # structure | security | fields | classify | build | ontology
+    severity: str  # "error" | "warning"
+    category: str  # structure | security | fields | classify | build | ontology
     message: str
-    detail: Optional[str] = None  # длинный текст: traceback или контекст
+    detail: str | None = None  # длинный текст: traceback или контекст
 
     def is_error(self) -> bool:
         return self.severity == "error"
@@ -162,7 +162,7 @@ class ValidationIssue:
 class TemplateValidationReport:
     """Итог валидации: набор замечаний + удобные предикаты для UI."""
 
-    issues: List[ValidationIssue] = field(default_factory=list)
+    issues: list[ValidationIssue] = field(default_factory=list)
 
     # ----- предикаты -----
 
@@ -179,22 +179,22 @@ class TemplateValidationReport:
         return not self.has_errors
 
     @property
-    def errors(self) -> List[ValidationIssue]:
+    def errors(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.is_error()]
 
     @property
-    def warnings(self) -> List[ValidationIssue]:
+    def warnings(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.is_warning()]
 
     # ----- мутаторы -----
 
-    def add_error(self, category: str, message: str, detail: Optional[str] = None):
+    def add_error(self, category: str, message: str, detail: str | None = None):
         self.issues.append(ValidationIssue("error", category, message, detail))
 
-    def add_warning(self, category: str, message: str, detail: Optional[str] = None):
+    def add_warning(self, category: str, message: str, detail: str | None = None):
         self.issues.append(ValidationIssue("warning", category, message, detail))
 
-    def extend(self, other: "TemplateValidationReport"):
+    def extend(self, other: TemplateValidationReport):
         self.issues.extend(other.issues)
 
     # ----- сериализация для логов -----
@@ -215,10 +215,10 @@ class TemplateValidationReport:
 
 
 def validate_template_code(
-    code: Optional[BaseTemplateCode],
+    code: BaseTemplateCode | None,
     *,
-    code_path: Optional[Path] = None,
-    schema_path: Optional[Path] = None,
+    code_path: Path | None = None,
+    schema_path: Path | None = None,
 ) -> TemplateValidationReport:
     """
     Полностью проверяет код шаблона и возвращает структурированный отчёт.
@@ -240,7 +240,7 @@ def validate_template_code(
     fields_list = _validate_structure(code, report)
 
     # 2. Безопасность (AST)
-    code_tree: Optional[ast.AST] = None
+    code_tree: ast.AST | None = None
     if code_path is not None and code_path.exists():
         code_tree = _load_ast(code_path, report)
         if code_tree is not None:
@@ -286,9 +286,9 @@ def validate_template_code(
 
 
 def _validate_structure(
-    code: Optional[BaseTemplateCode],
+    code: BaseTemplateCode | None,
     report: TemplateValidationReport,
-) -> Optional[List[Field]]:
+) -> list[Field] | None:
     """Базовые статические проверки. Возвращает список полей, если он успел
     загрузиться (для последующих секций)."""
     if code is None:
@@ -345,7 +345,7 @@ def _validate_structure(
 # ---------------------------------------------------------------------------
 
 
-def _load_ast(code_path: Path, report: TemplateValidationReport) -> Optional[ast.AST]:
+def _load_ast(code_path: Path, report: TemplateValidationReport) -> ast.AST | None:
     try:
         source = code_path.read_text(encoding="utf-8")
     except OSError as ex:
@@ -365,7 +365,6 @@ def _load_ast(code_path: Path, report: TemplateValidationReport) -> Optional[ast
 def _validate_security(tree: ast.AST, report: TemplateValidationReport):
     """AST-проверки безопасности — без выполнения кода."""
     for node in ast.walk(tree):
-
         # ---------- import / from ... import ... ----------
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -386,14 +385,12 @@ def _validate_security(tree: ast.AST, report: TemplateValidationReport):
                 )
 
         # ---------- доступ к опасному атрибуту ----------
-        elif isinstance(node, ast.Attribute):
-            if node.attr in _FORBIDDEN_ATTRIBUTES:
-                report.add_warning(
-                    "security",
-                    f"Обращение к `.{node.attr}` запрещено в коде шаблона "
-                    f"(потенциальный обход sandbox).",
-                    detail=_position_detail(node),
-                )
+        elif isinstance(node, ast.Attribute) and node.attr in _FORBIDDEN_ATTRIBUTES:
+            report.add_warning(
+                "security",
+                f"Обращение к `.{node.attr}` запрещено в коде шаблона (потенциальный обход sandbox).",
+                detail=_position_detail(node),
+            )
 
 
 def _check_import_root(module_name: str, node: ast.AST, report: TemplateValidationReport):
@@ -432,12 +429,12 @@ def _position_detail(node: ast.AST) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _validate_fields_list(fields_list: List[Field], report: TemplateValidationReport):
+def _validate_fields_list(fields_list: list[Field], report: TemplateValidationReport):
     if not fields_list:
         report.add_error("fields", "Метод fields() вернул пустой список — нечего извлекать.")
         return
 
-    seen_names: Set[str] = set()
+    seen_names: set[str] = set()
     for idx, f in enumerate(fields_list):
         prefix = f"fields()[{idx}]"
         if not isinstance(f, Field):
@@ -510,7 +507,7 @@ def _validate_classify(code: BaseTemplateCode, report: TemplateValidationReport)
 
 def _validate_build(
     code: BaseTemplateCode,
-    fields_list: List[Field],
+    fields_list: list[Field],
     report: TemplateValidationReport,
 ):
     """Проверяет, что build() не падает на синтетических значениях полей.
@@ -523,7 +520,7 @@ def _validate_build(
     dummy_values = {f.name: _synth_value(f.name) for f in fields_list if isinstance(f, Field)}
 
     # Подсунем «фиктивные» значения, не зависящие от реальных шаблонов.
-    builder = TemplateGraphBuilder(dummy_values)
+    builder = TemplateGraphBuilder(dummy_values)  # pyright: ignore[reportArgumentType]
     try:
         code.build(builder)
     except Exception as ex:
@@ -536,7 +533,7 @@ def _validate_build(
 
 # Подбирается на основе подсказок в имени поля: имя содержит «фио» → используем
 # заведомо парсящееся ФИО, «дат» → ISO-дата и т. п. Иначе — нейтральная строка.
-_NAME_HINTS: List[tuple[str, str]] = [
+_NAME_HINTS: list[tuple[str, str]] = [
     ("фио", "Иванов Иван Иванович"),
     ("name", "Иванов Иван Иванович"),
     ("student", "Иванов Иван Иванович"),
@@ -619,9 +616,9 @@ def _validate_ontology(
         report.add_warning("ontology", msg, detail=detail)
 
 
-def _collect_schema_locals(g: Graph) -> Set[str]:
+def _collect_schema_locals(g: Graph) -> set[str]:
     """Все local-name из нашей онтологии: классы, свойства, индивиды перечислений."""
-    out: Set[str] = set()
+    out: set[str] = set()
     for typ in (
         OWL.Class,
         OWL.ObjectProperty,
@@ -633,18 +630,18 @@ def _collect_schema_locals(g: Graph) -> Set[str]:
     ):
         for s in g.subjects(RDF.type, typ):
             if isinstance(s, URIRef) and str(s).startswith(SUBJECT_NAMESPACE_IRI):
-                local = str(s)[len(SUBJECT_NAMESPACE_IRI):]
+                local = str(s)[len(SUBJECT_NAMESPACE_IRI) :]
                 if local:
                     out.add(local)
     return out
 
 
-def _collect_onto_references(tree: ast.AST) -> Iterable[tuple[str, Optional[int]]]:
+def _collect_onto_references(tree: ast.AST) -> Iterable[tuple[str, int | None]]:
     """Ищет в AST обращения к глобальному имени ``ONTO``: ``ONTO.<x>`` и ``ONTO[<x>]``.
 
     Возвращает пары ``(имя, номер_строки)``.
     """
-    found: List[tuple[str, Optional[int]]] = []
+    found: list[tuple[str, int | None]] = []
     for node in ast.walk(tree):
         # ONTO.<name>
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "ONTO":
@@ -658,12 +655,12 @@ def _collect_onto_references(tree: ast.AST) -> Iterable[tuple[str, Optional[int]
     return found
 
 
-def _closest_match(name: str, candidates: Set[str]) -> Optional[str]:
+def _closest_match(name: str, candidates: set[str]) -> str | None:
     """Быстрый помощник для подсказок: ищет имя, отличающееся 1–2 символами."""
     if not candidates:
         return None
     lower = name.lower()
-    best: Optional[str] = None
+    best: str | None = None
     best_score = 999
     for c in candidates:
         if c.lower() == lower:

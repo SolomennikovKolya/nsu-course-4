@@ -11,24 +11,24 @@
 нормализации хеш ФИО получается разным для одного и того же человека
 в разных документах — индивиды не схлапываются в графе.
 """
-from typing import Dict, Optional
+
+from __future__ import annotations
 
 import pymorphy3
-
 
 _morph = pymorphy3.MorphAnalyzer()
 
 # Тег pymorphy3 для каждой части ФИО. Используется для отсечения «случайных»
 # разборов слова (например, «Соломенников» pymorphy без тега Surn читает
 # как мн. ч. от «соломенник» и без фильтра дал бы «Соломенники»).
-_PART_TAG: Dict[str, str] = {
+_PART_TAG: dict[str, str] = {
     "surname": "Surn",
     "first": "Name",
     "patronymic": "Patr",
 }
 
 
-def detect_gender(first_name: str) -> Optional[str]:
+def detect_gender(first_name: str) -> str | None:
     """Пол по имени: ``"masc"`` / ``"femn"`` / ``None``.
 
     Имена-инициалы (≤ 2 символа после удаления точек) пол не определяют —
@@ -49,7 +49,7 @@ def detect_gender(first_name: str) -> Optional[str]:
     return None
 
 
-def to_nominative(word: str, *, kind: str, gender: Optional[str] = None) -> str:
+def to_nominative(word: str, *, kind: str, gender: str | None = None) -> str:
     """Привести часть ФИО к именительному падежу.
 
     Args:
@@ -80,9 +80,7 @@ def to_nominative(word: str, *, kind: str, gender: Optional[str] = None) -> str:
         return word
 
     if "-" in cleaned and not cleaned.endswith("-"):
-        return "-".join(
-            to_nominative(p, kind=kind, gender=gender) for p in cleaned.split("-")
-        )
+        return "-".join(to_nominative(p, kind=kind, gender=gender) for p in cleaned.split("-"))
 
     if len(cleaned.replace(".", "")) <= 2:
         return cleaned
@@ -130,4 +128,4 @@ def restore_case(original: str, normalized: str) -> str:
     return normalized
 
 
-__all__ = ["detect_gender", "to_nominative", "restore_case"]
+__all__ = ["detect_gender", "restore_case", "to_nominative"]

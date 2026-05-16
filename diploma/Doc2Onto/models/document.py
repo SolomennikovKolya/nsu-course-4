@@ -1,15 +1,21 @@
-from dataclasses import dataclass
+"""
+Модуль, содержащий модели данных для представления документов в системе,
+а также контекст для работы с тяжеловесными данными документа.
+"""
+
+from __future__ import annotations
+
 from contextlib import contextmanager
-from typing import Optional
-from pathlib import Path
+from dataclasses import dataclass
 from enum import StrEnum, auto
+from pathlib import Path
 
 from app.context import get_temp_manager
 from app.settings import ORIGINAL_FILE_STEM
 from core.graph.draft_graph import DraftGraph
 from core.uddm.model import UDDM
-from models.template import TemplateContext
 from models.extraction_result import ExtractionResult
+from models.template import TemplateContext
 
 
 @dataclass
@@ -22,12 +28,12 @@ class Document:
     class Status(StrEnum):
         """Статусы обработки документа по ходу прохождения пайплайна."""
 
-        UPLOADED = auto()          # Документ загружен в систему
-        UDDM_EXTRACTED = auto()    # Построен UDDM
+        UPLOADED = auto()  # Документ загружен в систему
+        UDDM_EXTRACTED = auto()  # Построен UDDM
         CLASS_DETERMINED = auto()  # Определен класс документа
         FIELDS_EXTRACTED = auto()  # Поля извлечены и нормализованы (раз стадии слиты)
-        TRIPLES_BUILT = auto()     # Построены триплеты
-        ADDED_TO_MODEL = auto()    # Знания добавлены в онтологию
+        TRIPLES_BUILT = auto()  # Построены триплеты
+        ADDED_TO_MODEL = auto()  # Знания добавлены в онтологию
 
         def __int__(self):
             stages = {
@@ -40,16 +46,16 @@ class Document:
             }
             return stages[self]
 
-    id: str                           # Уникальный идентификатор документа в системе (имя каталога хранения)
-    original_suffix: str              # Расширение исходного файла (файл: original + suffix в каталоге id)
-    directory: Path                   # Директория с документом и его данными
-    name: str                         # Название документа (храится только в мета-файле, используется в UI)
+    id: str  # Уникальный идентификатор документа в системе (имя каталога хранения)
+    original_suffix: str  # Расширение исходного файла (файл: original + suffix в каталоге id)
+    directory: Path  # Директория с документом и его данными
+    name: str  # Название документа (храится только в мета-файле, используется в UI)
 
     status: Status = Status.UPLOADED  # Статус обработки документа
-    doc_class: Optional[str] = None   # Класс документа (ID шаблона)
+    doc_class: str | None = None  # Класс документа (ID шаблона)
 
-    pipeline_failed_target: Optional[Status] = None  # Статус шага, на котором пайплайн остановился с ошибкой
-    pipeline_error_message: Optional[str] = None     # Сообщение об ошибке пайплайна
+    pipeline_failed_target: Status | None = None  # Статус шага, на котором пайплайн остановился с ошибкой
+    pipeline_error_message: str | None = None  # Сообщение об ошибке пайплайна
 
     # --- пути до промежуточных данных ---
 
@@ -105,14 +111,14 @@ class DocumentContext:
     """
 
     def __init__(self, doc: Document):
-        self.document: Document = doc                         # DTO документа
-        self._uddm: Optional[UDDM] = None                     # UDDM документа
-        self._extr_res: Optional[ExtractionResult] = None     # Результат извлечения и нормализации полей
-        self._draft_graph: Optional[DraftGraph] = None        # Черновой граф
-        self._template_ctx: Optional[TemplateContext] = None  # Вложенный контекст шаблона
+        self.document: Document = doc  # DTO документа
+        self._uddm: UDDM | None = None  # UDDM документа
+        self._extr_res: ExtractionResult | None = None  # Результат извлечения и нормализации полей
+        self._draft_graph: DraftGraph | None = None  # Черновой граф
+        self._template_ctx: TemplateContext | None = None  # Вложенный контекст шаблона
 
     @property
-    def uddm(self) -> Optional[UDDM]:
+    def uddm(self) -> UDDM | None:
         if self._uddm is not None:
             return self._uddm
         try:
@@ -122,11 +128,11 @@ class DocumentContext:
             return None
 
     @uddm.setter
-    def uddm(self, uddm: Optional[UDDM]):
+    def uddm(self, uddm: UDDM | None):
         self._uddm = uddm
 
     @property
-    def extraction_result(self) -> Optional[ExtractionResult]:
+    def extraction_result(self) -> ExtractionResult | None:
         if self._extr_res is not None:
             return self._extr_res
         try:
@@ -136,11 +142,11 @@ class DocumentContext:
             return None
 
     @extraction_result.setter
-    def extraction_result(self, extraction_result: Optional[ExtractionResult]):
+    def extraction_result(self, extraction_result: ExtractionResult | None):
         self._extr_res = extraction_result
 
     @property
-    def draft_graph(self) -> Optional[DraftGraph]:
+    def draft_graph(self) -> DraftGraph | None:
         if self._draft_graph is not None:
             return self._draft_graph
         try:
@@ -150,11 +156,11 @@ class DocumentContext:
             return None
 
     @draft_graph.setter
-    def draft_graph(self, draft_graph: Optional[DraftGraph]):
+    def draft_graph(self, draft_graph: DraftGraph | None):
         self._draft_graph = draft_graph
 
     @property
-    def template_ctx(self) -> Optional[TemplateContext]:
+    def template_ctx(self) -> TemplateContext | None:
         if self._template_ctx:
             return self._template_ctx
 
@@ -169,7 +175,7 @@ class DocumentContext:
         return self._template_ctx
 
     @template_ctx.setter
-    def template_ctx(self, template_ctx: Optional[TemplateContext]):
+    def template_ctx(self, template_ctx: TemplateContext | None):
         self._template_ctx = template_ctx
 
     def unload(self):

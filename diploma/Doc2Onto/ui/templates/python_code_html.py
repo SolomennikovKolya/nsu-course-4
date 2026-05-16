@@ -1,3 +1,7 @@
+"""Преобразование кода Python в HTML с подсветкой синтаксиса для отображения в QTextBrowser."""
+
+from __future__ import annotations
+
 from html import escape
 
 from pygments import highlight
@@ -5,7 +9,6 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
 from pygments.style import Style
 from pygments.styles import get_style_by_name
-
 
 # Аргумент ``style``: кастомный класс или имя встроенного стиля Pygments (например ``"one-dark"``)
 StyleArg = str | type[Style]
@@ -86,9 +89,9 @@ def plain_message_to_preview_html(
     """Простой текст ошибки/подсказки (без разбора как Python), фон как у превью кода."""
     bg = _style_background(style)
     return (
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/></head>"
-        f'<body style="margin:0;padding:6px;font-family:Consolas,\'Courier New\',monospace;'
-        f"font-size:10pt;color:{message_color};background-color:{bg};\">"
-        f"<pre style=\"margin:0;white-space:pre-wrap;\">{escape(message)}</pre>"
+        '<!DOCTYPE html><html><head><meta charset="utf-8"/></head>'
+        f"<body style=\"margin:0;padding:6px;font-family:Consolas,'Courier New',monospace;"
+        f'font-size:10pt;color:{message_color};background-color:{bg};">'
+        f'<pre style="margin:0;white-space:pre-wrap;">{escape(message)}</pre>'
         "</body></html>"
     )

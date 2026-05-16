@@ -1,7 +1,11 @@
-from dataclasses import dataclass
+"""Базовый класс для всех модулей обработки документов + результат выполнения моделей."""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Optional, Self
+from dataclasses import dataclass
 from logging import ERROR
+from typing import Self
 
 from app.context import get_logger
 from models.document import DocumentContext
@@ -15,14 +19,14 @@ class ModuleResult:
     FAILED = "FAILED"
 
     success: bool
-    message: Optional[str] = None
+    message: str | None = None
 
     @classmethod
-    def ok(cls, *, message: Optional[str] = None) -> Self:
+    def ok(cls, *, message: str | None = None) -> Self:
         return cls(success=True, message=message)
 
     @classmethod
-    def failed(cls, *, message: Optional[str] = None) -> Self:
+    def failed(cls, *, message: str | None = None) -> Self:
         return cls(success=False, message=message)
 
     def __bool__(self) -> bool:
@@ -37,7 +41,7 @@ class ModuleResult:
 
 class BaseModule(ABC):
     """
-    Абстрактный класс для всех модулей обработки документов. 
+    Абстрактный класс для всех модулей обработки документов.
     Каждый модуль должен реализовывать метод execute.
     """
 

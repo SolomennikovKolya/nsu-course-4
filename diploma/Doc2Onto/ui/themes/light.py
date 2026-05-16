@@ -1,11 +1,21 @@
+"""Светлая тема."""
+
+from __future__ import annotations
+
 from pygments.style import Style
 from pygments.token import (
-    Comment, Error, Keyword, Name, Number,
-    Operator, Punctuation, String, Token,
+    Comment,
+    Error,
+    Keyword,
+    Name,
+    Number,
+    Operator,
+    Punctuation,
+    String,
+    Token,
 )
 
 from ui.themes.base import BaseAppTheme
-
 
 # Светлая палитра (ориентир — VS Code Light+ / светлый редактор).
 _STYLE_LIGHT_MODERN_LIKE = {

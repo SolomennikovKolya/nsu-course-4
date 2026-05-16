@@ -14,29 +14,44 @@
 краткой ошибкой и кнопкой «Подробнее» — открывает QDialog с traceback и
 контекстом из ``build_error.json``.
 """
+
 from __future__ import annotations
 
 import json
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from collections.abc import Callable
 from urllib.parse import urldefrag
 
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, XSD
 from rdflib.util import from_n3
-from PySide6.QtCore import QEvent, QSize, Qt
-from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
-    QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
-    QScrollArea, QSizePolicy, QSplitter, QStackedWidget, QTextEdit,
-    QVBoxLayout, QWidget,
-)
 
+from app.context import get_theme_manager
 from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple, EditedGraph
 from models.document import Document
 from models.extraction_result import ExtractionResult
-from app.context import get_theme_manager
 from ui.common.accessory import read_text_file
 
 
@@ -53,14 +68,14 @@ def _warn_color(level: int) -> str:
     return _th().color_for_severity_level(level)
 
 
-_TRIPLE_TYPE_LABELS: Dict[DraftTriple.Type, str] = {
+_TRIPLE_TYPE_LABELS: dict[DraftTriple.Type, str] = {
     DraftTriple.Type.TYPE: "тип",
     DraftTriple.Type.OBJECT_PROPERTY: "объектное св-во",
     DraftTriple.Type.DATA_PROPERTY: "дата-свойство",
 }
 
 
-def _role_titles(tt: DraftTriple.Type) -> Dict[str, str]:
+def _role_titles(tt: DraftTriple.Type) -> dict[str, str]:
     if tt == DraftTriple.Type.TYPE:
         return {"subject": "Экземпляр", "predicate": "Тип", "object": "Класс"}
     if tt == DraftTriple.Type.OBJECT_PROPERTY:
@@ -89,7 +104,7 @@ def _term_n3_short(nm_graph: Graph, term: object) -> str:
 def _draft_node_from_n3_input(
     kind: DraftNode.Type,
     n3_text: str,
-    source: Optional[str],
+    source: str | None,
     nsm=None,
 ) -> DraftNode:
     """Распарсить N3-форму узла. ``nsm`` нужен, чтобы корректно
@@ -109,12 +124,13 @@ def _draft_node_from_n3_input(
                 frag = urldefrag(u).fragment
                 if frag == "":
                     return DraftNode(
-                        kind, None,
+                        kind,
+                        None,
                         "IRI задаёт только пространство имён (# без локального имени)",
                         source,
                     )
-        return DraftNode(kind, parsed, None, source)
-    except Exception as ex:  # noqa: BLE001
+        return DraftNode(kind, parsed, None, source)  # type: ignore
+    except Exception as ex:
         return DraftNode(kind, None, str(ex), source)
 
 
@@ -131,7 +147,7 @@ def _html_escape(s: object) -> str:
 # --- warn-уровни ----------------------------------------------------------
 
 
-def _extraction_warn_level(field: Optional[str], extr: Optional[ExtractionResult]) -> int:
+def _extraction_warn_level(field: str | None, extr: ExtractionResult | None) -> int:
     if not field:
         return 0
     if extr is None:
@@ -142,7 +158,7 @@ def _extraction_warn_level(field: Optional[str], extr: Optional[ExtractionResult
     return extr.get_situation(field).warn_level()
 
 
-def _normalization_warn_level(field: Optional[str], extr: Optional[ExtractionResult]) -> int:
+def _normalization_warn_level(field: str | None, extr: ExtractionResult | None) -> int:
     if not field:
         return 0
     if extr is None:
@@ -169,7 +185,7 @@ def _node_warn_level(
     edited: EditedGraph,
     triple_index: int,
     role: str,
-    extr: Optional[ExtractionResult],
+    extr: ExtractionResult | None,
 ) -> int:
     node = _effective_node(edited, triple_index, role)
     original = edited.draft.triples[triple_index].get_node(role)
@@ -185,13 +201,8 @@ def _node_warn_level(
     )
 
 
-def _triple_warn_level(
-    edited: EditedGraph, triple_index: int, extr: Optional[ExtractionResult]
-) -> int:
-    return max(
-        _node_warn_level(edited, triple_index, r, extr)
-        for r in ("subject", "predicate", "object")
-    )
+def _triple_warn_level(edited: EditedGraph, triple_index: int, extr: ExtractionResult | None) -> int:
+    return max(_node_warn_level(edited, triple_index, r, extr) for r in ("subject", "predicate", "object"))
 
 
 def _can_generate_for_role(role: str, triple_type: DraftTriple.Type) -> bool:
@@ -203,9 +214,7 @@ def _can_generate_for_role(role: str, triple_type: DraftTriple.Type) -> bool:
     """
     if role == "predicate":
         return False
-    if role == "object" and triple_type == DraftTriple.Type.TYPE:
-        return False
-    return True
+    return not (role == "object" and triple_type == DraftTriple.Type.TYPE)
 
 
 # =====================================================================
@@ -222,9 +231,9 @@ class _SchemaHints:
     """
 
     def __init__(self):
-        self._g: Optional[Graph] = None
+        self._g: Graph | None = None
 
-    def _ensure_loaded(self) -> Optional[Graph]:
+    def _ensure_loaded(self) -> Graph | None:
         if self._g is not None:
             return self._g
         if not ONTOLOGY_SCHEMA_PATH.exists():
@@ -234,10 +243,10 @@ class _SchemaHints:
             g.parse(ONTOLOGY_SCHEMA_PATH, format="turtle")
             self._g = g
             return g
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
-    def hints_for_predicate(self, predicate_iri: URIRef) -> Tuple[Optional[str], Optional[str]]:
+    def hints_for_predicate(self, predicate_iri: URIRef) -> tuple[str | None, str | None]:
         """Вернуть (domain, range) как короткие N3-имена. None — если не задано."""
         g = self._ensure_loaded()
         if g is None:
@@ -258,30 +267,30 @@ class _SchemaHints:
 class _BuildErrorReport:
     """Содержимое build_error.json."""
 
-    def __init__(self, data: Dict):
-        self.template_name: Optional[str] = (data.get("template") or {}).get("name")
+    def __init__(self, data: dict):
+        self.template_name: str | None = (data.get("template") or {}).get("name")
         exc = data.get("exception") or {}
         self.exception_type: str = exc.get("type", "?")
         self.exception_message: str = exc.get("message", "")
-        self.traceback: List[str] = list(exc.get("traceback") or [])
-        self.context: Dict = data.get("context") or {}
-        self.timestamp: Optional[str] = data.get("timestamp")
+        self.traceback: list[str] = list(exc.get("traceback") or [])
+        self.context: dict = data.get("context") or {}
+        self.timestamp: str | None = data.get("timestamp")
 
     @classmethod
-    def load(cls, document: Document) -> Optional["_BuildErrorReport"]:
+    def load(cls, document: Document) -> _BuildErrorReport | None:
         path = document.build_error_file_path()
         if not path.exists():
             return None
         try:
             return cls(json.loads(path.read_text(encoding="utf-8")))
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
 
 class _BuildErrorDialog(QDialog):
     """Подробный отчёт об ошибке стадии сборки."""
 
-    def __init__(self, report: _BuildErrorReport, parent: Optional[QWidget] = None):
+    def __init__(self, report: _BuildErrorReport, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Ошибка построения графа")
         self.resize(720, 520)
@@ -289,8 +298,7 @@ class _BuildErrorDialog(QDialog):
         layout = QVBoxLayout(self)
 
         header = QLabel(
-            f"<b>{_html_escape(report.exception_type)}</b>: "
-            f"{_html_escape(report.exception_message)}"
+            f"<b>{_html_escape(report.exception_type)}</b>: {_html_escape(report.exception_message)}"
         )
         header.setWordWrap(True)
         theme = _th()
@@ -346,7 +354,7 @@ class _NodeGeneratorDialog(QDialog):
     активна только если предпросмотр валидный.
     """
 
-    def __init__(self, kind: DraftNode.Type, parent: Optional[QWidget] = None):
+    def __init__(self, kind: DraftNode.Type, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Сгенерировать значение узла")
         self.resize(580, 420)
@@ -462,16 +470,20 @@ class _NodeGeneratorDialog(QDialog):
         # включаем — у них identity составная (от student / student+дата),
         # ручным вводом одной строки её не построить.
         all_concepts = [
-            PersonConcept, OrganizationConcept, GroupConcept, DirectionConcept,
-            ProfileConcept, PositionConcept, DegreeConcept, TitleConcept,
+            PersonConcept,
+            OrganizationConcept,
+            GroupConcept,
+            DirectionConcept,
+            ProfileConcept,
+            PositionConcept,
+            DegreeConcept,
+            TitleConcept,
             GradeConcept,
-            DateConcept, EmailConcept, TelephoneConcept,
+            DateConcept,
+            EmailConcept,
+            TelephoneConcept,
         ]
-        target_kind = (
-            ConceptKind.CLASS_INDIVIDUAL
-            if kind == DraftNode.Type.IRI
-            else ConceptKind.DATATYPE
-        )
+        target_kind = ConceptKind.CLASS_INDIVIDUAL if kind == DraftNode.Type.IRI else ConceptKind.DATATYPE
         return [c for c in all_concepts if c.kind == target_kind]
 
     def _current_concept(self):
@@ -502,7 +514,7 @@ class _NodeGeneratorDialog(QDialog):
             )
             ok_btn.setEnabled(False)
             return
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             self._preview.setText(
                 f"<span style='color:{self._theme.color_status_error};'>Непредвиденная ошибка: {_html_escape(str(ex))}</span>"
             )
@@ -513,7 +525,7 @@ class _NodeGeneratorDialog(QDialog):
         if cls.kind == ConceptKind.CLASS_INDIVIDUAL:
             try:
                 local = cls.iri_local(parts)
-            except Exception as ex:  # noqa: BLE001
+            except Exception as ex:
                 self._preview.setText(
                     f"<span style='color:{self._theme.color_status_error};'>Ошибка построения IRI: {_html_escape(str(ex))}</span>"
                 )
@@ -598,9 +610,8 @@ class _TripleListItem(QFrame):
 
         self.refresh(extraction=None)
 
-    def refresh(self, extraction: Optional[ExtractionResult]):
+    def refresh(self, extraction: ExtractionResult | None):
         idx = self.triple_index
-        tr = self.edited.draft.triples[idx]
         excluded = idx in self.edited.excluded
 
         s = _effective_node(self.edited, idx, "subject")
@@ -617,7 +628,11 @@ class _TripleListItem(QFrame):
         if excluded:
             stripe_color = _th().color_status_neutral
             self.setStyleSheet(
-                "QFrame { background: " + _th().color_panel_inset + "; color: " + _th().color_text_muted + "; }"
+                "QFrame { background: "
+                + _th().color_panel_inset
+                + "; color: "
+                + _th().color_text_muted
+                + "; }"
             )
         else:
             level = _triple_warn_level(self.edited, idx, extraction)
@@ -669,9 +684,9 @@ class _TripleDetailPanel(QWidget):
         self._schema = schema_hints
         self._on_changed = on_changed
 
-        self._edited: Optional[EditedGraph] = None
-        self._extraction: Optional[ExtractionResult] = None
-        self._triple_index: Optional[int] = None
+        self._edited: EditedGraph | None = None
+        self._extraction: ExtractionResult | None = None
+        self._triple_index: int | None = None
         self._mute_signals = False
 
         self._build_ui()
@@ -687,7 +702,7 @@ class _TripleDetailPanel(QWidget):
         outer.addWidget(self._title)
 
         # Три блока узлов (subject / predicate / object).
-        self._node_blocks: Dict[str, _NodeEditorBlock] = {}
+        self._node_blocks: dict[str, _NodeEditorBlock] = {}
         for role in ("subject", "predicate", "object"):
             block = _NodeEditorBlock(
                 role,
@@ -708,9 +723,7 @@ class _TripleDetailPanel(QWidget):
 
         # Used-in (другие триплеты, где встречается выбранная нода).
         self._usedin_label = QLabel("Номера триплетов, в которых встречается:")
-        self._usedin_label.setStyleSheet(
-            f"color:{_th().color_text_muted}; font-style:italic;"
-        )
+        self._usedin_label.setStyleSheet(f"color:{_th().color_text_muted}; font-style:italic;")
         outer.addWidget(self._usedin_label)
         self._usedin_list = QLabel()
         self._usedin_list.setWordWrap(True)
@@ -740,9 +753,9 @@ class _TripleDetailPanel(QWidget):
 
     def set_data(
         self,
-        edited: Optional[EditedGraph],
-        extraction: Optional[ExtractionResult],
-        triple_index: Optional[int],
+        edited: EditedGraph | None,
+        extraction: ExtractionResult | None,
+        triple_index: int | None,
     ):
         self._edited = edited
         self._extraction = extraction
@@ -764,21 +777,14 @@ class _TripleDetailPanel(QWidget):
 
             tr = self._edited.draft.triples[self._triple_index]
             excluded = self._triple_index in self._edited.excluded
-            overrides_set = {
-                role for (ti, role) in self._edited.node_overrides
-                if ti == self._triple_index
-            }
+            overrides_set = {role for (ti, role) in self._edited.node_overrides if ti == self._triple_index}
 
-            title_marks: List[str] = []
+            title_marks: list[str] = []
             if excluded:
                 title_marks.append("ИСКЛЮЧЁН")
             if overrides_set:
-                title_marks.append(
-                    "ИЗМЕНЕН (" + ", ".join(sorted(overrides_set)) + ")"
-                )
-            title_text = (
-                f"Триплет #{self._triple_index} ({_TRIPLE_TYPE_LABELS[tr.triple_type]})"
-            )
+                title_marks.append("ИЗМЕНЕН (" + ", ".join(sorted(overrides_set)) + ")")
+            title_text = f"Триплет #{self._triple_index} ({_TRIPLE_TYPE_LABELS[tr.triple_type]})"
             if title_marks:
                 title_text += "  ·  " + "  ·  ".join(title_marks)
             self._title.setText(title_text)
@@ -826,7 +832,7 @@ class _TripleDetailPanel(QWidget):
             self._hints_lbl.setVisible(True)
             return
 
-        pred_node = _effective_node(self._edited, self._triple_index, "predicate")
+        pred_node = _effective_node(self._edited, self._triple_index, "predicate")  # type: ignore
         pred_iri = pred_node.get_rdf_node()
         if not isinstance(pred_iri, URIRef):
             self._hints_lbl.setVisible(False)
@@ -853,7 +859,7 @@ class _TripleDetailPanel(QWidget):
             self._usedin_list.setText("")
             return
 
-        sections: List[str] = []
+        sections: list[str] = []
         for role in ("subject", "predicate", "object"):
             node = _effective_node(self._edited, self._triple_index, role)
             if not node.is_complete():
@@ -871,13 +877,13 @@ class _TripleDetailPanel(QWidget):
             self._usedin_label.setVisible(True)
             self._usedin_list.setText("<br/>".join(sections))
 
-    def _find_used_in(self, node: DraftNode, exclude_index: int) -> List[int]:
+    def _find_used_in(self, node: DraftNode, exclude_index: int) -> list[int]:
         """Индексы триплетов, где встречается тот же rdflib-узел."""
         if self._edited is None or not node.is_complete():
             return []
         rdf = node.get_rdf_node()
-        result: List[int] = []
-        for i, tr in enumerate(self._edited.draft.triples):
+        result: list[int] = []
+        for i, _ in enumerate(self._edited.draft.triples):
             if i == exclude_index:
                 continue
             for r in ("subject", "predicate", "object"):
@@ -895,9 +901,7 @@ class _TripleDetailPanel(QWidget):
         source = tr.get_node(role).source
         # Передаём nsm, иначе ":Персона_xxx" / "rdf:type" не разрешаются
         # до полного IRI и узел получается невалидным.
-        new_node = _draft_node_from_n3_input(
-            kind, n3_text, source, nsm=self._nm_graph.namespace_manager
-        )
+        new_node = _draft_node_from_n3_input(kind, n3_text, source, nsm=self._nm_graph.namespace_manager)
         self._edited.set_node(self._triple_index, role, new_node)
         self._on_changed()
 
@@ -994,9 +998,7 @@ class _NodeEditorBlock(QFrame):
 
         head.addStretch(1)
         self._used_in_lbl = QLabel()
-        self._used_in_lbl.setStyleSheet(
-            f"color:{_th().color_text_muted}; font-style:italic;"
-        )
+        self._used_in_lbl.setStyleSheet(f"color:{_th().color_text_muted}; font-style:italic;")
         head.addWidget(self._used_in_lbl)
         right.addLayout(head)
 
@@ -1017,8 +1019,7 @@ class _NodeEditorBlock(QFrame):
         self._reset_btn = QPushButton("↺")
         self._reset_btn.setFixedWidth(28)
         self._reset_btn.setToolTip(
-            "Сбросить ручную правку и вернуть исходное значение, "
-            "посчитанное стадией сборки графа."
+            "Сбросить ручную правку и вернуть исходное значение, посчитанное стадией сборки графа."
         )
         self._reset_btn.clicked.connect(self._emit_reset)
         self._reset_btn.setVisible(False)
@@ -1057,9 +1058,7 @@ class _NodeEditorBlock(QFrame):
         self._override_badge.setStyleSheet(
             f"color:{t.color_link_individual}; font-weight:bold; font-size:10px;"
         )
-        self._used_in_lbl.setStyleSheet(
-            f"color:{t.color_text_muted}; font-style:italic;"
-        )
+        self._used_in_lbl.setStyleSheet(f"color:{t.color_text_muted}; font-style:italic;")
         self._meta_lbl.setStyleSheet(f"color:{t.color_text_muted};")
         self._pipeline_lbl.setStyleSheet(t.style_pipeline_widget())
 
@@ -1071,7 +1070,7 @@ class _NodeEditorBlock(QFrame):
         role_label: str,
         node: DraftNode,
         warn_level: int,
-        extraction: Optional[ExtractionResult],
+        extraction: ExtractionResult | None,
         used_in_count: int,
         is_overridden: bool,
         can_generate: bool,
@@ -1087,9 +1086,7 @@ class _NodeEditorBlock(QFrame):
             stripe_color = _th().color_link_individual
         else:
             stripe_color = _warn_color(warn_level)
-        self._stripe.setStyleSheet(
-            f"background-color:{stripe_color}; border-radius:1px;"
-        )
+        self._stripe.setStyleSheet(f"background-color:{stripe_color}; border-radius:1px;")
 
         self._override_badge.setVisible(is_overridden)
         self._reset_btn.setVisible(is_overridden)
@@ -1108,9 +1105,7 @@ class _NodeEditorBlock(QFrame):
                 f"<span style='color:{_th().color_status_error};'>ошибка: {_html_escape(node.error)}</span>"
             )
         if not node.is_complete() and node.error is None:
-            meta_parts.append(
-                f"<span style='color:{_th().color_status_error};'>значение отсутствует</span>"
-            )
+            meta_parts.append(f"<span style='color:{_th().color_status_error};'>значение отсутствует</span>")
         self._meta_lbl.setText(" · ".join(meta_parts) if meta_parts else "")
 
         if used_in_count > 0:
@@ -1143,7 +1138,7 @@ class _NodeEditorBlock(QFrame):
 
     # ---------- pipeline ----------
 
-    def _pipeline_html(self, node: DraftNode, extr: Optional[ExtractionResult]) -> str:
+    def _pipeline_html(self, node: DraftNode, extr: ExtractionResult | None) -> str:
         field = node.source
         ext_part = self._extraction_summary(field, extr)
         norm_part = self._normalization_summary(field, extr)
@@ -1151,7 +1146,7 @@ class _NodeEditorBlock(QFrame):
         return f"Извлечение: {ext_part} → Нормализация: {norm_part} → Сборка: {asm_part}"
 
     @staticmethod
-    def _extraction_summary(field: Optional[str], extr: Optional[ExtractionResult]) -> str:
+    def _extraction_summary(field: str | None, extr: ExtractionResult | None) -> str:
         if not field:
             return f"<span style='color:{_th().color_text_muted};'>нет поля</span>"
         if extr is None:
@@ -1164,7 +1159,7 @@ class _NodeEditorBlock(QFrame):
         return f"{_html_escape(sit)} «{_html_escape(value)[:60]}»"
 
     @staticmethod
-    def _normalization_summary(field: Optional[str], extr: Optional[ExtractionResult]) -> str:
+    def _normalization_summary(field: str | None, extr: ExtractionResult | None) -> str:
         if not field or extr is None:
             return f"<span style='color:{_th().color_text_muted};'>—</span>"
         data = extr.get_field(field)
@@ -1213,15 +1208,15 @@ class DocumentViewGraphTab(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._document: Optional[Document] = None
-        self._edited: Optional[EditedGraph] = None
+        self._document: Document | None = None
+        self._edited: EditedGraph | None = None
         self._nm_graph = _make_prefix_graph()
-        self._extraction: Optional[ExtractionResult] = None
+        self._extraction: ExtractionResult | None = None
         self._schema = _SchemaHints()
-        self._build_error: Optional[_BuildErrorReport] = None
+        self._build_error: _BuildErrorReport | None = None
         self._loading = False
 
-        self._items: List[_TripleListItem] = []
+        self._items: list[_TripleListItem] = []
         self._build_ui()
 
     # ---------- UI ----------
@@ -1323,7 +1318,7 @@ class DocumentViewGraphTab(QWidget):
 
     # ---------- public ----------
 
-    def set_document(self, document: Optional[Document]) -> bool:
+    def set_document(self, document: Document | None) -> bool:
         self._loading = True
         try:
             self._document = document
@@ -1355,7 +1350,7 @@ class DocumentViewGraphTab(QWidget):
                 return False
             try:
                 draft = DraftGraph.load(path)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 return False
 
             edits_path = document.draft_graph_edits_file_path()
@@ -1364,16 +1359,14 @@ class DocumentViewGraphTab(QWidget):
                 # До этого был перепутан порядок → exists() падал на DraftGraph,
                 # except глотал, edits отбрасывались. Теперь правильно.
                 self._edited = (
-                    EditedGraph.load(draft, edits_path)
-                    if edits_path.exists()
-                    else EditedGraph(draft)
+                    EditedGraph.load(draft, edits_path) if edits_path.exists() else EditedGraph(draft)
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 self._edited = EditedGraph(draft)
 
             try:
                 self._extraction = ExtractionResult.load(document.extraction_result_file_path())
-            except Exception:  # noqa: BLE001
+            except Exception:
                 self._extraction = None
 
             supp_path = document.supplementary_facts_ttl_path()
@@ -1426,7 +1419,7 @@ class DocumentViewGraphTab(QWidget):
             if current.height() != h or current.width() != avail_w:
                 list_item.setSizeHint(QSize(avail_w, h))
 
-    def eventFilter(self, obj, event):  # noqa: N802 — Qt API
+    def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.Resize and obj is self._list_widget.viewport():
             self._update_list_item_heights()
         return super().eventFilter(obj, event)

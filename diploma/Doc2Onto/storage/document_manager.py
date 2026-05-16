@@ -1,7 +1,10 @@
+"""Менеджер для управления документами в файловой системе."""
+
+from __future__ import annotations
+
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from app.settings import DOCUMENTS_DIR
 from models.document import ORIGINAL_FILE_STEM, Document
@@ -28,7 +31,7 @@ class DocumentManager(BaseManager[Document, Path]):
     def __init__(self, base_dir: Path = DOCUMENTS_DIR):
         super().__init__(base_dir)
 
-    def get(self, doc_id: str) -> Optional[Document]:
+    def get(self, doc_id: str) -> Document | None:
         """Возвращает документ по ID (имя каталога)."""
         directory = self.base_dir / doc_id
         if not directory.is_dir():
@@ -60,9 +63,7 @@ class DocumentManager(BaseManager[Document, Path]):
 
         for existing in self.list():
             existing_path = existing.original_file_path()
-            if existing_path.is_file() and self._compute_hash(existing_path) == self._compute_hash(
-                file_path
-            ):
+            if existing_path.is_file() and self._compute_hash(existing_path) == self._compute_hash(file_path):
                 return existing
 
         doc_id = str(uuid.uuid4())
@@ -133,7 +134,7 @@ class DocumentManager(BaseManager[Document, Path]):
     def _get_directory(self, obj: Document) -> Path:
         return obj.directory
 
-    def _is_directory_valid(self, directory: Path, meta: Optional[dict]) -> bool:
+    def _is_directory_valid(self, directory: Path, meta: dict | None) -> bool:
         """Проверяет структуру каталога документа в актуальном формате."""
         if not meta:
             return False
@@ -165,7 +166,9 @@ class DocumentManager(BaseManager[Document, Path]):
         doc.pipeline_error_message = meta.get("pipeline_error_message")
 
     @staticmethod
-    def _str_status_to_status(status: str) -> Optional[Document.Status]:
+    def _str_status_to_status(status: str | None) -> Document.Status | None:
+        if status is None:
+            return None
         try:
             return Document.Status(status)
         except ValueError:

@@ -1,6 +1,7 @@
-from core.uddm.model import UDDM, Block, Text, ListBlock, Table
-from modules.converter.reverse.base import BaseReverseConverter
+from __future__ import annotations
 
+from core.uddm.model import UDDM, Block, ListBlock, Table, Text
+from modules.converter.reverse.base import BaseReverseConverter
 
 HTML_TEMPLATE = """
 <html>
@@ -20,7 +21,6 @@ HTML_TEMPLATE = """
 
 
 class UDDMToHTML(BaseReverseConverter):
-
     def convert(self, uddm: UDDM) -> str:
         """Преобразует UDDM в HTML."""
         body = "".join(self._render_block(b) for b in uddm.root)
@@ -32,8 +32,7 @@ class UDDMToHTML(BaseReverseConverter):
 
         if isinstance(block, ListBlock):
             items = "".join(
-                f"<li>{''.join(self._render_block(b) for b in item.blocks)}</li>"
-                for item in block.items
+                f"<li>{''.join(self._render_block(b) for b in item.blocks)}</li>" for item in block.items
             )
             return f"<ul>{items}</ul>"
 

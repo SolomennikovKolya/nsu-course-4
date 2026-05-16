@@ -1,13 +1,13 @@
 """Концепт :УченаяСтепень — учёная степень (перечисление)."""
+
 from __future__ import annotations
 
-from typing import ClassVar, List, Tuple
+from typing import ClassVar
 
 from core.concepts._enum import match_enum
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 
-
-_SYNONYMS: List[Tuple[str, str]] = [
+_SYNONYMS: list[tuple[str, str]] = [
     ("кандидат физико-математических наук", "УченаяСтепень_КандидатФизМатНаук"),
     ("к.ф.-м.н.", "УченаяСтепень_КандидатФизМатНаук"),
     ("кфмн", "УченаяСтепень_КандидатФизМатНаук"),

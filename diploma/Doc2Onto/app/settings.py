@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 # --- приложение ---
 APP_NAME = "Doc2Onto"
 APP_VERSION = "1.0.0"

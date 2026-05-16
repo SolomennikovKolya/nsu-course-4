@@ -12,12 +12,14 @@ IRI (если это индивид) и какие триплеты нужно �
 :class:`BaseConcept` и работают с любым концептом, не зная про конкретную
 реализацию.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, ClassVar, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from core.graph.draft_graph import DraftNode, DraftTriple
@@ -36,6 +38,7 @@ class ConceptKind(Enum):
             создаётся (например ``xsd:date`` — нормализованная
             ISO-строка).
     """
+
     CLASS_INDIVIDUAL = "class_individual"
     DATATYPE = "datatype"
 
@@ -73,10 +76,11 @@ class ConceptParts:
             набор ключей в его docstring. Может быть пустым, если
             канонической строки достаточно.
     """
-    canonical: str
-    parts: Mapping[str, Optional[str]] = field(default_factory=dict)
 
-    def get(self, key: str) -> Optional[str]:
+    canonical: str
+    parts: Mapping[str, str | None] = field(default_factory=dict)
+
+    def get(self, key: str) -> str | None:
         """Удобный доступ к именованной части (None, если части нет)."""
         return self.parts.get(key)
 
@@ -111,7 +115,7 @@ class BaseConcept(ABC):
     kind: ClassVar[ConceptKind]
     """Вид концепта (см. :class:`ConceptKind`)."""
 
-    onto_class_local: ClassVar[Optional[str]] = None
+    onto_class_local: ClassVar[str | None] = None
     """Локальное имя класса в онтологии (без namespace), например
     ``"Персона"``. Для ``DATATYPE``-концептов остаётся ``None``."""
 
@@ -182,8 +186,8 @@ class BaseConcept(ABC):
         cls,
         parts: ConceptParts,
         *,
-        subject: "DraftNode",
-    ) -> Sequence["DraftTriple"]:
+        subject: DraftNode,
+    ) -> Sequence[DraftTriple]:
         """Идентифицирующие триплеты индивида данного концепта.
 
         Возвращает триплеты помимо ``rdf:type`` — его добавляет билдер.

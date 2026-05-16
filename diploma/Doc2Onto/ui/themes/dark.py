@@ -1,11 +1,21 @@
+"""Тёмная тема."""
+
+from __future__ import annotations
+
 from pygments.style import Style
 from pygments.token import (
-    Comment, Error, Keyword, Name, Number,
-    Operator, Punctuation, String, Token,
+    Comment,
+    Error,
+    Keyword,
+    Name,
+    Number,
+    Operator,
+    Punctuation,
+    String,
+    Token,
 )
 
 from ui.themes.base import BaseAppTheme
-
 
 # Палитра ориентирована на VS Code «Dark Modern» / тёмный Cursor: фон редактора #1e1e1e и типичные акценты.
 _STYLE_DARK_MODERN_LIKE = {

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from core.fields.field_extractor import FieldExtractor
 from core.fields.field_normalizer import FieldNormalizer
 from core.fields.field_selector import FieldSelector

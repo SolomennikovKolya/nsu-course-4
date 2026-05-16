@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -5,7 +7,6 @@ from core.uddm.model import UDDM
 
 
 class BaseReverseConverter(ABC):
-
     @abstractmethod
     def convert(self, uddm: UDDM) -> str:
         """Конвертирует UDDM в другой текстовый формат."""

@@ -1,11 +1,11 @@
 import sys
-from pathlib import Path
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QIcon
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
+
+from app.context import get_theme_manager, init_app_context
 from app.settings import ICON_PATH
-from app.context import init_app_context, get_theme_manager
 from ui.main_window import MainWindow
 
 

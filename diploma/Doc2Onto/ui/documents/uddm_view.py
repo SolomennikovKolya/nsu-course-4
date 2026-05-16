@@ -1,4 +1,7 @@
-from typing import Optional
+"""Вкладка для отображения UDDM документа в различных форматах: дереве, HTML и сплошном тексте."""
+
+from __future__ import annotations
+
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QTabWidget, QTextBrowser, QTextEdit, QVBoxLayout, QWidget
@@ -14,7 +17,7 @@ class DocumentViewUddmTab(QWidget):
         super().__init__()
 
         self._tabs = QTabWidget()
-        self._document: Optional[Document] = None
+        self._document: Document | None = None
 
         mono = QFont("Consolas")
         if not mono.exactMatch():
@@ -43,7 +46,7 @@ class DocumentViewUddmTab(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._tabs)
 
-    def set_document(self, document: Optional[Document]) -> bool:
+    def set_document(self, document: Document | None) -> bool:
         if self._document is None and document is not None:
             self._tabs.setCurrentIndex(0)
         self._document = document

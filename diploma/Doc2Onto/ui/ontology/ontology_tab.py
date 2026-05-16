@@ -1,19 +1,36 @@
-from typing import Dict, List, Optional, Set, Tuple
+"""Вкладка для просмотра онтологии: дерево классов/индивидов, карточка индивида, входящие/исходящие связи."""
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from __future__ import annotations
+
+import contextlib
+
+from PySide6.QtCore import Qt, QTimer, Signal, SignalInstance
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QLineEdit, QLabel,
-    QTreeWidget, QTreeWidgetItem, QPushButton, QTableWidget, QTableWidgetItem,
-    QDialog, QTextEdit, QHeaderView, QFrame, QMessageBox,
-    QStackedWidget, QAbstractItemView,
+    QAbstractItemView,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
 from app.context import get_ontology_repository, get_theme_manager
-from app.settings import SUBJECT_NAMESPACE_IRI, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
-
+from app.settings import MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES, SUBJECT_NAMESPACE_IRI
 
 _NS = SUBJECT_NAMESPACE_IRI
 
@@ -22,7 +39,7 @@ def _ui():
     return get_theme_manager().current
 
 
-_META_RDF_TYPES: Set[URIRef] = {
+_META_RDF_TYPES: set[URIRef] = {
     OWL.Class,
     RDFS.Class,
     OWL.Restriction,
@@ -45,7 +62,7 @@ def short_iri(iri: str) -> str:
     if iri is None:
         return ""
     if iri.startswith(_NS):
-        return ":" + iri[len(_NS):]
+        return ":" + iri[len(_NS) :]
     if "#" in iri:
         return iri.rsplit("#", 1)[1]
     if "/" in iri:
@@ -53,9 +70,9 @@ def short_iri(iri: str) -> str:
     return iri
 
 
-def label_of(g: Graph, node: URIRef, lang: str = "ru") -> Optional[str]:
+def label_of(g: Graph, node: URIRef, lang: str = "ru") -> str | None:
     """rdfs:label@ru, либо rdfs:label без языка."""
-    fallback: Optional[str] = None
+    fallback: str | None = None
     for o in g.objects(node, RDFS.label):
         if isinstance(o, Literal):
             if (o.language or "") == lang:
@@ -65,9 +82,9 @@ def label_of(g: Graph, node: URIRef, lang: str = "ru") -> Optional[str]:
     return fallback
 
 
-def comment_of(g: Graph, node: URIRef, lang: str = "ru") -> Optional[str]:
+def comment_of(g: Graph, node: URIRef, lang: str = "ru") -> str | None:
     """rdfs:comment@ru, либо rdfs:comment без языка."""
-    fallback: Optional[str] = None
+    fallback: str | None = None
     for o in g.objects(node, RDFS.comment):
         if isinstance(o, Literal):
             if (o.language or "") == lang:
@@ -101,13 +118,10 @@ def is_domain_individual(g: Graph, s: URIRef) -> bool:
     """
     if is_named_individual(g, s):
         return True
-    for t in types_of(g, s):
-        if t not in _META_RDF_TYPES:
-            return True
-    return False
+    return any(t not in _META_RDF_TYPES for t in types_of(g, s))
 
 
-def classify_link_target(g: Graph, node: URIRef) -> Optional[str]:
+def classify_link_target(g: Graph, node: URIRef) -> str | None:
     """
     Определяет, куда должна вести ссылка из UI: `class`, `individual` или None.
 
@@ -121,15 +135,15 @@ def classify_link_target(g: Graph, node: URIRef) -> Optional[str]:
     return None
 
 
-def types_of(g: Graph, s: URIRef) -> Set[URIRef]:
-    out: Set[URIRef] = set()
+def types_of(g: Graph, s: URIRef) -> set[URIRef]:
+    out: set[URIRef] = set()
     for o in g.objects(s, RDF.type):
         if isinstance(o, URIRef) and o != OWL.NamedIndividual:
             out.add(o)
     return out
 
 
-def display_name(g: Graph, ind: URIRef, classes: Set[URIRef]) -> str:
+def display_name(g: Graph, ind: URIRef, classes: set[URIRef]) -> str:
     """Человекочитаемое имя индивида."""
     lbl = label_of(g, ind)
     if lbl:
@@ -171,9 +185,18 @@ def display_name(g: Graph, ind: URIRef, classes: Set[URIRef]) -> str:
             return n
 
     # Организация
-    org_classes = {URIRef(_NS + n) for n in
-                   ("Организация", "Университет", "СтруктурноеПодразделение",
-                    "Факультет", "Кафедра", "Лаборатория", "ВнешняяОрганизация")}
+    org_classes = {
+        URIRef(_NS + n)
+        for n in (
+            "Организация",
+            "Университет",
+            "СтруктурноеПодразделение",
+            "Факультет",
+            "Кафедра",
+            "Лаборатория",
+            "ВнешняяОрганизация",
+        )
+    }
     if classes & org_classes:
         for o in g.objects(ind, URIRef(_NS + "названиеОрганизации")):
             if isinstance(o, Literal):
@@ -188,32 +211,32 @@ def display_name(g: Graph, ind: URIRef, classes: Set[URIRef]) -> str:
     return short_iri(str(ind))
 
 
-def first(g: Graph, s: URIRef, p: URIRef) -> Optional[str]:
+def first(g: Graph, s: URIRef, p: URIRef) -> str | None:
     for o in g.objects(s, p):
         if isinstance(o, Literal):
             return str(o)
     return None
 
 
-def collect_classes_with_subclasses(g: Graph) -> List[URIRef]:
+def collect_classes_with_subclasses(g: Graph) -> list[URIRef]:
     """Все классы, кроме owl:NamedIndividual."""
-    out: Set[URIRef] = set()
+    out: set[URIRef] = set()
     for s in g.subjects(RDF.type, OWL.Class):
         if isinstance(s, URIRef):
             out.add(s)
     return sorted(out, key=lambda c: class_label(g, c))
 
 
-def class_hierarchy(g: Graph) -> Dict[URIRef, List[URIRef]]:
+def class_hierarchy(g: Graph) -> dict[URIRef, list[URIRef]]:
     """Возвращает {parent -> [children]} (только direct subClassOf)."""
-    children: Dict[URIRef, List[URIRef]] = {}
+    children: dict[URIRef, list[URIRef]] = {}
     for s, _, o in g.triples((None, RDFS.subClassOf, None)):
         if isinstance(s, URIRef) and isinstance(o, URIRef):
             children.setdefault(o, []).append(s)
     return children
 
 
-def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
+def all_classes_with_individuals(g: Graph) -> dict[URIRef, list[URIRef]]:
     """
     Возвращает отображение ``{класс -> [индивиды]}`` для дерева навигации.
 
@@ -222,21 +245,27 @@ def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
     «узком» классе (:Студент). При этом множественная принадлежность к
     независимым классам (без отношения subClassOf) сохраняется.
     """
-    raw_by_individual: Dict[URIRef, Set[URIRef]] = {}
+    raw_by_individual: dict[URIRef, set[URIRef]] = {}
 
     for s, _, c in g.triples((None, RDF.type, None)):
         if not isinstance(s, URIRef) or not isinstance(c, URIRef):
             continue
         if c == OWL.NamedIndividual:
             continue
-        if c == OWL.Class or c == OWL.Restriction or c == RDF.Property \
-           or c == OWL.ObjectProperty or c == OWL.DatatypeProperty \
-           or c == OWL.AnnotationProperty or c == OWL.FunctionalProperty \
-           or c == OWL.TransitiveProperty:
+        if (
+            c == OWL.Class
+            or c == OWL.Restriction
+            or c == RDF.Property
+            or c == OWL.ObjectProperty
+            or c == OWL.DatatypeProperty
+            or c == OWL.AnnotationProperty
+            or c == OWL.FunctionalProperty
+            or c == OWL.TransitiveProperty
+        ):
             continue
         raw_by_individual.setdefault(s, set()).add(c)
 
-    subclass_memo: Dict[Tuple[URIRef, URIRef], bool] = {}
+    subclass_memo: dict[tuple[URIRef, URIRef], bool] = {}
 
     def is_strict_subclass_of(child: URIRef, parent: URIRef) -> bool:
         if child == parent:
@@ -247,7 +276,7 @@ def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
             return cached
 
         stack = [child]
-        seen: Set[URIRef] = set()
+        seen: set[URIRef] = set()
         found = False
         while stack:
             cur = stack.pop()
@@ -267,16 +296,13 @@ def all_classes_with_individuals(g: Graph) -> Dict[URIRef, List[URIRef]]:
         subclass_memo[key] = found
         return found
 
-    out: Dict[URIRef, List[URIRef]] = {}
+    out: dict[URIRef, list[URIRef]] = {}
     for ind, classes in raw_by_individual.items():
-        minimal_classes: Set[URIRef] = set()
+        minimal_classes: set[URIRef] = set()
         for c in classes:
             # Убираем только те классы, для которых есть более конкретный тип
             # этого же индивида в рамках иерархии subClassOf.
-            overshadowed = any(
-                other != c and is_strict_subclass_of(other, c)
-                for other in classes
-            )
+            overshadowed = any(other != c and is_strict_subclass_of(other, c) for other in classes)
             if not overshadowed:
                 minimal_classes.add(c)
 
@@ -302,7 +328,7 @@ class SourceFactDialog(QDialog):
     document_requested = Signal(str)
     template_requested = Signal(str)
 
-    def __init__(self, ev, parent: Optional[QWidget] = None):
+    def __init__(self, ev, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Источник факта")
 
@@ -331,12 +357,12 @@ class SourceFactDialog(QDialog):
         buttons_row.setSpacing(8)
 
         if ev.doc_id:
-            doc_btn = QPushButton(f"Перейти к документу")
+            doc_btn = QPushButton("Перейти к документу")
             doc_btn.clicked.connect(lambda: self._on_navigate(ev.doc_id, self.document_requested))
             buttons_row.addWidget(doc_btn)
 
         if ev.template_id:
-            tpl_btn = QPushButton(f"Перейти к шаблону")
+            tpl_btn = QPushButton("Перейти к шаблону")
             tpl_btn.clicked.connect(lambda: self._on_navigate(ev.template_id, self.template_requested))
             buttons_row.addWidget(tpl_btn)
 
@@ -346,7 +372,7 @@ class SourceFactDialog(QDialog):
         # Прижимаем содержимое к верху — оставшееся место уходит вниз.
         layout.addStretch(1)
 
-    def _on_navigate(self, target_id: str, signal: Signal):
+    def _on_navigate(self, target_id: str, signal: SignalInstance):
         signal.emit(target_id)
         self.accept()
 
@@ -366,8 +392,8 @@ class IndividualCardWidget(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._graph: Optional[Graph] = None
-        self._iri: Optional[URIRef] = None
+        self._graph: Graph | None = None
+        self._iri: URIRef | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -435,11 +461,11 @@ class IndividualCardWidget(QWidget):
         if self._graph is not None and self._iri is not None:
             self.show_individual(self._iri)
 
-    def set_graph(self, graph: Optional[Graph]):
+    def set_graph(self, graph: Graph | None):
         self._graph = graph
         self.show_individual(None)
 
-    def show_individual(self, iri: Optional[URIRef]):
+    def show_individual(self, iri: URIRef | None):
         self._iri = iri
         if self._graph is None or iri is None:
             self._title_label.setText("Выберите индивид")
@@ -465,7 +491,7 @@ class IndividualCardWidget(QWidget):
         journal_index = repo.journal_active_facts_index()
 
         # фильтр: оставляем триплеты, где subject = iri, исключая rdf:type owl:NamedIndividual
-        rows: List[Tuple[URIRef, URIRef, object]] = []
+        rows: list[tuple[URIRef, URIRef, object]] = []
         for s, p, o in g.triples((iri, None, None)):
             if p == RDF.type and o == OWL.NamedIndividual:
                 continue
@@ -506,7 +532,7 @@ class IndividualCardWidget(QWidget):
             key = (s.n3(), p.n3(), o.n3())
             ev = journal_index.get(key)
             if ev is not None:
-                badge = QTableWidgetItem(f"[ист.]")
+                badge = QTableWidgetItem("[ист.]")
                 badge.setData(Qt.ItemDataRole.UserRole, ev)
                 badge.setToolTip("Клик — показать источник")
             else:
@@ -516,7 +542,7 @@ class IndividualCardWidget(QWidget):
             self._props_table.setItem(r, 2, badge)
 
         # --- входящие ---
-        inrows: List[Tuple[URIRef, URIRef]] = []
+        inrows: list[tuple[URIRef, URIRef]] = []
         for s, p, o in g.triples((None, None, iri)):
             if isinstance(s, URIRef) and isinstance(p, URIRef):
                 inrows.append((s, p))
@@ -592,10 +618,8 @@ class IndividualCardWidget(QWidget):
             sub.add((s, p, o))
         for s, p, o in self._graph.triples((None, None, self._iri)):
             sub.add((s, p, o))
-        try:
+        with contextlib.suppress(Exception):
             sub.bind("", _NS)
-        except Exception:
-            pass
         text = sub.serialize(format="turtle")
         if isinstance(text, bytes):
             text = text.decode("utf-8")
@@ -630,8 +654,8 @@ class ClassCardWidget(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._graph: Optional[Graph] = None
-        self._iri: Optional[URIRef] = None
+        self._graph: Graph | None = None
+        self._iri: URIRef | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -698,7 +722,7 @@ class ClassCardWidget(QWidget):
         if self._graph is not None and self._iri is not None:
             self.show_class(self._iri)
 
-    def set_graph(self, graph: Optional[Graph]):
+    def set_graph(self, graph: Graph | None):
         self._graph = graph
 
     def show_class(self, iri: URIRef):
@@ -715,9 +739,7 @@ class ClassCardWidget(QWidget):
             key=lambda c: class_label(g, c),
         )
         if parents:
-            self._parents_label.setText(
-                "Подкласс: " + ", ".join(class_label(g, p) for p in parents)
-            )
+            self._parents_label.setText("Подкласс: " + ", ".join(class_label(g, p) for p in parents))
         else:
             self._parents_label.setText("")
 
@@ -743,8 +765,8 @@ class ClassCardWidget(QWidget):
             self._subclasses_table.setItem(r, 0, item)
 
         # Индивиды (с учётом подклассов в TBox: считаем только direct rdf:type)
-        directs: List[URIRef] = []
-        for s, _, o in g.triples((None, RDF.type, iri)):
+        directs: list[URIRef] = []
+        for s, _, _o in g.triples((None, RDF.type, iri)):
             if isinstance(s, URIRef):
                 directs.append(s)
         directs.sort(key=lambda i: display_name(g, i, types_of(g, i)).lower())
@@ -794,7 +816,7 @@ class OntologyTab(QWidget):
     def __init__(self):
         super().__init__()
         self._repo = get_ontology_repository()
-        self._graph: Optional[Graph] = None
+        self._graph: Graph | None = None
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(180)
@@ -885,36 +907,40 @@ class OntologyTab(QWidget):
         roots = self._tbox_root_classes(g)
         relevant_classes = all_classes
 
-        added: Dict[URIRef, QTreeWidgetItem] = {}
+        added: dict[URIRef, QTreeWidgetItem] = {}
         for root in roots:
-            self._add_class_subtree(self._tree.invisibleRootItem(), root, g, cls_to_inds, relevant_classes, added)
+            self._add_class_subtree(
+                self._tree.invisibleRootItem(), root, g, cls_to_inds, relevant_classes, added
+            )
 
         # Добавим классы, не попавшие в обход от корней (на случай "рваной" TBox).
         for c in sorted(relevant_classes, key=lambda x: class_label(g, x)):
             if c not in added:
-                self._add_class_subtree(self._tree.invisibleRootItem(), c, g, cls_to_inds, relevant_classes, added)
+                self._add_class_subtree(
+                    self._tree.invisibleRootItem(), c, g, cls_to_inds, relevant_classes, added
+                )
 
         self._tree.expandAll()
         self._apply_filter()
 
     @staticmethod
-    def _tbox_root_classes(g: Graph) -> List[URIRef]:
-        all_cls: Set[URIRef] = set()
+    def _tbox_root_classes(g: Graph) -> list[URIRef]:
+        all_cls: set[URIRef] = set()
         for s in g.subjects(RDF.type, OWL.Class):
             if isinstance(s, URIRef):
                 all_cls.add(s)
         for s in g.subjects(RDF.type, RDFS.Class):
             if isinstance(s, URIRef):
                 all_cls.add(s)
-        non_roots: Set[URIRef] = set()
+        non_roots: set[URIRef] = set()
         for s, _, o in g.triples((None, RDFS.subClassOf, None)):
             if isinstance(s, URIRef) and isinstance(o, URIRef):
                 non_roots.add(s)
         return sorted(all_cls - non_roots, key=lambda c: class_label(g, c))
 
-    def _collect_class_closure(self, g: Graph, used: Set[URIRef]) -> Set[URIRef]:
+    def _collect_class_closure(self, g: Graph, used: set[URIRef]) -> set[URIRef]:
         """Включает в результат все used и их супер-классы."""
-        out: Set[URIRef] = set(used)
+        out: set[URIRef] = set(used)
         added = True
         while added:
             added = False
@@ -931,16 +957,16 @@ class OntologyTab(QWidget):
         parent: QTreeWidgetItem,
         cls: URIRef,
         g: Graph,
-        cls_to_inds: Dict[URIRef, List[URIRef]],
-        relevant: Set[URIRef],
-        added: Dict[URIRef, QTreeWidgetItem],
+        cls_to_inds: dict[URIRef, list[URIRef]],
+        relevant: set[URIRef],
+        added: dict[URIRef, QTreeWidgetItem],
     ):
         if cls in added:
             return
 
         # subclass children
-        children: List[URIRef] = []
-        for s, _, o in g.triples((None, RDFS.subClassOf, cls)):
+        children: list[URIRef] = []
+        for s, _, _o in g.triples((None, RDFS.subClassOf, cls)):
             if isinstance(s, URIRef) and (s in relevant or s in cls_to_inds):
                 children.append(s)
         children.sort(key=lambda c: class_label(g, c))
@@ -957,7 +983,7 @@ class OntologyTab(QWidget):
 
         # Индивиды этого класса
         inds = cls_to_inds.get(cls, [])
-        sortable: List[Tuple[str, URIRef]] = []
+        sortable: list[tuple[str, URIRef]] = []
         for ind in inds:
             sortable.append((display_name(g, ind, types_of(g, ind)).lower(), ind))
         sortable.sort(key=lambda t: t[0])
@@ -1030,7 +1056,9 @@ class OntologyTab(QWidget):
 
             data = item.data(0, Qt.ItemDataRole.UserRole)
             if isinstance(data, tuple) and data[0] == "individual" and self._graph is not None:
-                self_ok = self_ok or text in str(data[1]).lower() or self._individual_matches(URIRef(data[1]), text)
+                self_ok = (
+                    self_ok or text in str(data[1]).lower() or self._individual_matches(URIRef(data[1]), text)
+                )
 
             child_ok = False
             for j in range(item.childCount()):

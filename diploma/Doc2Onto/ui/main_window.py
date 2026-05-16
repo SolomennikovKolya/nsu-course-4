@@ -1,11 +1,15 @@
+"""Главное окно приложения, содержащее вкладки для управления документами, шаблонами и онтологией."""
+
+from __future__ import annotations
+
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from app.context import get_theme_manager
-from app.settings import APP_NAME, MAIN_WINDOW_W, MAIN_WINDOW_H
+from app.settings import APP_NAME, MAIN_WINDOW_H, MAIN_WINDOW_W
 from ui.documents.documents_tab import DocumentsTab
-from ui.templates.templates_tab import TemplatesTab
 from ui.ontology.ontology_tab import OntologyTab
 from ui.settings.settings_tab import SettingsTab
+from ui.templates.templates_tab import TemplatesTab
 
 
 class MainWindow(QMainWindow):

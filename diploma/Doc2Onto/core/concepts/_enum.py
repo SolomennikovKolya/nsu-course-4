@@ -6,10 +6,13 @@
 нет литералов (имя индивида само несёт смысл), а ``parse`` сводится к
 поиску совпадения с таблицей синонимов.
 """
-from typing import Iterable, Optional, Tuple
+
+from __future__ import annotations
+
+from collections.abc import Iterable
 
 
-def match_enum(value: str, table: Iterable[Tuple[str, str]]) -> Optional[str]:
+def match_enum(value: str, table: Iterable[tuple[str, str]]) -> str | None:
     """Подстрочный case-insensitive матч против таблицы синонимов.
 
     Если значение уже совпадает с одним из локальных имён индивидов

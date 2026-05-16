@@ -1,8 +1,12 @@
+"""
+Модуль для reconciliation — перенаправления новых индивидов на существующие в основном графе,
+если по natural-key литералам найден однозначный матч.
+"""
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
 
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import RDF
@@ -10,17 +14,16 @@ from rdflib.term import Node
 
 from app.settings import SUBJECT_NAMESPACE_IRI
 
-
 _NS = SUBJECT_NAMESPACE_IRI
 
 # --- Классы, по которым делается reconciliation ---
 
-PERSON_CLASSES: Set[URIRef] = {
+PERSON_CLASSES: set[URIRef] = {
     URIRef(_NS + "Персона"),
     URIRef(_NS + "Студент"),
     URIRef(_NS + "Сотрудник"),
 }
-ORGANIZATION_CLASSES: Set[URIRef] = {
+ORGANIZATION_CLASSES: set[URIRef] = {
     URIRef(_NS + "Организация"),
     URIRef(_NS + "Университет"),
     URIRef(_NS + "СтруктурноеПодразделение"),
@@ -29,8 +32,8 @@ ORGANIZATION_CLASSES: Set[URIRef] = {
     URIRef(_NS + "Лаборатория"),
     URIRef(_NS + "ВнешняяОрганизация"),
 }
-PROFILE_CLASSES: Set[URIRef] = {URIRef(_NS + "Профиль")}
-THESIS_CLASSES: Set[URIRef] = {URIRef(_NS + "ВКР")}
+PROFILE_CLASSES: set[URIRef] = {URIRef(_NS + "Профиль")}
+THESIS_CLASSES: set[URIRef] = {URIRef(_NS + "ВКР")}
 
 # --- Предикаты ---
 
@@ -44,9 +47,9 @@ P_THESIS_AUTHOR = URIRef(_NS + "авторВКР")
 
 @dataclass
 class ReconcileReport:
-    rewritten: Dict[str, str] = field(default_factory=dict)               # old_iri -> new_iri
-    ambiguous: List[Tuple[str, List[str]]] = field(default_factory=list)  # (old_iri, [candidates])
-    unmatched: List[str] = field(default_factory=list)
+    rewritten: dict[str, str] = field(default_factory=dict)  # old_iri -> new_iri
+    ambiguous: list[tuple[str, list[str]]] = field(default_factory=list)  # (old_iri, [candidates])
+    unmatched: list[str] = field(default_factory=list)
 
 
 class Reconciler:
@@ -58,14 +61,14 @@ class Reconciler:
     правки пользователя и доступен снимок активного графа.
     """
 
-    def __init__(self, ontology_repository=None, logger: Optional[logging.Logger] = None):
+    def __init__(self, ontology_repository=None, logger: logging.Logger | None = None):
         self._repo = ontology_repository
         self._logger = logger
 
     def rewrite(self, draft_graph: Graph, snapshot_graph: Graph) -> ReconcileReport:
         report = ReconcileReport()
 
-        plan: Dict[URIRef, URIRef] = {}
+        plan: dict[URIRef, URIRef] = {}
 
         for iri, classes in self._collect_typed_individuals(draft_graph):
             new_iri = self._resolve(iri, classes, draft_graph, snapshot_graph, report)
@@ -80,8 +83,8 @@ class Reconciler:
         return report
 
     @staticmethod
-    def _collect_typed_individuals(g: Graph) -> List[Tuple[URIRef, Set[URIRef]]]:
-        index: Dict[URIRef, Set[URIRef]] = {}
+    def _collect_typed_individuals(g: Graph) -> list[tuple[URIRef, set[URIRef]]]:
+        index: dict[URIRef, set[URIRef]] = {}
         for s, _, o in g.triples((None, RDF.type, None)):
             if isinstance(s, URIRef) and isinstance(o, URIRef):
                 index.setdefault(s, set()).add(o)
@@ -90,11 +93,11 @@ class Reconciler:
     def _resolve(
         self,
         iri: URIRef,
-        classes: Set[URIRef],
+        classes: set[URIRef],
         draft: Graph,
         snapshot: Graph,
         report: ReconcileReport,
-    ) -> Optional[URIRef]:
+    ) -> URIRef | None:
         if classes & PERSON_CLASSES:
             return self._resolve_person(iri, draft, snapshot, report)
         if classes & ORGANIZATION_CLASSES:
@@ -105,7 +108,7 @@ class Reconciler:
             return self._resolve_thesis(iri, draft, snapshot, report)
         return None
 
-    # ------------------------------------------------------------ Person
+    # ---------- Person ----------
 
     def _resolve_person(
         self,
@@ -113,7 +116,7 @@ class Reconciler:
         draft: Graph,
         snapshot: Graph,
         report: ReconcileReport,
-    ) -> Optional[URIRef]:
+    ) -> URIRef | None:
         last = self._first_string(draft, iri, P_LAST_NAME)
         first = self._first_string(draft, iri, P_FIRST_NAME)
         middle = self._first_string(draft, iri, P_MIDDLE_NAME)
@@ -127,7 +130,7 @@ class Reconciler:
         first_init = first_n[:1] if first_n else ""
         middle_init = middle_n[:1] if middle_n else ""
 
-        candidates: List[URIRef] = []
+        candidates: list[URIRef] = []
         for s in snapshot.subjects(P_LAST_NAME, None):
             if not isinstance(s, URIRef) or s == iri:
                 continue
@@ -160,9 +163,7 @@ class Reconciler:
             return False
         if new_full == cand_full:
             return True
-        if new_init and (cand_full.startswith(new_init) or new_full.startswith(cand_full[:1])):
-            return True
-        return False
+        return bool(new_init and (cand_full.startswith(new_init) or new_full.startswith(cand_full[:1])))
 
     @staticmethod
     def _match_middle(new_full: str, cand_full: str, new_init: str) -> bool:
@@ -172,18 +173,16 @@ class Reconciler:
             return True
         if new_full == cand_full:
             return True
-        if new_init and (cand_full.startswith(new_init) or new_full.startswith(cand_full[:1])):
-            return True
-        return False
+        return bool(new_init and (cand_full.startswith(new_init) or new_full.startswith(cand_full[:1])))
 
-    # ------------------------------------------------------------ Organization
+    # ---------- Organization ----------
 
-    def _resolve_organization(self, iri, draft, snapshot, report) -> Optional[URIRef]:
+    def _resolve_organization(self, iri, draft, snapshot, report) -> URIRef | None:
         names = {self._normalize_org(n) for n in self._all_strings(draft, iri, P_ORG_NAME) if n}
         if not names:
             return None
 
-        candidates: Set[URIRef] = set()
+        candidates: set[URIRef] = set()
         for s, _, o in snapshot.triples((None, P_ORG_NAME, None)):
             if not isinstance(s, URIRef) or s == iri:
                 continue
@@ -199,20 +198,20 @@ class Reconciler:
         if not value:
             return ""
         text = value.strip().lower().replace("ё", "е")
-        for ch in '«»"\'':
+        for ch in "«»\"'":
             text = text.replace(ch, "")
         text = " ".join(text.split())
         return text
 
-    # ------------------------------------------------------------ Profile
+    # ---------- Profile ----------
 
-    def _resolve_profile(self, iri, draft, snapshot, report) -> Optional[URIRef]:
+    def _resolve_profile(self, iri, draft, snapshot, report) -> URIRef | None:
         name = self._first_string(draft, iri, P_PROFILE_NAME)
         if not name:
             return None
         target = " ".join(name.strip().lower().replace("ё", "е").split())
 
-        candidates: Set[URIRef] = set()
+        candidates: set[URIRef] = set()
         for s, _, o in snapshot.triples((None, P_PROFILE_NAME, None)):
             if not isinstance(s, URIRef) or s == iri:
                 continue
@@ -224,57 +223,56 @@ class Reconciler:
 
         return self._select_unique_candidate(iri, list(candidates), report)
 
-    # ------------------------------------------------------------ Thesis
+    # ---------- Thesis ----------
 
-    def _resolve_thesis(self, iri, draft, snapshot, report) -> Optional[URIRef]:
+    def _resolve_thesis(self, iri, draft, snapshot, report) -> URIRef | None:
         author = next(iter(draft.objects(iri, P_THESIS_AUTHOR)), None)
         if not isinstance(author, URIRef):
             return None
 
-        candidates: Set[URIRef] = set()
+        candidates: set[URIRef] = set()
         for s in snapshot.subjects(P_THESIS_AUTHOR, author):
             if isinstance(s, URIRef) and s != iri:
                 candidates.add(s)
 
         return self._select_unique_candidate(iri, list(candidates), report)
 
-    # ------------------------------------------------------------ helpers
+    # ---------- helpers ----------
 
-    def _select_unique_candidate(self, iri, candidates, report) -> Optional[URIRef]:
+    def _select_unique_candidate(self, iri, candidates, report) -> URIRef | None:
         if not candidates:
             report.unmatched.append(str(iri))
             return None
         if len(candidates) > 1:
             report.ambiguous.append((str(iri), [str(c) for c in candidates]))
             self._warn(
-                f"Reconciler: для {iri} найдено {len(candidates)} кандидатов, "
-                f"объединение не выполняется"
+                f"Reconciler: для {iri} найдено {len(candidates)} кандидатов, объединение не выполняется"
             )
             return None
         return candidates[0]
 
     @staticmethod
-    def _first_string(g: Graph, s: Node, p: Node) -> Optional[str]:
+    def _first_string(g: Graph, s: Node, p: Node) -> str | None:
         for o in g.objects(s, p):
             if isinstance(o, Literal):
                 return str(o)
         return None
 
     @staticmethod
-    def _all_strings(g: Graph, s: Node, p: Node) -> List[str]:
+    def _all_strings(g: Graph, s: Node, p: Node) -> list[str]:
         return [str(o) for o in g.objects(s, p) if isinstance(o, Literal)]
 
     @staticmethod
-    def _types_of(g: Graph, s: Node) -> Set[URIRef]:
-        out: Set[URIRef] = set()
+    def _types_of(g: Graph, s: Node) -> set[URIRef]:
+        out: set[URIRef] = set()
         for o in g.objects(s, RDF.type):
             if isinstance(o, URIRef):
                 out.add(o)
         return out
 
     @staticmethod
-    def _apply_plan(g: Graph, plan: Dict[URIRef, URIRef]):
-        replacements: List[Tuple[Tuple[Node, Node, Node], Tuple[Node, Node, Node]]] = []
+    def _apply_plan(g: Graph, plan: dict[URIRef, URIRef]):
+        replacements: list[tuple[tuple[Node, Node, Node], tuple[Node, Node, Node]]] = []
         for s, p, o in g:
             ns = plan.get(s, s) if isinstance(s, URIRef) else s
             no = plan.get(o, o) if isinstance(o, URIRef) else o

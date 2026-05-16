@@ -1,3 +1,7 @@
+"""Вкладка с настройками приложения: темой оформления и далее — по мере необходимости."""
+
+from __future__ import annotations
+
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,

@@ -13,10 +13,13 @@
 промежуточные результаты пайплайна (Extractor + Normalizer). Стадия
 GraphBuilder работает только с ``value_normalized``.
 """
+
+from __future__ import annotations
+
 import json
 from enum import Enum, auto
 from pathlib import Path
-from typing import Dict, Optional, TypedDict
+from typing import TypedDict
 
 from utils.general import parse_dict_field
 
@@ -24,35 +27,35 @@ from utils.general import parse_dict_field
 class FieldExtractionData(TypedDict):
     # --- декларативное извлечение (Extractor: selector + extractor) ---
     extracted_temp: bool
-    value_temp: Optional[str]
-    error_temp: Optional[str]
+    value_temp: str | None
+    error_temp: str | None
 
     # --- LLM-этап Extractor (проверка/коррекция template-значения) ---
     # ``extracted_llm`` трёхзначный:
     #   None  — LLM экстракция ещё не запускалась для этого поля;
     #   True  — LLM экстракция/коррекция прошла успешно;
     #   False — LLM экстракция не удалась.
-    extracted_llm: Optional[bool]
-    value_llm: Optional[str]
-    error_llm: Optional[str]
+    extracted_llm: bool | None
+    value_llm: str | None
+    error_llm: str | None
 
     # --- этап Normalizer (концепт + примитивы FieldNormalizer) ---
     # ``normalized`` строго трёхзначный:
     #   None  — стадия Normalizer ещё не запускалась для этого поля;
     #   True  — нормализация прошла, ``value_normalized`` содержит каноническую строку;
     #   False — нормализатор отверг raw-значение, ``error_normalized`` содержит причину.
-    normalized: Optional[bool]
-    value_normalized: Optional[str]
-    error_normalized: Optional[str]
+    normalized: bool | None
+    value_normalized: str | None
+    error_normalized: str | None
 
 
 class FieldSituation(Enum):
     """Сводный статус поля, удобный для UI и логов."""
 
-    OK = auto()                 # извлечено + нормализовано
-    CORRECTED_LLM = auto()      # template-значение исправлено LLM-ом, нормализация прошла
-    FOUND_BY_LLM = auto()       # template ничего не дал, LLM нашёл, нормализация прошла
-    NOT_NORMALIZED = auto()     # значение есть (template или LLM), но Normalizer его отверг
+    OK = auto()  # извлечено + нормализовано
+    CORRECTED_LLM = auto()  # template-значение исправлено LLM-ом, нормализация прошла
+    FOUND_BY_LLM = auto()  # template ничего не дал, LLM нашёл, нормализация прошла
+    NOT_NORMALIZED = auto()  # значение есть (template или LLM), но Normalizer его отверг
     EXTRACTION_FAILED = auto()  # ни template, ни LLM значения не дали
 
     def short_msg(self) -> str:
@@ -82,9 +85,9 @@ class ExtractionResult:
     """Все собранные данные по полям документа: extraction + normalization."""
 
     def __init__(self):
-        self.fields: Dict[str, FieldExtractionData] = {}
+        self.fields: dict[str, FieldExtractionData] = {}
 
-    def get_field(self, field_name: str) -> Optional[FieldExtractionData]:
+    def get_field(self, field_name: str) -> FieldExtractionData | None:
         return self.fields.get(field_name)
 
     # --- extraction predicates ---
@@ -112,36 +115,36 @@ class ExtractionResult:
         return self.fields.get(field_name, {}).get("normalized") is not None
 
     def is_all_normalized(self) -> bool:
-        return all(self.is_normalized(name) for name in self.fields.keys())
+        return all(self.is_normalized(name) for name in self.fields)
 
     # --- value getters ---
 
-    def get_value_temp(self, field_name: str) -> Optional[str]:
+    def get_value_temp(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("value_temp")
 
-    def get_value_llm(self, field_name: str) -> Optional[str]:
+    def get_value_llm(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("value_llm")
 
-    def get_value_raw(self, field_name: str) -> Optional[str]:
+    def get_value_raw(self, field_name: str) -> str | None:
         """Извлечённое сырое значение (LLM в приоритете, fallback на template)."""
         return self.get_value_llm(field_name) or self.get_value_temp(field_name)
 
-    def get_value_normalized(self, field_name: str) -> Optional[str]:
+    def get_value_normalized(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("value_normalized")
 
-    def get_value_final(self, field_name: str) -> Optional[str]:
+    def get_value_final(self, field_name: str) -> str | None:
         """Лучшее значение для UI: нормализованное, если есть; иначе сырое."""
         return self.get_value_normalized(field_name) or self.get_value_raw(field_name)
 
     # --- error getters ---
 
-    def get_error_temp(self, field_name: str) -> Optional[str]:
+    def get_error_temp(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("error_temp")
 
-    def get_error_llm(self, field_name: str) -> Optional[str]:
+    def get_error_llm(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("error_llm")
 
-    def get_error_normalized(self, field_name: str) -> Optional[str]:
+    def get_error_normalized(self, field_name: str) -> str | None:
         return self.fields.get(field_name, {}).get("error_normalized")
 
     # --- situation ---
@@ -183,14 +186,14 @@ class ExtractionResult:
         field_name: str,
         *,
         extracted_temp: bool = False,
-        value_temp: Optional[str] = None,
-        error_temp: Optional[str] = None,
-        extracted_llm: Optional[bool] = None,
-        value_llm: Optional[str] = None,
-        error_llm: Optional[str] = None,
-        normalized: Optional[bool] = None,
-        value_normalized: Optional[str] = None,
-        error_normalized: Optional[str] = None,
+        value_temp: str | None = None,
+        error_temp: str | None = None,
+        extracted_llm: bool | None = None,
+        value_llm: str | None = None,
+        error_llm: str | None = None,
+        normalized: bool | None = None,
+        value_normalized: str | None = None,
+        error_normalized: str | None = None,
     ):
         self.fields[field_name] = {
             "extracted_temp": extracted_temp,
@@ -220,7 +223,7 @@ class ExtractionResult:
         self.fields[field_name]["value_temp"] = None
         self.fields[field_name]["error_temp"] = error
 
-    def set_value_llm(self, field_name: str, value: str, warning: Optional[str] = None):
+    def set_value_llm(self, field_name: str, value: str, warning: str | None = None):
         self.ensure_field(field_name)
         self.fields[field_name]["extracted_llm"] = True
         self.fields[field_name]["value_llm"] = value
@@ -253,7 +256,7 @@ class ExtractionResult:
     # --- persistence ---
 
     @staticmethod
-    def load(path: Path) -> "ExtractionResult":
+    def load(path: Path) -> ExtractionResult:
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
             if not isinstance(data, dict):
@@ -265,7 +268,7 @@ class ExtractionResult:
                 raise ValueError(f"Invalid record in extraction result file: {path}")
             result.set_result(
                 field_name,
-                extracted_temp=parse_dict_field(item, "extracted_temp", exp_type=bool, default=False),
+                extracted_temp=bool(parse_dict_field(item, "extracted_temp", exp_type=bool, default=False)),
                 value_temp=parse_dict_field(item, "value_temp", exp_type=str, default=None),
                 error_temp=parse_dict_field(item, "error_temp", exp_type=str, default=None),
                 extracted_llm=parse_dict_field(item, "extracted_llm", exp_type=bool, default=None),

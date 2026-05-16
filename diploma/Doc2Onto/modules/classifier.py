@@ -1,9 +1,13 @@
-from logging import WARNING, INFO
+"""Модуль классификации документов по шаблонам."""
+
+from __future__ import annotations
+
+from logging import INFO, WARNING
 
 from app.context import get_temp_manager
-from modules.base import BaseModule, ModuleResult
 from models.document import DocumentContext
 from models.template import TemplateContext
+from modules.base import BaseModule, ModuleResult
 
 
 class Classifier(BaseModule):
@@ -23,7 +27,10 @@ class Classifier(BaseModule):
                 self.log(INFO, f'Документ уже классифицирован как "{temp.name}"')
                 return ModuleResult.ok()
 
-            self.log(WARNING, f'Несоответствие: документ имеет идентификатор шаблона "{doc.doc_class}" но шаблон не найден')
+            self.log(
+                WARNING,
+                f'Несоответствие: документ имеет идентификатор шаблона "{doc.doc_class}" но шаблон не найден',
+            )
 
         # Автоматическая классификация
         uddm = ctx.uddm

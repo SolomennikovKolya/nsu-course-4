@@ -1,13 +1,16 @@
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import List, Optional, TypeVar, Generic
-import json
+"""Абстрактный базовый класс для менеджеров хранилища."""
+
+from __future__ import annotations
+
 import hashlib
-from typing import Iterator
+import json
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Generic, TypeVar
 
 from app.settings import META_FILENAME
 from utils.general import smart_asdict
-
 
 T = TypeVar("T")  # Объект, которым управляет менеджер
 A = TypeVar("A")  # Аргумент для создания объекта
@@ -21,7 +24,7 @@ class BaseManager(ABC, Generic[T, A]):
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
-    def get(self, name: str) -> Optional[T]:
+    def get(self, name: str) -> T | None:
         pass
 
     @abstractmethod
@@ -36,10 +39,6 @@ class BaseManager(ABC, Generic[T, A]):
     def rename(self, obj: T, new_name: str):
         pass
 
-    @abstractmethod
-    def delete(self, obj: T):
-        pass
-
     def iterate(self) -> Iterator[T]:
         """Итератор по всем объектам."""
         if not self.base_dir.exists():
@@ -50,7 +49,7 @@ class BaseManager(ABC, Generic[T, A]):
             if obj:
                 yield obj
 
-    def list(self) -> List[T]:
+    def list(self) -> list[T]:
         """Возвращает список всех существующих объектов."""
         return list(self.iterate())
 
@@ -75,7 +74,7 @@ class BaseManager(ABC, Generic[T, A]):
         """Возвращает путь к файлу метаданных в директории."""
         return directory / META_FILENAME
 
-    def _load_meta(self, directory: Path) -> Optional[dict]:
+    def _load_meta(self, directory: Path) -> dict | None:
         """Загружает метаданные из мета-файла в заданной директории."""
         if not directory.exists() or not directory.is_dir():
             return None

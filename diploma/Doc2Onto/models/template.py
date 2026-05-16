@@ -1,23 +1,26 @@
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, List
+"""DTO шаблонов обработки документов, а также контекст шаблона для оптимальной работы с тяжеловесными данными."""
+
+from __future__ import annotations
+
 import importlib.util
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
 
 from app.context import get_logger
-from core.template.base import BaseTemplateCode
 from core.fields.field import Field
+from core.template.base import BaseTemplateCode
 
 
 @dataclass
 class Template:
     """Представляет информацию о шаблоне обработки документов."""
 
-    id: str                            # Уникальный идентификатор (имя каталога хранения)
-    directory: Path                    # Директория, где хранятся данные шаблона
-    name: str                          # Отображаемое название / класс документа
-    description: Optional[str] = None  # Описание шаблона
+    id: str  # Уникальный идентификатор (имя каталога хранения)
+    directory: Path  # Директория, где хранятся данные шаблона
+    name: str  # Отображаемое название / класс документа
+    description: str | None = None  # Описание шаблона
 
     def code_file_path(self):
         return self.directory / "code.py"
@@ -37,11 +40,11 @@ class TemplateContext:
 
     def __init__(self, temp: Template):
         self.template: Template = temp
-        self._code: Optional[BaseTemplateCode] = None
-        self._fields: Optional[List[Field]] = None
+        self._code: BaseTemplateCode | None = None
+        self._fields: list[Field] | None = None
 
     @property
-    def code(self) -> Optional[BaseTemplateCode]:
+    def code(self) -> BaseTemplateCode | None:
         if self._code is not None:
             return self._code
         try:
@@ -51,21 +54,25 @@ class TemplateContext:
             return None
 
     @code.setter
-    def code(self, code: Optional[BaseTemplateCode]):
+    def code(self, code: BaseTemplateCode | None):
         self._code = code
 
     @property
-    def fields(self) -> Optional[List[Field]]:
+    def fields(self) -> list[Field] | None:
         if self._fields is not None:
             return self._fields
         try:
-            self._fields = self.code.fields()
+            code = self.code
+            if code is None:
+                return None
+
+            self._fields = code.fields()
             return self._fields
         except Exception:
             return None
 
     @fields.setter
-    def fields(self, fields: Optional[List[Field]]):
+    def fields(self, fields: list[Field] | None):
         self._fields = fields
 
     def unload(self):
@@ -100,7 +107,7 @@ class TemplateCodeLoader:
                     raise ValueError(f"Метод «{name}» отсутствует или не является вызываемым.")
 
         except Exception:
-            get_logger().error(f"[TemplateCodeLoader] Error validating template code", exc_info=True)
+            get_logger().error("[TemplateCodeLoader] Error validating template code", exc_info=True)
             raise
 
     @staticmethod
@@ -109,23 +116,25 @@ class TemplateCodeLoader:
         try:
             code_path = template.code_file_path()
             if not code_path.exists():
-                raise FileNotFoundError(f"Code file not found for template")
+                raise FileNotFoundError("Code file not found for template")
 
             module_name = f"template_{template.id.replace('-', '_')}"
 
             spec = importlib.util.spec_from_file_location(module_name, code_path)
             if spec is None or spec.loader is None:
-                raise ValueError(f"Invalid spec for template")
+                raise ValueError("Invalid spec for template")
 
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
 
             if not hasattr(module, "TemplateCode"):
-                raise ValueError(f"TemplateCode class not found in code module")
+                raise ValueError("TemplateCode class not found in code module")
 
             return module.TemplateCode()
 
         except Exception:
-            get_logger().error(f"[TemplateCodeLoader] Error loading template code for {template.name}", exc_info=True)
+            get_logger().error(
+                f"[TemplateCodeLoader] Error loading template code for {template.name}", exc_info=True
+            )
             raise

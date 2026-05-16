@@ -1,10 +1,13 @@
+"""Менеджер для шаблонов документов."""
+
+from __future__ import annotations
+
 import shutil
 import uuid
 from pathlib import Path
-from typing import Optional
 
-from app.settings import TEMPLATES_DIR, TEMPLATE_CODE_EXAMPLE_PATH
 from app.context import get_logger
+from app.settings import TEMPLATE_CODE_EXAMPLE_PATH, TEMPLATES_DIR
 from models.template import Template
 from storage.base_manager import BaseManager
 
@@ -29,7 +32,7 @@ class TemplateManager(BaseManager[Template, str]):
         super().__init__(base_dir)
         self.logger = get_logger()
 
-    def get(self, template_id: str) -> Optional[Template]:
+    def get(self, template_id: str) -> Template | None:
         """Возвращает шаблон по ID."""
         directory = self.base_dir / template_id
         if not directory.is_dir():

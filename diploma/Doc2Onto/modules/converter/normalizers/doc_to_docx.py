@@ -10,11 +10,12 @@
 Требуется установленный LibreOffice и/или Word; иначе ``normalize`` завершится ошибкой с пояснением.
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, Optional
 
 from modules.converter.normalizers.base import BaseNormalizer
 
@@ -31,13 +32,11 @@ class DocToDocx(BaseNormalizer):
         dest = file_path.with_suffix(".docx")
         parent = file_path.parent
 
-        if self._convert_with_libreoffice(file_path, parent):
-            if dest.is_file():
-                return dest
+        if self._convert_with_libreoffice(file_path, parent) and dest.is_file():
+            return dest
 
-        if self._convert_with_word_com(file_path, dest):
-            if dest.is_file():
-                return dest
+        if self._convert_with_word_com(file_path, dest) and dest.is_file():
+            return dest
 
         raise RuntimeError(
             "Не удалось преобразовать .doc в .docx. Установите LibreOffice "
@@ -46,8 +45,8 @@ class DocToDocx(BaseNormalizer):
             "На Windows при установленном Microsoft Word можно установить пакет pywin32."
         )
 
-    def _libreoffice_candidates(self) -> List[Path]:
-        candidates: List[Path] = []
+    def _libreoffice_candidates(self) -> list[Path]:
+        candidates: list[Path] = []
         env = os.environ.get("SOFFICE_PATH")
         if env:
             candidates.append(Path(env))
@@ -57,15 +56,15 @@ class DocToDocx(BaseNormalizer):
                 candidates.append(Path(found))
         if os.name == "nt":
             for base in (
-                os.environ.get("ProgramFiles", r"C:\Program Files"),
-                os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                os.environ.get("ProgramFiles", r"C:\Program Files"),  # noqa: SIM112
+                os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),  # noqa: SIM112
             ):
                 root = Path(base)
                 candidates.append(root / "LibreOffice" / "program" / "soffice.exe")
                 for child in sorted(root.glob("LibreOffice *"), reverse=True):
                     candidates.append(child / "program" / "soffice.exe")
         seen: set[str] = set()
-        unique: List[Path] = []
+        unique: list[Path] = []
         for p in candidates:
             if not p.is_file():
                 continue

@@ -9,16 +9,15 @@
 
 Сводка кешируется по mtime файла схемы.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-from rdflib import Graph, Literal, Namespace, OWL, RDF, RDFS, URIRef
+from rdflib import OWL, RDF, RDFS, Graph, Literal, Namespace, URIRef
 
 from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
-
 
 _ONTO = Namespace(SUBJECT_NAMESPACE_IRI)
 _MERGE_POLICY = _ONTO["mergePolicy"]
@@ -31,7 +30,7 @@ _MERGE_POLICY = _ONTO["mergePolicy"]
 # (Направление с названием, ВКР от студента, Практика из тройки) —
 # отдельные методы билдера. Эта информация зашита здесь, потому что в
 # TBox её нет.
-_IRI_GUIDE: Dict[str, Optional[str]] = {
+_IRI_GUIDE: dict[str, str | None] = {
     "Персона": 'b.individual("<поле_фио>", PersonConcept, role=ONTO.Персона) — IRI = :Персона_<sha1>, литералы :фио/:фамилия/:имя/:отчество и тип добавляются автоматически',
     "Студент": 'b.individual("<поле_фио>", PersonConcept, role=ONTO.Студент) — то же, плюс тип :Студент',
     "Сотрудник": 'b.individual("<поле_фио>", PersonConcept, role=ONTO.Сотрудник) — то же, плюс тип :Сотрудник',
@@ -45,8 +44,8 @@ _IRI_GUIDE: Dict[str, Optional[str]] = {
     "Группа": 'b.individual("<поле_номера>", GroupConcept) — IRI = :Группа_<номер>, литерал :номерГруппы',
     "НаправлениеПодготовки": 'b.direction("<поле_кода>", name_field="<поле_названия>") — IRI = :Направление_<код>, литералы :кодНаправления и :названиеНаправления',
     "Профиль": 'b.individual("<поле_названия>", ProfileConcept) — IRI = :Профиль_<sha1>, литерал :названиеПрофиля',
-    "ВКР": 'b.thesis(student=<student_iri>) — IRI = :ВКР_<sha1>(student), тип :ВКР, связь :авторВКР. Тема — отдельным литералом :темаВКР',
-    "Практика": 'b.practice(student=<student_iri>, start_date=<date_literal>) — IRI = :Практика_<sha1>(student|date). Вид практики — отдельным литералом :видПрактики (свободная строка)',
+    "ВКР": "b.thesis(student=<student_iri>) — IRI = :ВКР_<sha1>(student), тип :ВКР, связь :авторВКР. Тема — отдельным литералом :темаВКР",
+    "Практика": "b.practice(student=<student_iri>, start_date=<date_literal>) — IRI = :Практика_<sha1>(student|date). Вид практики — отдельным литералом :видПрактики (свободная строка)",
     "Должность": 'b.individual("<поле_должности>", PositionConcept) — выбирает индивид перечисления :Должность_X',
     "УченаяСтепень": 'b.individual("<поле_степени>", DegreeConcept) — выбирает индивид перечисления :УченаяСтепень_X',
     "УченоеЗвание": 'b.individual("<поле_звания>", TitleConcept) — выбирает индивид перечисления :УченоеЗвание_X',
@@ -68,7 +67,7 @@ class _ClassInfo:
     local: str
     label: str
     comment: str
-    parent: Optional[str]
+    parent: str | None
 
 
 @dataclass(frozen=True)
@@ -87,10 +86,10 @@ class _IndividualInfo:
     label: str
 
 
-_cache: Dict[str, Tuple[float, str]] = {}
+_cache: dict[str, tuple[float, str]] = {}
 
 
-def build_schema_summary(schema_path: Optional[Path] = None) -> str:
+def build_schema_summary(schema_path: Path | None = None) -> str:
     """Возвращает Markdown-сводку схемы; кеш — по mtime файла."""
     path = Path(schema_path) if schema_path else ONTOLOGY_SCHEMA_PATH
     if not path.exists():
@@ -115,9 +114,9 @@ def _build(path: Path) -> str:
     obj_props, data_props = _collect_properties(g)
     enum_individuals = _collect_enum_individuals(g, classes)
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("Базовый namespace: " + SUBJECT_NAMESPACE_IRI)
-    lines.append('Доступ из шаблона: ONTO.<local_name>, например ONTO.Студент или ONTO.фамилия.')
+    lines.append("Доступ из шаблона: ONTO.<local_name>, например ONTO.Студент или ONTO.фамилия.")
     lines.append("")
 
     lines.append("### Иерархия классов")
@@ -147,15 +146,11 @@ def _build(path: Path) -> str:
     lines.append("")
 
     lines.append("### Политики слияния")
-    lines.append(
-        "- set — единственное стабильное значение, замена без учёта дат."
-    )
+    lines.append("- set — единственное стабильное значение, замена без учёта дат.")
     lines.append(
         "- set-by-date — единственное значение во времени, новое заменяет старое только если effective_date ≥ старого."
     )
-    lines.append(
-        "- add — множественное значение, новые факты добавляются, старые сохраняются."
-    )
+    lines.append("- add — множественное значение, новые факты добавляются, старые сохраняются.")
     lines.append("")
 
     lines.append("### Практики работы с IRI и литералами")
@@ -186,27 +181,27 @@ def _build(path: Path) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _collect_classes(g: Graph) -> Dict[str, _ClassInfo]:
+def _collect_classes(g: Graph) -> dict[str, _ClassInfo]:
     """Возвращает словарь local_name → _ClassInfo для классов из нашей онтологии."""
-    classes: Dict[str, _ClassInfo] = {}
+    classes: dict[str, _ClassInfo] = {}
 
     for s in g.subjects(RDF.type, OWL.Class):
         if not isinstance(s, URIRef) or not str(s).startswith(SUBJECT_NAMESPACE_IRI):
             continue
-        local = str(s)[len(SUBJECT_NAMESPACE_IRI):]
+        local = str(s)[len(SUBJECT_NAMESPACE_IRI) :]
         if not local:
             continue
 
         label = _ru_label(g, s) or local
         comment = _ru_comment(g, s) or ""
 
-        parent_local: Optional[str] = None
+        parent_local: str | None = None
         for parent in g.objects(s, RDFS.subClassOf):
             if not isinstance(parent, URIRef):
                 continue
             parent_str = str(parent)
             if parent_str.startswith(SUBJECT_NAMESPACE_IRI):
-                parent_local = parent_str[len(SUBJECT_NAMESPACE_IRI):]
+                parent_local = parent_str[len(SUBJECT_NAMESPACE_IRI) :]
                 break
 
         classes[local] = _ClassInfo(local, label, comment, parent_local)
@@ -214,10 +209,10 @@ def _collect_classes(g: Graph) -> Dict[str, _ClassInfo]:
     return classes
 
 
-def _collect_properties(g: Graph) -> Tuple[List[_PropertyInfo], List[_PropertyInfo]]:
+def _collect_properties(g: Graph) -> tuple[list[_PropertyInfo], list[_PropertyInfo]]:
     """Возвращает (object_properties, data_properties) — каждое отсортировано по local-name."""
-    obj_props: List[_PropertyInfo] = []
-    data_props: List[_PropertyInfo] = []
+    obj_props: list[_PropertyInfo] = []
+    data_props: list[_PropertyInfo] = []
 
     for prop_type, target in (
         (OWL.ObjectProperty, obj_props),
@@ -229,7 +224,7 @@ def _collect_properties(g: Graph) -> Tuple[List[_PropertyInfo], List[_PropertyIn
         for s in g.subjects(RDF.type, prop_type):
             if not isinstance(s, URIRef) or not str(s).startswith(SUBJECT_NAMESPACE_IRI):
                 continue
-            local = str(s)[len(SUBJECT_NAMESPACE_IRI):]
+            local = str(s)[len(SUBJECT_NAMESPACE_IRI) :]
             if not local or local == "mergePolicy":
                 continue
             target.append(
@@ -248,22 +243,20 @@ def _collect_properties(g: Graph) -> Tuple[List[_PropertyInfo], List[_PropertyIn
     return obj_props, data_props
 
 
-def _collect_enum_individuals(
-    g: Graph, classes: Dict[str, _ClassInfo]
-) -> Dict[str, List[_IndividualInfo]]:
+def _collect_enum_individuals(g: Graph, classes: dict[str, _ClassInfo]) -> dict[str, list[_IndividualInfo]]:
     """Сгруппированные по классу-перечислению именованные индивиды."""
-    by_class: Dict[str, List[_IndividualInfo]] = {}
+    by_class: dict[str, list[_IndividualInfo]] = {}
 
     for s in g.subjects(RDF.type, OWL.NamedIndividual):
         if not isinstance(s, URIRef) or not str(s).startswith(SUBJECT_NAMESPACE_IRI):
             continue
-        local = str(s)[len(SUBJECT_NAMESPACE_IRI):]
+        local = str(s)[len(SUBJECT_NAMESPACE_IRI) :]
         label = _ru_label(g, s) or local
 
         for typ in g.objects(s, RDF.type):
             if not isinstance(typ, URIRef) or not str(typ).startswith(SUBJECT_NAMESPACE_IRI):
                 continue
-            typ_local = str(typ)[len(SUBJECT_NAMESPACE_IRI):]
+            typ_local = str(typ)[len(SUBJECT_NAMESPACE_IRI) :]
             if typ_local == "NamedIndividual" or typ_local == "MergePolicy":
                 continue
             if typ_local not in classes:
@@ -275,14 +268,14 @@ def _collect_enum_individuals(
     return by_class
 
 
-def _render_class_tree(classes: Dict[str, _ClassInfo]) -> List[str]:
-    children: Dict[Optional[str], List[str]] = {}
+def _render_class_tree(classes: dict[str, _ClassInfo]) -> list[str]:
+    children: dict[str | None, list[str]] = {}
     for c in classes.values():
         children.setdefault(c.parent, []).append(c.local)
     for siblings in children.values():
         siblings.sort()
 
-    lines: List[str] = []
+    lines: list[str] = []
 
     def render(local: str, depth: int):
         info = classes[local]
@@ -300,10 +293,10 @@ def _render_class_tree(classes: Dict[str, _ClassInfo]) -> List[str]:
     return lines
 
 
-def _render_enum_individuals(by_class: Dict[str, List[_IndividualInfo]]) -> List[str]:
+def _render_enum_individuals(by_class: dict[str, list[_IndividualInfo]]) -> list[str]:
     if not by_class:
         return ["(перечислений нет)"]
-    lines: List[str] = []
+    lines: list[str] = []
     for cls in sorted(by_class.keys()):
         lines.append(f":{cls}:")
         for ind in by_class[cls]:
@@ -311,22 +304,20 @@ def _render_enum_individuals(by_class: Dict[str, List[_IndividualInfo]]) -> List
     return lines
 
 
-def _render_property_table(props: List[_PropertyInfo]) -> List[str]:
+def _render_property_table(props: list[_PropertyInfo]) -> list[str]:
     if not props:
         return ["(нет свойств)"]
     header = "| IRI | label | domain → range | policy |"
     sep = "|---|---|---|---|"
     rows = [header, sep]
     for p in props:
-        rows.append(
-            f"| :{p.local} | {p.label} | {p.domain} → {p.range} | {p.policy} |"
-        )
+        rows.append(f"| :{p.local} | {p.label} | {p.domain} → {p.range} | {p.policy} |")
     return rows
 
 
-def _ru_label(g: Graph, s: URIRef) -> Optional[str]:
+def _ru_label(g: Graph, s: URIRef) -> str | None:
     """Возвращает rdfs:label с предпочтением русского языка."""
-    fallback: Optional[str] = None
+    fallback: str | None = None
     for lit in g.objects(s, RDFS.label):
         if not isinstance(lit, Literal):
             continue
@@ -337,8 +328,8 @@ def _ru_label(g: Graph, s: URIRef) -> Optional[str]:
     return fallback
 
 
-def _ru_comment(g: Graph, s: URIRef) -> Optional[str]:
-    fallback: Optional[str] = None
+def _ru_comment(g: Graph, s: URIRef) -> str | None:
+    fallback: str | None = None
     for lit in g.objects(s, RDFS.comment):
         if not isinstance(lit, Literal):
             continue
@@ -349,37 +340,37 @@ def _ru_comment(g: Graph, s: URIRef) -> Optional[str]:
     return fallback
 
 
-def _first_object(g: Graph, s: URIRef, p: URIRef) -> Optional[URIRef]:
+def _first_object(g: Graph, s: URIRef, p: URIRef) -> URIRef | None:
     for o in g.objects(s, p):
         if isinstance(o, URIRef):
             return o
     return None
 
 
-def _short_iri(node: Optional[URIRef]) -> str:
+def _short_iri(node: URIRef | None) -> str:
     if node is None:
         return "—"
     s = str(node)
     if s.startswith(SUBJECT_NAMESPACE_IRI):
-        return ":" + s[len(SUBJECT_NAMESPACE_IRI):]
+        return ":" + s[len(SUBJECT_NAMESPACE_IRI) :]
     if s.startswith("http://www.w3.org/2001/XMLSchema#"):
-        return "xsd:" + s[len("http://www.w3.org/2001/XMLSchema#"):]
+        return "xsd:" + s[len("http://www.w3.org/2001/XMLSchema#") :]
     if s.startswith("http://www.w3.org/2000/01/rdf-schema#"):
-        return "rdfs:" + s[len("http://www.w3.org/2000/01/rdf-schema#"):]
+        return "rdfs:" + s[len("http://www.w3.org/2000/01/rdf-schema#") :]
     if s.startswith("http://www.w3.org/2002/07/owl#"):
-        return "owl:" + s[len("http://www.w3.org/2002/07/owl#"):]
+        return "owl:" + s[len("http://www.w3.org/2002/07/owl#") :]
     if s.startswith("http://www.w3.org/1999/02/22-rdf-syntax-ns#"):
-        return "rdf:" + s[len("http://www.w3.org/1999/02/22-rdf-syntax-ns#"):]
+        return "rdf:" + s[len("http://www.w3.org/1999/02/22-rdf-syntax-ns#") :]
     return f"<{s}>"
 
 
-def _policy_label(node: Optional[URIRef]) -> str:
+def _policy_label(node: URIRef | None) -> str:
     if node is None:
         return "add (default)"
     s = str(node)
     if not s.startswith(SUBJECT_NAMESPACE_IRI):
         return s
-    local = s[len(SUBJECT_NAMESPACE_IRI):]
+    local = s[len(SUBJECT_NAMESPACE_IRI) :]
     return _POLICY_LABELS.get(local, local)
 
 

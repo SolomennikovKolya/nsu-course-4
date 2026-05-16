@@ -1,13 +1,13 @@
 """Концепт :Оценка — итоговая оценка (перечисление)."""
+
 from __future__ import annotations
 
-from typing import ClassVar, List, Tuple
+from typing import ClassVar
 
 from core.concepts._enum import match_enum
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 
-
-_SYNONYMS: List[Tuple[str, str]] = [
+_SYNONYMS: list[tuple[str, str]] = [
     ("отлично", "Оценка_Отлично"),
     ("хорошо", "Оценка_Хорошо"),
     ("удовлетворительно", "Оценка_Удовлетворительно"),

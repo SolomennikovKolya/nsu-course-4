@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import asdict, fields
-from typing import Optional, Any
+from typing import Any
 
 
 def smart_asdict(obj):
@@ -16,14 +18,10 @@ def smart_asdict(obj):
         dict: Словарь с исключёнными полями
     """
     full_dict = asdict(obj)
-    return {
-        f.name: full_dict[f.name]
-        for f in fields(obj)
-        if not f.metadata.get('skip_dict', False)
-    }
+    return {f.name: full_dict[f.name] for f in fields(obj) if not f.metadata.get("skip_dict", False)}
 
 
-def merge_exceptions(*exceptions: Optional[Exception]) -> Optional[Exception]:
+def merge_exceptions(*exceptions: Exception | None) -> Exception | None:
     """Объединяет список исключений в одну цепочку."""
     final_ex = None
     for ex in exceptions:
@@ -40,7 +38,7 @@ def merge_exceptions(*exceptions: Optional[Exception]) -> Optional[Exception]:
     return final_ex
 
 
-def exception_chain_to_message(ex: Optional[Exception]) -> Optional[str]:
+def exception_chain_to_message(ex: Exception | None) -> str | None:
     """
     Преобразует цепочку исключений (__cause__) в строку:
     "<текст исключения 1>; <текст исключения 2>; ..."
@@ -50,7 +48,7 @@ def exception_chain_to_message(ex: Optional[Exception]) -> Optional[str]:
 
     parts = []
     visited: set[int] = set()
-    current: Optional[BaseException] = ex
+    current: BaseException | None = ex
 
     while current is not None:
         current_id = id(current)
@@ -66,7 +64,7 @@ def exception_chain_to_message(ex: Optional[Exception]) -> Optional[str]:
     return "; ".join(parts)
 
 
-def merge_messages(*messages: Optional[str]) -> Optional[str]:
+def merge_messages(*messages: str | None) -> str | None:
     """Объединяет список ошибок в одну строку."""
     msgs = [m for m in messages if m]
     if not msgs:
@@ -79,11 +77,11 @@ def parse_dict_field(
     d: dict,
     key: str,
     *,
-    exp_type: Optional[type] = None,
+    exp_type: type | None = None,
     strip_str: bool = False,
     not_empty: bool = False,
-    default: Optional[Any] = None
-) -> Optional[Any]:
+    default: Any | None = None,
+) -> Any | None:
     """
     Мини-утилита для получения значения из словаря по ключу с проверкой типа.
     Возвращает значение, если оно существует и соответствует типу, иначе None.

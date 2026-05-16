@@ -1,6 +1,8 @@
-from typing import Optional
+"""Аккуратный заголовок с inline-редактированием."""
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from __future__ import annotations
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -39,7 +41,7 @@ class EditableTitleWidget(QWidget):
         self._subdued_style = subdued_style
         self._value: str = ""
         self._editing = False
-        self._frozen_height: Optional[int] = None
+        self._frozen_height: int | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -90,7 +92,7 @@ class EditableTitleWidget(QWidget):
     def value(self) -> str:
         return self._value
 
-    def set_value(self, value: Optional[str]):
+    def set_value(self, value: str | None):
         self._value = (value or "").strip()
         if self._editing:
             self._edit.setText(self._value)

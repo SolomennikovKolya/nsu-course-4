@@ -1,9 +1,12 @@
+"""Модуль, содержащий базовый класс для кода шаблона, который должен реализовать каждый конкретный шаблон."""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import List
 
 from core.fields.field import Field
-from core.uddm.model import UDDM
 from core.graph.template_graph_builder import TemplateGraphBuilder
+from core.uddm.model import UDDM
 
 
 class BaseTemplateCode(ABC):
@@ -24,7 +27,7 @@ class BaseTemplateCode(ABC):
         pass
 
     @abstractmethod
-    def fields(self) -> List[Field]:
+    def fields(self) -> list[Field]:
         """
         Описывает поля, которые требуется извлечь из документа.
 

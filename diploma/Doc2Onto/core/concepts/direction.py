@@ -1,8 +1,10 @@
 """Концепт :НаправлениеПодготовки — направление подготовки."""
+
 from __future__ import annotations
 
 import re
-from typing import ClassVar, Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from rdflib import Literal, Namespace, URIRef
 from rdflib.namespace import XSD
@@ -10,7 +12,6 @@ from rdflib.namespace import XSD
 from app.settings import SUBJECT_NAMESPACE_IRI
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 from core.graph.draft_graph import DraftNode, DraftTriple
-
 
 _NS = Namespace(SUBJECT_NAMESPACE_IRI)
 _PRED_CODE: URIRef = _NS["кодНаправления"]
@@ -47,9 +48,7 @@ class DirectionConcept(BaseConcept):
         text = re.sub(r"\s+", " ", text).strip()
         m = cls._RE_CODE.search(text)
         if not m:
-            raise ConceptError(
-                f"Не удалось извлечь код направления вида XX.XX.XX: {raw!r}"
-            )
+            raise ConceptError(f"Не удалось извлечь код направления вида XX.XX.XX: {raw!r}")
         code = m.group(0)
         return ConceptParts(canonical=code, parts={"code": code})
 
@@ -70,9 +69,7 @@ class DirectionConcept(BaseConcept):
             DraftNode.Type.LITERAL,
             Literal(parts.canonical, datatype=XSD.string),
         )
-        return (
-            DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, predicate, obj),
-        )
+        return (DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, predicate, obj),)
 
 
 __all__ = ["DirectionConcept"]

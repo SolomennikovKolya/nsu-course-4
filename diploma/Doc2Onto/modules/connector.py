@@ -1,8 +1,14 @@
+"""
+Модуль Connector: применяет правки к черновому графу,
+дополняет его дополнительными фактами и вызывает слияние в репозитории онтологии.
+"""
+
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Optional
 
 from rdflib import Graph
 
@@ -11,7 +17,6 @@ from core.graph.draft_graph import EditedGraph
 from models.document import Document, DocumentContext
 from models.extraction_result import ExtractionResult
 from modules.base import BaseModule, ModuleResult
-
 
 _DATE_FIELD_PRIORITIES = (
     "application_date",
@@ -25,9 +30,18 @@ _DATE_FIELD_PRIORITIES = (
 )
 
 _RU_MONTHS = {
-    "январ": 1, "феврал": 2, "март": 3, "апрел": 4,
-    "ма": 5, "июн": 6, "июл": 7, "август": 8,
-    "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12,
+    "январ": 1,
+    "феврал": 2,
+    "март": 3,
+    "апрел": 4,
+    "ма": 5,
+    "июн": 6,
+    "июл": 7,
+    "август": 8,
+    "сентябр": 9,
+    "октябр": 10,
+    "ноябр": 11,
+    "декабр": 12,
 }
 
 
@@ -149,7 +163,9 @@ class Connector(BaseModule):
         rec = Reconciler(repo)
         rec.rewrite(rdf_graph, snapshot.graph)
 
-    def _extract_effective_date(self, extraction_result: Optional[ExtractionResult], doc: Document) -> Optional[str]:
+    def _extract_effective_date(
+        self, extraction_result: ExtractionResult | None, doc: Document
+    ) -> str | None:
         """
         Находит дату документа: extraction_result -> meta.
         Парсинг русских форматов: '20 декабря 2024 г.', '12.09.2025', '"29" сентября 2025 г.'.
@@ -167,7 +183,7 @@ class Connector(BaseModule):
         return None
 
     @staticmethod
-    def _parse_russian_date(value: str) -> Optional[str]:
+    def _parse_russian_date(value: str) -> str | None:
         if not isinstance(value, str):
             return None
         s = value.strip().strip('"').replace("«", "").replace("»", "").strip()

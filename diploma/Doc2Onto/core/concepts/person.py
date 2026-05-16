@@ -1,10 +1,10 @@
-"""
-Концепт :Персона — физическое лицо.
-"""
+"""Концепт :Персона — физическое лицо."""
+
 from __future__ import annotations
 
 import re
-from typing import ClassVar, Optional, Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from rdflib import Literal, Namespace, URIRef
 from rdflib.namespace import XSD
@@ -14,7 +14,6 @@ from core.concepts._hash import short_sha1
 from core.concepts._morph import detect_gender, to_nominative
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 from core.graph.draft_graph import DraftNode, DraftTriple
-
 
 _NS = Namespace(SUBJECT_NAMESPACE_IRI)
 _PRED_FIO: URIRef = _NS["фио"]
@@ -73,26 +72,20 @@ class PersonConcept(BaseConcept):
         # давало три токена, а не один склеенный.
         tokens = [p for p in re.split(r"[\s.]+", text) if p]
         if len(tokens) < 2:
-            raise ConceptError(
-                f"ФИО должно содержать как минимум фамилию и имя/инициал: {raw!r}"
-            )
+            raise ConceptError(f"ФИО должно содержать как минимум фамилию и имя/инициал: {raw!r}")
 
         last_raw = tokens[0]
         first_raw = tokens[1]
-        middle_raw: Optional[str] = tokens[2] if len(tokens) > 2 else None
+        middle_raw: str | None = tokens[2] if len(tokens) > 2 else None
 
         # Пол сначала пробуем по имени, потом по отчеству — отчество
         # надёжнее (по суффиксу), но обычно идёт последним.
-        gender = detect_gender(first_raw) or (
-            detect_gender(middle_raw) if middle_raw else None
-        )
+        gender = detect_gender(first_raw) or (detect_gender(middle_raw) if middle_raw else None)
 
         last_norm = to_nominative(last_raw, kind="surname", gender=gender)
         first_norm = to_nominative(first_raw, kind="first", gender=gender)
-        middle_norm: Optional[str] = (
-            to_nominative(middle_raw, kind="patronymic", gender=gender)
-            if middle_raw
-            else None
+        middle_norm: str | None = (
+            to_nominative(middle_raw, kind="patronymic", gender=gender) if middle_raw else None
         )
 
         # Sort key: lower(фамилия)|инициал_имени|инициал_отчества, без точек.
@@ -101,9 +94,7 @@ class PersonConcept(BaseConcept):
         middle_init = cls._first_letter(middle_norm) if middle_norm else ""
 
         if not last_key or not first_init:
-            raise ConceptError(
-                f"Не удалось извлечь фамилию и инициал имени: {raw!r}"
-            )
+            raise ConceptError(f"Не удалось извлечь фамилию и инициал имени: {raw!r}")
 
         sort_key = f"{last_key}|{first_init}|{middle_init}"
 
@@ -157,15 +148,13 @@ class PersonConcept(BaseConcept):
                 DraftNode.Type.LITERAL,
                 Literal(str(value), datatype=XSD.string),
             )
-            triples.append(
-                DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, pred_node, obj_node)
-            )
+            triples.append(DraftTriple(DraftTriple.Type.DATA_PROPERTY, subject, pred_node, obj_node))
         return tuple(triples)
 
     # ---------- helpers ----------
 
     @staticmethod
-    def _first_letter(word: Optional[str]) -> str:
+    def _first_letter(word: str | None) -> str:
         if not word:
             return ""
         normalized = word.lower().replace(".", "").strip()

@@ -1,6 +1,9 @@
+"""Модуль извлечения и нормализации полей из документа."""
+
+from __future__ import annotations
+
 import json
 from logging import INFO, WARNING
-from typing import List
 
 from app.agents import ask_gpt, read_prompt
 from app.settings import EXTRACT_FIELDS_SYS_PROMPT_PATH, EXTRACT_FIELDS_USER_PROMPT_PATH, LOG_ALIGN_WIDTH
@@ -58,7 +61,7 @@ class Extractor(BaseModule):
 
         return ModuleResult.ok()
 
-    def _extract(self, fields: List[Field], uddm: UDDM) -> ExtractionResult:
+    def _extract(self, fields: list[Field], uddm: UDDM) -> ExtractionResult:
         result = ExtractionResult()
         self._extract_fields_declarative(fields, uddm, result)
         self._extract_fields_with_llm(fields, uddm, result)
@@ -66,7 +69,7 @@ class Extractor(BaseModule):
         self._log_result(result)
         return result
 
-    def _extract_fields_declarative(self, fields: List[Field], uddm: UDDM, result: ExtractionResult):
+    def _extract_fields_declarative(self, fields: list[Field], uddm: UDDM, result: ExtractionResult):
         for field in fields:
             try:
                 text = field.selector._select(uddm)
@@ -82,9 +85,11 @@ class Extractor(BaseModule):
                 result.set_value_temp(field.name, value)
 
             except Exception:
-                result.set_error_temp(field.name, "Непредвиденная ошибка извлечения поля декларативным методом")
+                result.set_error_temp(
+                    field.name, "Непредвиденная ошибка извлечения поля декларативным методом"
+                )
 
-    def _extract_fields_with_llm(self, fields: List[Field], uddm: UDDM, result: ExtractionResult):
+    def _extract_fields_with_llm(self, fields: list[Field], uddm: UDDM, result: ExtractionResult):
         try:
             fields_payload = [
                 {
@@ -94,7 +99,7 @@ class Extractor(BaseModule):
                         "status": result.is_extracted_temp(field.name),
                         "value": result.get_value_temp(field.name),
                         "error": result.get_error_temp(field.name),
-                    }
+                    },
                 }
                 for field in fields
             ]
@@ -118,11 +123,17 @@ class Extractor(BaseModule):
                     continue
 
                 status = parse_dict_field(item, "status", exp_type=bool, default=None)
-                value = parse_dict_field(item, "value", exp_type=str, strip_str=True, not_empty=True, default=None)
-                error = parse_dict_field(item, "error", exp_type=str, strip_str=True, not_empty=True, default=None)
+                value = parse_dict_field(
+                    item, "value", exp_type=str, strip_str=True, not_empty=True, default=None
+                )
+                error = parse_dict_field(
+                    item, "error", exp_type=str, strip_str=True, not_empty=True, default=None
+                )
 
                 if status is None:
-                    result.set_unexpected_error_llm(field.name, "Некорректный формат ответа LLM: status должен быть bool")
+                    result.set_unexpected_error_llm(
+                        field.name, "Некорректный формат ответа LLM: status должен быть bool"
+                    )
                     continue
 
                 template_value = result.get_value_temp(field.name)
@@ -148,9 +159,11 @@ class Extractor(BaseModule):
             for field in fields:
                 data = result.get_field(field.name) or {}
                 if data.get("extracted_llm") is None:
-                    result.set_unexpected_error_llm(field.name, "Непредвиденная ошибка при обработке поля с помощью LLM")
+                    result.set_unexpected_error_llm(
+                        field.name, "Непредвиденная ошибка при обработке поля с помощью LLM"
+                    )
 
-    def _normalize_fields(self, fields: List[Field], result: ExtractionResult):
+    def _normalize_fields(self, fields: list[Field], result: ExtractionResult):
         for field in fields:
             raw = result.get_value_raw(field.name)
             if raw is None or not str(raw).strip():
@@ -159,7 +172,7 @@ class Extractor(BaseModule):
 
             try:
                 canonical = field.normalizer._normalize(raw)
-            except Exception as ex:  # noqa: BLE001 — пользователь должен увидеть причину
+            except Exception as ex:
                 result.set_not_normalized(
                     field.name,
                     f"Непредвиденная ошибка нормализатора: {ex}",
@@ -175,7 +188,7 @@ class Extractor(BaseModule):
                 result.set_normalized(field.name, canonical)
 
     def _log_result(self, result: ExtractionResult):
-        for field_name in result.fields.keys():
+        for field_name in result.fields:
             field_label = f"{field_name}:".ljust(LOG_ALIGN_WIDTH)
 
             value = result.get_value_final(field_name)
@@ -195,4 +208,4 @@ class Extractor(BaseModule):
             self.log(INFO, text)
 
     def _all_fields_failed(self, result: ExtractionResult) -> bool:
-        return all(not result.is_extracted_final(field_name) for field_name in result.fields.keys())
+        return all(not result.is_extracted_final(field_name) for field_name in result.fields)

@@ -1,21 +1,28 @@
-"""
-Концепт xsd:date — календарная дата.
-"""
+"""Концепт xsd:date — календарная дата."""
+
 from __future__ import annotations
 
 import re
 from datetime import date, datetime
-from typing import ClassVar, Dict
+from typing import ClassVar
 
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
 
-
 # Соответствие префикса месяца его номеру. Префикс используется специально,
 # чтобы один и тот же ключ ловил все падежи: «январь», «января», «январе»…
-_RU_MONTHS: Dict[str, int] = {
-    "январ": 1, "феврал": 2, "март": 3, "апрел": 4,
-    "ма": 5, "июн": 6, "июл": 7, "август": 8,
-    "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12,
+_RU_MONTHS: dict[str, int] = {
+    "январ": 1,
+    "феврал": 2,
+    "март": 3,
+    "апрел": 4,
+    "ма": 5,
+    "июн": 6,
+    "июл": 7,
+    "август": 8,
+    "сентябр": 9,
+    "октябр": 10,
+    "ноябр": 11,
+    "декабр": 12,
 }
 
 
@@ -51,12 +58,8 @@ class DateConcept(BaseConcept):
     onto_class_local: ClassVar[None] = None
 
     _RE_ISO: ClassVar[re.Pattern] = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
-    _RE_DOTTED: ClassVar[re.Pattern] = re.compile(
-        r"(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})"
-    )
-    _RE_RU_WORD: ClassVar[re.Pattern] = re.compile(
-        r"(\d{1,2})\s+([А-Яа-яЁё]+)\s+(\d{4})"
-    )
+    _RE_DOTTED: ClassVar[re.Pattern] = re.compile(r"(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})")
+    _RE_RU_WORD: ClassVar[re.Pattern] = re.compile(r"(\d{1,2})\s+([А-Яа-яЁё]+)\s+(\d{4})")
 
     @classmethod
     def parse(cls, raw: str) -> ConceptParts:

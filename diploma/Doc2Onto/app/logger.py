@@ -1,7 +1,3 @@
-import logging
-from pathlib import Path
-from typing import Optional
-
 """
 Принятые уровни логирования:
 1. DEBUG — диагностическая информация
@@ -11,6 +7,11 @@ from typing import Optional
 5. CRITICAL — сервис в нерабочем состоянии, риск потери данных/безопасности
 """
 
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
 
 def _create_logger(
     name: str,
@@ -18,9 +19,9 @@ def _create_logger(
     level: int,
     propagate: bool,
     use_console: bool,
-    log_file: Optional[Path],
+    log_file: Path | None,
     fmt: str,
-    datefmt: Optional[str],
+    datefmt: str | None,
 ) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(level)

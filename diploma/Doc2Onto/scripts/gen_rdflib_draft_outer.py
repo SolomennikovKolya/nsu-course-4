@@ -1,6 +1,5 @@
-"""
-Одноразовый генератор для core/graph/rdflib_draft_outer.py.
-"""
+"""Одноразовый генератор для core/graph/rdflib_draft_outer.py."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -80,10 +79,7 @@ def main():
             parts.append(f"        self.{t} = _draft_iri({name}.{t})\n")
 
     parts.append("\n\nclass RdfLibDraftOuter:\n")
-    parts.append(
-        '    """Явный контейнер стандартных неймспейсов rdflib '
-        '(подсветка OUTER.<NS>.<term>)."""\n'
-    )
+    parts.append('    """Явный контейнер стандартных неймспейсов rdflib (подсветка OUTER.<NS>.<term>)."""\n')
     parts.append("\n    def __init__(self):\n")
 
     for name in sorted(names):

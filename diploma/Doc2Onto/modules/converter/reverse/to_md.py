@@ -1,21 +1,20 @@
-from typing import List
+from __future__ import annotations
 
-from core.uddm.model import UDDM, Block, Text, ListBlock, Table
+from core.uddm.model import UDDM, Block, ListBlock, Table, Text
 from modules.converter.reverse.base import BaseReverseConverter
 
 
 class UDDMToMarkdown(BaseReverseConverter):
-
     def convert(self, uddm: UDDM) -> str:
         """Преобразует UDDM в Markdown."""
-        lines: List[str] = []
+        lines: list[str] = []
 
         for block in uddm.root:
             self._walk_block(lines, block)
 
         return "\n".join(lines)
 
-    def _walk_block(self, lines: List[str], block: Block, indent: int = 0):
+    def _walk_block(self, lines: list[str], block: Block, indent: int = 0):
         prefix = "  " * indent
 
         if isinstance(block, Text):
@@ -74,9 +73,7 @@ class UDDMToMarkdown(BaseReverseConverter):
 
                 # header separator
                 if row_idx == 0:
-                    table_lines.append(
-                        "| " + " | ".join(["---"] * len(row_cells)) + " |"
-                    )
+                    table_lines.append("| " + " | ".join(["---"] * len(row_cells)) + " |")
 
             lines.extend(table_lines)
             lines.append("")

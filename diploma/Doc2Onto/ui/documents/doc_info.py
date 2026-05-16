@@ -1,26 +1,42 @@
+"""Виджет с информацией о документе, его статусе и действиях над ним."""
+
+from __future__ import annotations
+
 import json
-from typing import Optional, Dict, Any
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox,
-    QPushButton, QMessageBox, QStackedLayout, QSizePolicy,
-    QApplication, QDialog, QTextEdit, QTabWidget
+    QApplication,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QStackedLayout,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.context import (
-    get_pipeline, get_doc_manager, get_temp_manager,
-    get_ontology_repository, get_theme_manager,
+    get_doc_manager,
+    get_ontology_repository,
+    get_pipeline,
+    get_temp_manager,
+    get_theme_manager,
 )
 from app.settings import APP_NAME
 from models.document import Document
-from ui.common.editable_title import EditableTitleWidget
 from ui.common.accessory import wrap_tab_page_content
-from ui.documents.status_bar import StatusBarWidget
-from ui.documents.original_view import DocumentViewOriginalTab
-from ui.documents.uddm_view import DocumentViewUddmTab
+from ui.common.editable_title import EditableTitleWidget
 from ui.documents.graph_view import DocumentViewGraphTab
-
+from ui.documents.original_view import DocumentViewOriginalTab
+from ui.documents.status_bar import StatusBarWidget
+from ui.documents.uddm_view import DocumentViewUddmTab
 
 # Декларативная таблица доступных действий по статусу документа.
 # Поля:
@@ -31,20 +47,20 @@ from ui.documents.graph_view import DocumentViewGraphTab
 #            "unlocked" — свободно;
 #            "warn"     — спрашивать подтверждение;
 #            "locked"   — combo дизаблен.
-ACTIONS_BY_STATUS: Dict[Document.Status, Dict[str, Any]] = {
-    Document.Status.UPLOADED:          {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
-    Document.Status.UDDM_EXTRACTED:    {"main": "run",      "restart": False, "delete": True, "class": "unlocked"},
-    Document.Status.CLASS_DETERMINED:  {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.FIELDS_EXTRACTED:  {"main": "continue", "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.TRIPLES_BUILT:     {"main": "add",      "restart": True,  "delete": True, "class": "warn"},
-    Document.Status.ADDED_TO_MODEL:    {"main": "rollback", "restart": False, "delete": True, "class": "locked"},
+ACTIONS_BY_STATUS: dict[Document.Status, dict[str, Any]] = {
+    Document.Status.UPLOADED: {"main": "run", "restart": False, "delete": True, "class": "unlocked"},
+    Document.Status.UDDM_EXTRACTED: {"main": "run", "restart": False, "delete": True, "class": "unlocked"},
+    Document.Status.CLASS_DETERMINED: {"main": "continue", "restart": True, "delete": True, "class": "warn"},
+    Document.Status.FIELDS_EXTRACTED: {"main": "continue", "restart": True, "delete": True, "class": "warn"},
+    Document.Status.TRIPLES_BUILT: {"main": "add", "restart": True, "delete": True, "class": "warn"},
+    Document.Status.ADDED_TO_MODEL: {"main": "rollback", "restart": False, "delete": True, "class": "locked"},
 }
 
 _MAIN_BUTTON_LABELS = {
-    "run":       "Запустить обработку",
-    "continue":  "Продолжить обработку",
-    "add":       "Добавить в модель",
-    "rollback":  "Откатить из модели",
+    "run": "Запустить обработку",
+    "continue": "Продолжить обработку",
+    "add": "Добавить в модель",
+    "rollback": "Откатить из модели",
 }
 
 
@@ -54,7 +70,7 @@ class DocumentViewWidget(QWidget):
     def __init__(self):
         super().__init__()
 
-        self._document: Optional[Document] = None
+        self._document: Document | None = None
         self._tabs = QTabWidget()
         self._original_tab = DocumentViewOriginalTab()
         self._uddm_tab = DocumentViewUddmTab()
@@ -69,7 +85,7 @@ class DocumentViewWidget(QWidget):
         self._tabs.addTab(wrap_tab_page_content(self._graph_tab), "Граф")
         self._apply_no_document_state()
 
-    def set_document(self, document: Optional[Document]):
+    def set_document(self, document: Document | None):
         """Установка текущего документа в виджет."""
         self._document = document
         self._tabs.setTabEnabled(0, self._original_tab.set_document(document))
@@ -100,7 +116,7 @@ class DocumentInfoWidget(QWidget):
         self._doc_manager = get_doc_manager()
         self._temp_manager = get_temp_manager()
         self._repo = get_ontology_repository()
-        self._document: Optional[Document] = None
+        self._document: Document | None = None
 
         self._stack = QStackedLayout(self)
         self._stack.addWidget(self._build_empty_page())
@@ -171,7 +187,7 @@ class DocumentInfoWidget(QWidget):
 
     # ---------- public API ----------
 
-    def set_document(self, document: Optional[Document]):
+    def set_document(self, document: Document | None):
         self._document = document
         self._document_view.set_document(document)
 
@@ -194,7 +210,7 @@ class DocumentInfoWidget(QWidget):
         self._status_widget.set_status(document)
         self._update_buttons()
 
-    def get_document(self) -> Optional[Document]:
+    def get_document(self) -> Document | None:
         return self._document
 
     def apply_theme(self):
@@ -247,8 +263,9 @@ class DocumentInfoWidget(QWidget):
         policy = ACTIONS_BY_STATUS.get(doc.status, {}).get("class", "unlocked")
         if policy == "locked":
             QMessageBox.information(
-                self, APP_NAME,
-                "Документ добавлен в модель. Чтобы изменить класс, сначала откатите его из модели."
+                self,
+                APP_NAME,
+                "Документ добавлен в модель. Чтобы изменить класс, сначала откатите его из модели.",
             )
             self._class_combo.blockSignals(True)
             idx = self._class_combo.findData(doc.doc_class)
@@ -259,7 +276,8 @@ class DocumentInfoWidget(QWidget):
 
         if policy == "warn":
             reply = QMessageBox.question(
-                self, APP_NAME,
+                self,
+                APP_NAME,
                 "Изменение класса сбросит результаты извлечения и валидации, "
                 "ваши правки в графе будут потеряны. Продолжить?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -324,14 +342,12 @@ class DocumentInfoWidget(QWidget):
             return
 
         if doc.status == Document.Status.ADDED_TO_MODEL:
-            QMessageBox.information(
-                self, APP_NAME,
-                "Документ добавлен в модель. Откатите его сначала."
-            )
+            QMessageBox.information(self, APP_NAME, "Документ добавлен в модель. Откатите его сначала.")
             return
 
         reply = QMessageBox.question(
-            self, APP_NAME,
+            self,
+            APP_NAME,
             "Перезапустить пайплайн? Все промежуточные результаты будут пересчитаны.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -353,7 +369,8 @@ class DocumentInfoWidget(QWidget):
             return
 
         reply = QMessageBox.question(
-            self, APP_NAME,
+            self,
+            APP_NAME,
             "Откатить документ из модели? Артефакты документа сохранятся.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
@@ -386,11 +403,13 @@ class DocumentInfoWidget(QWidget):
         is_in_model = doc.status == Document.Status.ADDED_TO_MODEL
         text = (
             "Документ добавлен в модель. При удалении его факты будут откачены.\n\nПродолжить?"
-            if is_in_model else
-            "Вы точно хотите удалить документ?"
+            if is_in_model
+            else "Вы точно хотите удалить документ?"
         )
         reply = QMessageBox.question(
-            self, APP_NAME, text,
+            self,
+            APP_NAME,
+            text,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -442,7 +461,7 @@ class DocumentInfoWidget(QWidget):
     def _format_change_report(report: dict) -> str:
         lines = []
         lines.append(f"Документ: {report.get('document_id')}")
-        if report.get('effective_date'):
+        if report.get("effective_date"):
             lines.append(f"Дата документа: {report.get('effective_date')}")
         lines.append("")
 
@@ -455,7 +474,9 @@ class DocumentInfoWidget(QWidget):
         if added:
             lines.append(f"Добавлено новых фактов: {len(added)}")
             for c in added:
-                lines.append(f"  + ({c['subject_n3']} {c['predicate_n3']} {c['object_n3']})  [{c.get('policy', '?')}]")
+                lines.append(
+                    f"  + ({c['subject_n3']} {c['predicate_n3']} {c['object_n3']})  [{c.get('policy', '?')}]"
+                )
             lines.append("")
 
         if replaced:

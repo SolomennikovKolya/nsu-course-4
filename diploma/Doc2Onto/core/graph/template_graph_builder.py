@@ -28,12 +28,15 @@
     * :meth:`TemplateGraphBuilder.practice` — Практика: composite IRI
       от тройки (студент, вид, год) + identifying-связи.
 """
-from typing import Any, Dict, Optional, Type
+
+from __future__ import annotations
+
+from typing import Any
 
 from rdflib import Literal, Namespace, URIRef
 
 from app.settings import SUBJECT_NAMESPACE_IRI
-from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts
+from core.concepts.base import BaseConcept, ConceptError, ConceptKind
 from core.concepts.date import DateConcept
 from core.concepts.practice import PracticeConcept
 from core.concepts.thesis import ThesisConcept
@@ -81,23 +84,23 @@ class ValueProxy:
         b.field("student_email").part(EmailConcept, "domain").literal()
 
     :meth:`part` применяет :class:`BaseConcept` к значению и достаёт
-        нужный ключ (``parts.<key>`` или ``canonical``); 
+        нужный ключ (``parts.<key>`` или ``canonical``);
     :meth:`iri` / :meth:`literal` — терминаторы цепочки.
     """
 
-    def __init__(self, field_name: str, field_value: Optional[str]):
+    def __init__(self, field_name: str, field_value: str | None):
         self._source_field_name: str = field_name
-        self._source_field_value: Optional[str] = field_value
-        self._transformed_value: Optional[str] = None
-        self._error: Optional[str] = None
+        self._source_field_value: str | None = field_value
+        self._transformed_value: str | None = None
+        self._error: str | None = None
 
     def _transform_called(self) -> bool:
         return self._transformed_value is not None or self._error is not None
 
-    def _get_value(self) -> Optional[str]:
+    def _get_value(self) -> str | None:
         return self._transformed_value or self._source_field_value
 
-    def part(self, concept_cls: Type[BaseConcept], key: str = "canonical") -> "ValueProxy":
+    def part(self, concept_cls: type[BaseConcept], key: str = "canonical") -> ValueProxy:
         """Применить концепт к значению и взять часть из :class:`ConceptParts`.
 
         Args:
@@ -119,7 +122,7 @@ class ValueProxy:
         except ConceptError as ex:
             self._error = str(ex)
             return self
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             self._error = f"{concept_cls.name}: {ex}"
             return self
 
@@ -136,7 +139,8 @@ class ValueProxy:
 
     def iri(self) -> DraftNode:
         """Терминатор: построить IRI из текущего значения."""
-        def node(value: Optional[URIRef], error: Optional[str]) -> DraftNode:
+
+        def node(value: URIRef | None, error: str | None) -> DraftNode:
             return DraftNode(DraftNode.Type.IRI, value, error, self._source_field_name)
 
         if self._error is not None:
@@ -146,7 +150,7 @@ class ValueProxy:
             return node(None, "Значение поля отсутствует; невозможно построить IRI из None")
         return node(_RDFLIB_ONTO[value], None)
 
-    def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
+    def literal(self, datatype: DraftNode | None = None) -> DraftNode:
         """Терминатор: построить типизированный Literal из текущего значения.
 
         Никаких автоматических преобразований формата не делает. Если
@@ -154,7 +158,8 @@ class ValueProxy:
         (либо нормализатор поля, либо явный ``.part(DateConcept, "canonical")``
         перед терминатором).
         """
-        def node(value: Optional[Literal], error: Optional[str]) -> DraftNode:
+
+        def node(value: Literal | None, error: str | None) -> DraftNode:
             return DraftNode(DraftNode.Type.LITERAL, value, error, self._source_field_name)
 
         if self._error is not None:
@@ -177,13 +182,13 @@ class NoneValueProxy(ValueProxy):
         super().__init__(field_name, None)
         self.ERROR = f"Поле {field_name} не существует в шаблоне"
 
-    def part(self, concept_cls: Type[BaseConcept], key: str = "canonical") -> "NoneValueProxy":
+    def part(self, concept_cls: type[BaseConcept], key: str = "canonical") -> NoneValueProxy:
         return self
 
     def iri(self) -> DraftNode:
         return DraftNode(DraftNode.Type.IRI, None, self.ERROR, None)
 
-    def literal(self, datatype: Optional[DraftNode] = None) -> DraftNode:
+    def literal(self, datatype: DraftNode | None = None) -> DraftNode:
         return DraftNode(DraftNode.Type.LITERAL, None, self.ERROR, None)
 
 
@@ -194,7 +199,7 @@ class TemplateGraphBuilder:
     См. подробности в module-level docstring.
     """
 
-    def __init__(self, field_values: Dict[str, str]):
+    def __init__(self, field_values: dict[str, str | None]):
         self._field_values = field_values
         self._draft_graph: DraftGraph = DraftGraph()
 
@@ -205,11 +210,12 @@ class TemplateGraphBuilder:
 
     def field(self, field_name: str) -> ValueProxy:
         """Прокси значения поля — для fluent API. См. :class:`ValueProxy`."""
-        if field_name not in self._field_values:
+        value = self._field_values.get(field_name)
+        if value is None or not str(value).strip():
             return NoneValueProxy(field_name)
         return ValueProxy(field_name, self._field_values.get(field_name))
 
-    def const_literal(self, value: Any, datatype: Optional[DraftNode] = None) -> DraftNode:
+    def const_literal(self, value: Any, datatype: DraftNode | None = None) -> DraftNode:
         """Литерал с произвольным значением, не привязанный к полю."""
         dt_iri = datatype.get_rdf_node() if datatype is not None else None
         if not isinstance(dt_iri, URIRef):
@@ -226,7 +232,7 @@ class TemplateGraphBuilder:
         """``(subject, object_property, individual)``."""
         self._add_triple(DraftTriple.Type.OBJECT_PROPERTY, s, p, o)
 
-    def add_data_property(self, s: DraftNode, p: DraftNode, l: DraftNode):
+    def add_data_property(self, s: DraftNode, p: DraftNode, l: DraftNode):  # noqa: E741
         """``(subject, data_property, literal)``."""
         self._add_triple(DraftTriple.Type.DATA_PROPERTY, s, p, l)
 
@@ -238,7 +244,7 @@ class TemplateGraphBuilder:
             return
         self.add_object_property(s, p, o)
 
-    def add_data_property_optional(self, s: DraftNode, p: DraftNode, l: DraftNode):
+    def add_data_property_optional(self, s: DraftNode, p: DraftNode, l: DraftNode):  # noqa: E741
         """То же, что :meth:`add_data_property`, но пропускает неполный литерал."""
         if not l.is_complete():
             return
@@ -252,9 +258,9 @@ class TemplateGraphBuilder:
     def individual(
         self,
         field_name: str,
-        concept_cls: Type[BaseConcept],
+        concept_cls: type[BaseConcept],
         *,
-        role: Optional[DraftNode] = None,
+        role: DraftNode | None = None,
     ) -> DraftNode:
         """Создать индивид онтологии по полю и концепту.
 
@@ -288,12 +294,12 @@ class TemplateGraphBuilder:
             parts = cls.parse(value)
         except ConceptError as ex:
             return DraftNode(DraftNode.Type.IRI, None, str(ex), field_name)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             return DraftNode(DraftNode.Type.IRI, None, f"{cls.name}: {ex}", field_name)
 
         try:
             local = cls.iri_local(parts)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             return DraftNode(DraftNode.Type.IRI, None, str(ex), field_name)
 
         iri_node = DraftNode(DraftNode.Type.IRI, _RDFLIB_ONTO[local], None, field_name)
@@ -316,7 +322,7 @@ class TemplateGraphBuilder:
 
         return iri_node
 
-    def literal(self, field_name: str, concept_cls: Type[BaseConcept]) -> DraftNode:
+    def literal(self, field_name: str, concept_cls: type[BaseConcept]) -> DraftNode:
         """Создать типизированный Literal по полю и концепту-``DATATYPE``.
 
         Применяет ``concept_cls.normalize`` к значению поля и заворачивает
@@ -336,15 +342,13 @@ class TemplateGraphBuilder:
 
         value = self._field_values.get(field_name)
         if value is None or not str(value).strip():
-            return DraftNode(
-                DraftNode.Type.LITERAL, None, f"Поле '{field_name}' пустое", field_name
-            )
+            return DraftNode(DraftNode.Type.LITERAL, None, f"Поле '{field_name}' пустое", field_name)
 
         try:
             canonical = cls.normalize(value)
         except ConceptError as ex:
             return DraftNode(DraftNode.Type.LITERAL, None, str(ex), field_name)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             return DraftNode(DraftNode.Type.LITERAL, None, f"{cls.name}: {ex}", field_name)
 
         # Дата → xsd:date; всё остальное (Email, Телефон) → xsd:string.
@@ -358,13 +362,11 @@ class TemplateGraphBuilder:
 
     @staticmethod
     def _validate_concept_cls(
-        concept_cls: Type[BaseConcept],
+        concept_cls: type[BaseConcept],
         expected_kind: ConceptKind,
-    ) -> Type[BaseConcept]:
+    ) -> type[BaseConcept]:
         if not (isinstance(concept_cls, type) and issubclass(concept_cls, BaseConcept)):
-            raise TypeError(
-                f"Ожидался подкласс BaseConcept, получено {concept_cls!r}"
-            )
+            raise TypeError(f"Ожидался подкласс BaseConcept, получено {concept_cls!r}")
         if concept_cls.kind != expected_kind:
             method = "individual" if expected_kind == ConceptKind.CLASS_INDIVIDUAL else "literal"
             raise TypeError(
@@ -379,7 +381,7 @@ class TemplateGraphBuilder:
         self,
         code_field: str,
         *,
-        name_field: Optional[str] = None,
+        name_field: str | None = None,
     ) -> DraftNode:
         """Направление подготовки + опциональный литерал названия.
 
@@ -394,9 +396,7 @@ class TemplateGraphBuilder:
 
         iri = self.individual(code_field, DirectionConcept)
         if name_field is not None and iri.is_complete():
-            self.add_data_property_optional(
-                iri, ONTO.названиеНаправления, self.field(name_field).literal()
-            )
+            self.add_data_property_optional(iri, ONTO.названиеНаправления, self.field(name_field).literal())
         return iri
 
     def thesis(self, *, student: DraftNode) -> DraftNode:
@@ -417,7 +417,8 @@ class TemplateGraphBuilder:
         student_local = self._extract_local_name(student)
         if student_local is None:
             return DraftNode(
-                DraftNode.Type.IRI, None,
+                DraftNode.Type.IRI,
+                None,
                 "ВКР: IRI студента не в пространстве предметной области",
                 None,
             )
@@ -462,7 +463,8 @@ class TemplateGraphBuilder:
             return DraftNode(DraftNode.Type.IRI, None, "Практика: студент неполный", None)
         if not start_date.is_complete():
             return DraftNode(
-                DraftNode.Type.IRI, None,
+                DraftNode.Type.IRI,
+                None,
                 "Практика: дата начала неполная",
                 start_date.source,
             )
@@ -470,7 +472,8 @@ class TemplateGraphBuilder:
         date_value = str(start_date.get_rdf_node())
         if not date_value.strip():
             return DraftNode(
-                DraftNode.Type.IRI, None,
+                DraftNode.Type.IRI,
+                None,
                 "Практика: дата начала пустая",
                 start_date.source,
             )
@@ -478,7 +481,8 @@ class TemplateGraphBuilder:
         student_local = self._extract_local_name(student)
         if student_local is None:
             return DraftNode(
-                DraftNode.Type.IRI, None,
+                DraftNode.Type.IRI,
+                None,
                 "Практика: IRI студента не в пространстве предметной области",
                 start_date.source,
             )
@@ -499,7 +503,7 @@ class TemplateGraphBuilder:
     # ----- внутренние хелперы для композитов -----
 
     @staticmethod
-    def _extract_local_name(node: DraftNode) -> Optional[str]:
+    def _extract_local_name(node: DraftNode) -> str | None:
         """Локальное имя IRI узла (без префикса проекта). None — если
         IRI не из пространства предметной области."""
         rdf_node = node.get_rdf_node()
@@ -508,5 +512,5 @@ class TemplateGraphBuilder:
         s = str(rdf_node)
         if not s.startswith(SUBJECT_NAMESPACE_IRI):
             return None
-        local = s[len(SUBJECT_NAMESPACE_IRI):]
+        local = s[len(SUBJECT_NAMESPACE_IRI) :]
         return local or None

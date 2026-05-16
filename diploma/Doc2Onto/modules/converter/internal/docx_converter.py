@@ -1,11 +1,11 @@
+from __future__ import annotations
+
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from zipfile import ZipFile
-import xml.etree.ElementTree as ET
-from typing import List, Tuple, Optional
 
-from core.uddm.model import UDDM, Block, Text, P, ListBlock, Item, Table, Row, Cell
+from core.uddm.model import UDDM, Block, Cell, Item, ListBlock, P, Row, Table, Text
 from modules.converter.internal.base import BaseInternalConverter
-
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -32,8 +32,8 @@ class DocxToUDDM(BaseInternalConverter):
         """
         try:
             xml_data = docx.read("word/document.xml")
-        except KeyError:
-            raise RuntimeError("DOCX document.xml не найден")
+        except KeyError as ex:
+            raise RuntimeError("DOCX document.xml не найден") from ex
 
         root = ET.fromstring(xml_data)
 
@@ -45,7 +45,7 @@ class DocxToUDDM(BaseInternalConverter):
 
     def _load_styles(self, docx: ZipFile) -> dict:
         """
-        Загружает стили из DOCX и возвращает словарь вида {style_id: style_name}. 
+        Загружает стили из DOCX и возвращает словарь вида {style_id: style_name}.
         Это нужно для определения заголовков.
         """
         try:
@@ -67,16 +67,15 @@ class DocxToUDDM(BaseInternalConverter):
 
         return styles
 
-    def _parse_blocks(self, parent: ET.Element) -> List[Block]:
+    def _parse_blocks(self, parent: ET.Element) -> list[Block]:
         """Рекурсивный парсинг блоков из XML-дерева DOCX. Поддерживает параграфы, списки и таблицы."""
-        blocks: List[Block] = []
-        text_buffer: List[str] = []
+        blocks: list[Block] = []
+        text_buffer: list[str] = []
 
-        list_stack: List[Tuple[int, int, ListBlock]] = []
-        current_item: Optional[Item] = None
+        list_stack: list[tuple[int, int, ListBlock]] = []
+        current_item: Item | None = None
 
         for child in parent:
-
             if child.tag == f"{W}p":
                 text = self._extract_paragraph_text(child).strip()
                 list_info = self._get_list_info(child)
@@ -91,11 +90,7 @@ class DocxToUDDM(BaseInternalConverter):
                     self._flush_text(blocks, text_buffer)
 
                     list_stack, current_item = self._process_list(
-                        blocks,
-                        list_stack,
-                        current_item,
-                        list_info,
-                        text
+                        blocks, list_stack, current_item, list_info, text
                     )
 
                 # === обычный параграф ===
@@ -122,7 +117,7 @@ class DocxToUDDM(BaseInternalConverter):
 
         return blocks
 
-    def _flush_text(self, blocks: List[Block], buffer: List[str]):
+    def _flush_text(self, blocks: list[Block], buffer: list[str]):
         """Выносит накопленный текст в новый блок и очищает буфер."""
         if not buffer:
             return
@@ -133,14 +128,14 @@ class DocxToUDDM(BaseInternalConverter):
 
     def _process_list(
         self,
-        blocks: List[Block],
-        stack: List[Tuple[int, int, ListBlock]],
-        current_item: Optional[Item],
-        list_info: Tuple[int, int],
-        text: str
-    ) -> Tuple[List[Tuple[int, int, ListBlock]], Item]:
+        blocks: list[Block],
+        stack: list[tuple[int, int, ListBlock]],
+        current_item: Item | None,
+        list_info: tuple[int, int],
+        text: str,
+    ) -> tuple[list[tuple[int, int, ListBlock]], Item]:
         """
-        Обрабатывает элемент списка. Предполагается, что список может содержать текст и вложенные списки, но не таблицы. 
+        Обрабатывает элемент списка. Предполагается, что список может содержать текст и вложенные списки, но не таблицы.
         Возвращает обновлённый стек и текущий элемент списка.
         """
         num_id, level = list_info
@@ -196,7 +191,7 @@ class DocxToUDDM(BaseInternalConverter):
 
         return "".join(texts)
 
-    def _get_list_info(self, paragraph: ET.Element) -> Optional[Tuple[int, int]]:
+    def _get_list_info(self, paragraph: ET.Element) -> tuple[int, int] | None:
         """Определяет, является ли параграф элементом списка и возвращает его идентификатор и уровень вложенности."""
         ppr = paragraph.find(f"{W}pPr")
         if ppr is None:
@@ -244,7 +239,7 @@ class DocxToUDDM(BaseInternalConverter):
 
     def _is_heading_heuristic(self, paragraph: ET.Element) -> bool:
         """
-        Эвристика для определения заголовков, если стиль не распознан. 
+        Эвристика для определения заголовков, если стиль не распознан.
         Предполагает, что заголовки обычно короткие, жирные и/или центрированные.
         """
         text = self._extract_paragraph_text(paragraph).strip()

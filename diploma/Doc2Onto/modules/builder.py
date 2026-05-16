@@ -17,6 +17,7 @@
     отдельный ``build_error.json`` с traceback и контекстом — чтобы
     автор шаблона мог быстро понять, на каком вызове упало.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,8 +25,7 @@ import traceback
 from collections import Counter
 from datetime import datetime
 from logging import ERROR, INFO, WARNING
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.graph.draft_graph import DraftGraph, DraftTriple
 from core.graph.template_graph_builder import TemplateGraphBuilder
@@ -69,8 +69,7 @@ class GraphBuilder(BaseModule):
         if empty_fields:
             self.log(
                 INFO,
-                f"Поля без нормализованного значения ({len(empty_fields)}): "
-                + ", ".join(empty_fields),
+                f"Поля без нормализованного значения ({len(empty_fields)}): " + ", ".join(empty_fields),
             )
 
         builder = TemplateGraphBuilder(field_values)
@@ -81,8 +80,11 @@ class GraphBuilder(BaseModule):
             doc.build_error_file_path().unlink()
 
         try:
+            if tctx.code is None:
+                return ModuleResult.failed(message="Шаблон не имеет исполняющего кода")
+
             tctx.code.build(builder)
-        except Exception as ex:  # noqa: BLE001 — пользовательский код, ошибка должна попасть в отчёт
+        except Exception as ex:
             return self._handle_build_exception(ctx, builder, ex, normalized_count, empty_fields)
 
         # Сохраняем граф и пишем диагностику.
@@ -106,7 +108,7 @@ class GraphBuilder(BaseModule):
         builder: TemplateGraphBuilder,
         ex: Exception,
         normalized_count: int,
-        empty_fields: List[str],
+        empty_fields: list[str],
     ) -> ModuleResult:
         """
         Обработка исключения внутри code.build(b).
@@ -120,13 +122,13 @@ class GraphBuilder(BaseModule):
         try:
             partial_graph.save(doc.draft_graph_file_path())
             ctx.draft_graph = partial_graph
-        except Exception:  # noqa: BLE001 — при сохранении тоже могло упасть
+        except Exception:
             self.log(ERROR, "Не удалось сохранить частично построенный граф", exc_info=True)
 
         tb_text = traceback.format_exc()
 
         # Структурированный отчёт.
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(timespec="seconds"),
             "template": {
                 "id": tctx.template.id if tctx else None,
@@ -154,7 +156,7 @@ class GraphBuilder(BaseModule):
                 json.dumps(report, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             self.log(ERROR, "Не удалось записать build_error.json", exc_info=True)
 
         # Лог в основной поток. Сообщение для пользователя — короткое;
@@ -217,12 +219,13 @@ class GraphBuilder(BaseModule):
                 self.log(WARNING, f"  ×{n}: {msg}")
 
     @staticmethod
-    def _triple_to_repr(triple: DraftTriple) -> Dict[str, Optional[str]]:
+    def _triple_to_repr(triple: DraftTriple) -> dict[str, str | None]:
         """
         Хелпер на будущее: статистика триплетов.
         Краткое представление триплета для отладочных дампов.
         """
-        def short(node) -> Optional[str]:
+
+        def short(node) -> str | None:
             d = node._to_json_dict()
             return d.get("n3") or d.get("error")
 

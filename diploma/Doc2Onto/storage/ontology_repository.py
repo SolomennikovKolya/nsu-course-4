@@ -1,17 +1,20 @@
+"""Репозиторий онтологии: хранение схемы, истории и журнала фактов, сборка полной модели с учётом политик слияния."""
+
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
 import shutil
 import tempfile
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from rdflib import Graph, Literal, Namespace, URIRef
+from rdflib import Graph, Namespace, URIRef
 from rdflib.namespace import RDF
 from rdflib.term import Node
 
@@ -30,12 +33,14 @@ MERGE_POLICY = ONTO["mergePolicy"]
 class MergePolicy(str, Enum):
     """Политика слияния значений предиката (см. :mergePolicy в schema.ttl)."""
 
-    SET = "SET"                    # single-valued, неизменное (полная замена без учёта дат)
-    SET_BY_DATE = "SET_BY_DATE"    # single-valued, временное (замена только если effective_date нового ≥ существующего)
-    ADD = "ADD"                    # multi-valued (чистый add)
+    SET = "SET"  # single-valued, неизменное (полная замена без учёта дат)
+    SET_BY_DATE = (
+        "SET_BY_DATE"  # single-valued, временное (замена только если effective_date нового ≥ существующего)
+    )
+    ADD = "ADD"  # multi-valued (чистый add)
 
 
-_POLICY_IRI_TO_ENUM: Dict[URIRef, MergePolicy] = {
+_POLICY_IRI_TO_ENUM: dict[URIRef, MergePolicy] = {
     URIRef(SUBJECT_NAMESPACE_IRI + "Policy_Set"): MergePolicy.SET,
     URIRef(SUBJECT_NAMESPACE_IRI + "Policy_SetByDate"): MergePolicy.SET_BY_DATE,
     URIRef(SUBJECT_NAMESPACE_IRI + "Policy_Add"): MergePolicy.ADD,
@@ -48,62 +53,62 @@ DEFAULT_POLICY = MergePolicy.ADD
 class HistoryEntry:
     """Запись о добавлении фактов документа в общую модель."""
 
-    document_id: str                            # ID документа в системе
-    template_id: str                            # ID шаблона
-    added_at: str                               # Время добавления (ISO 8601, UTC)
-    component_path: str                         # Путь к фрагменту RDF (rdf.ttl документа)
-    effective_date: Optional[str] = None        # Дата, к которой относятся факты (ISO 8601 date), может быть None
+    document_id: str  # ID документа в системе
+    template_id: str  # ID шаблона
+    added_at: str  # Время добавления (ISO 8601, UTC)
+    component_path: str  # Путь к фрагменту RDF (rdf.ttl документа)
+    effective_date: str | None = None  # Дата, к которой относятся факты (ISO 8601 date), может быть None
 
 
 @dataclass
 class FactChangeRecord:
     """Изменение, произведённое одним документом при слиянии (для UI)."""
 
-    event: str                                  # "added" | "replaced" | "superseded_by_existing" | "rejected_older"
+    event: str  # "added" | "replaced" | "superseded_by_existing" | "rejected_older"
     subject_n3: str
     predicate_n3: str
     object_n3: str
     policy: str
-    effective_date: Optional[str] = None
-    superseded_object_n3: Optional[str] = None  # для replaced: какое значение убрали
-    superseded_doc_id: Optional[str] = None     # документ, чьим значением было replaced
+    effective_date: str | None = None
+    superseded_object_n3: str | None = None  # для replaced: какое значение убрали
+    superseded_doc_id: str | None = None  # документ, чьим значением было replaced
 
 
 @dataclass
 class FactEvent:
     """Событие журнала фактов (один лог-элемент в facts.jsonl)."""
 
-    event: str                                  # "add" | "retract" | "reject"
+    event: str  # "add" | "retract" | "reject"
     s: str
     p: str
     o: str
-    doc_id: Optional[str] = None
-    template_id: Optional[str] = None
-    policy: Optional[str] = None
-    effective_date: Optional[str] = None
-    added_at: Optional[str] = None
-    active: Optional[bool] = None
-    cause_doc_id: Optional[str] = None          # для retract — документ, добивший этот факт
-    reason: Optional[str] = None
-    retracted_at: Optional[str] = None
+    doc_id: str | None = None
+    template_id: str | None = None
+    policy: str | None = None
+    effective_date: str | None = None
+    added_at: str | None = None
+    active: bool | None = None
+    cause_doc_id: str | None = None  # для retract — документ, добивший этот факт
+    reason: str | None = None
+    retracted_at: str | None = None
 
 
 @dataclass
 class MergeDocumentResult:
     """Результат merge одного документа в активный граф."""
 
-    changes: List[FactChangeRecord] = field(default_factory=list)
-    rejected: List[FactChangeRecord] = field(default_factory=list)
+    changes: list[FactChangeRecord] = field(default_factory=list)
+    rejected: list[FactChangeRecord] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class AssembledOntology:
     """Результат сборки полной модели по списку записей истории."""
 
-    graph: Graph                    # Полный RDF-граф (схема + ABox после слияния)
-    model_valid: bool               # Прошла ли проверка целостности
-    validation_message: str         # Пусто при успехе; иначе пояснение ошибки
-    fact_events: List[FactEvent] = field(default_factory=list)  # События, накопленные при сборке
+    graph: Graph  # Полный RDF-граф (схема + ABox после слияния)
+    model_valid: bool  # Прошла ли проверка целостности
+    validation_message: str  # Пусто при успехе; иначе пояснение ошибки
+    fact_events: list[FactEvent] = field(default_factory=list)  # События, накопленные при сборке
 
 
 class OntologyRepository:
@@ -118,11 +123,11 @@ class OntologyRepository:
     """
 
     def __init__(self):
-        self._schema_graph: Optional[Graph] = None
-        self._policies: Optional[Dict[URIRef, MergePolicy]] = None
-        self._assembly_cache_fingerprint: Optional[str] = None
-        self._assembly_cache: Optional[AssembledOntology] = None
-        self._last_warmup_error: Optional[str] = None
+        self._schema_graph: Graph | None = None
+        self._policies: dict[URIRef, MergePolicy] | None = None
+        self._assembly_cache_fingerprint: str | None = None
+        self._assembly_cache: AssembledOntology | None = None
+        self._last_warmup_error: str | None = None
 
     # =================================================================
     # Схема и политики (TBox)
@@ -140,12 +145,12 @@ class OntologyRepository:
         self._schema_graph = g
         return g
 
-    def load_merge_policies(self) -> Dict[URIRef, MergePolicy]:
+    def load_merge_policies(self) -> dict[URIRef, MergePolicy]:
         """Возвращает {predicate -> MergePolicy} по аннотациям :mergePolicy схемы."""
         if self._policies is not None:
             return self._policies
 
-        out: Dict[URIRef, MergePolicy] = {}
+        out: dict[URIRef, MergePolicy] = {}
         schema = self.get_schema_graph()
         for predicate, policy_iri in schema.subject_objects(MERGE_POLICY):
             if not isinstance(predicate, URIRef) or not isinstance(policy_iri, URIRef):
@@ -166,7 +171,7 @@ class OntologyRepository:
     # История (history.json)
     # =================================================================
 
-    def load_history_entries(self) -> List[HistoryEntry]:
+    def load_history_entries(self) -> list[HistoryEntry]:
         if not ONTOLOGY_HISTORY_PATH.exists():
             return []
 
@@ -179,7 +184,7 @@ class OntologyRepository:
         if not isinstance(items, list):
             raise ValueError("history.json: ожидался объект с ключом entries — списком")
 
-        out: List[HistoryEntry] = []
+        out: list[HistoryEntry] = []
         for i, item in enumerate(items):
             if not isinstance(item, dict):
                 raise ValueError(f"history.json: элемент {i} должен быть объектом")
@@ -194,7 +199,7 @@ class OntologyRepository:
             )
         return out
 
-    def save_history_entries(self, entries: List[HistoryEntry]):
+    def save_history_entries(self, entries: list[HistoryEntry]):
         ONTOLOGY_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
         payload = {"entries": [asdict(e) for e in entries]}
         ONTOLOGY_HISTORY_PATH.write_text(
@@ -207,7 +212,7 @@ class OntologyRepository:
     def component_file(entry: HistoryEntry) -> Path:
         return Path(entry.component_path)
 
-    def find_history_entry(self, document_id: str) -> Optional[HistoryEntry]:
+    def find_history_entry(self, document_id: str) -> HistoryEntry | None:
         for e in self.load_history_entries():
             if e.document_id == document_id:
                 return e
@@ -222,11 +227,11 @@ class OntologyRepository:
         return FACTS_JOURNAL_PATH
 
     @classmethod
-    def read_journal(cls) -> List[FactEvent]:
+    def read_journal(cls) -> list[FactEvent]:
         path = cls._journal_path()
         if not path.exists():
             return []
-        out: List[FactEvent] = []
+        out: list[FactEvent] = []
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
@@ -238,7 +243,7 @@ class OntologyRepository:
             if not isinstance(obj, dict):
                 continue
             try:
-                out.append(FactEvent(**{k: obj.get(k) for k in FactEvent.__dataclass_fields__}))
+                out.append(FactEvent(**{k: obj.get(k) for k in FactEvent.__dataclass_fields__}))  # type: ignore
             except Exception:
                 continue
         return out
@@ -256,24 +261,23 @@ class OntologyRepository:
                 f.write("\n")
 
     @classmethod
-    def journal_for_subject(cls, subject: URIRef | str) -> List[FactEvent]:
+    def journal_for_subject(cls, subject: URIRef | str) -> list[FactEvent]:
         s_n3 = subject.n3() if isinstance(subject, URIRef) else str(subject)
         return [ev for ev in cls.read_journal() if ev.s == s_n3]
 
     @classmethod
-    def journal_active_facts_index(cls) -> Dict[Tuple[str, str, str], FactEvent]:
+    def journal_active_facts_index(cls) -> dict[tuple[str, str, str], FactEvent]:
         """
         Сворачивает журнал в индекс активных фактов: {(s, p, o) -> последний add-event с active=True}.
         retract обнуляет active.
         """
-        out: Dict[Tuple[str, str, str], FactEvent] = {}
+        out: dict[tuple[str, str, str], FactEvent] = {}
         for ev in cls.read_journal():
             key = (ev.s, ev.p, ev.o)
             if ev.event == "add":
                 out[key] = ev
-            elif ev.event == "retract":
-                if key in out:
-                    out.pop(key)
+            elif ev.event == "retract" and key in out:
+                out.pop(key)
             # reject не влияет на активность
         return out
 
@@ -283,7 +287,7 @@ class OntologyRepository:
 
     def assemble_full_graph(
         self,
-        history_entries: Optional[List[HistoryEntry]] = None,
+        history_entries: list[HistoryEntry] | None = None,
     ) -> AssembledOntology:
         """
         Полная модель: схема + ABox, собранный из фрагментов истории по их порядку,
@@ -303,8 +307,8 @@ class OntologyRepository:
 
         # Вспомогательное состояние:
         #  - provenance[(s,p,o)] = (doc_id, effective_date)
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]] = {}
-        all_events: List[FactEvent] = []
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]] = {}
+        all_events: list[FactEvent] = []
 
         for entry in entries:
             comp_path = self.component_file(entry)
@@ -342,13 +346,13 @@ class OntologyRepository:
         *,
         active: Graph,
         chunk: Graph,
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]],
-        policies: Dict[URIRef, MergePolicy],
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]],
+        policies: dict[URIRef, MergePolicy],
         doc_id: str,
         template_id: str,
-        effective_date: Optional[str],
+        effective_date: str | None,
         added_at: str,
-        events_out: List[FactEvent],
+        events_out: list[FactEvent],
     ) -> MergeDocumentResult:
         """
         Применяет триплеты chunk к active с учётом политик и журналирует события.
@@ -360,7 +364,9 @@ class OntologyRepository:
             policy = policies.get(p, DEFAULT_POLICY) if isinstance(p, URIRef) else DEFAULT_POLICY
             self._apply_one_triple(
                 active=active,
-                s=s, p=p, o=o,
+                s=s,
+                p=p,
+                o=o,
                 policy=policy,
                 provenance=provenance,
                 doc_id=doc_id,
@@ -381,12 +387,12 @@ class OntologyRepository:
         p: Node,
         o: Node,
         policy: MergePolicy,
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]],
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]],
         doc_id: str,
         template_id: str,
-        effective_date: Optional[str],
+        effective_date: str | None,
         added_at: str,
-        events_out: List[FactEvent],
+        events_out: list[FactEvent],
         result: MergeDocumentResult,
     ):
         triple = (s, p, o)
@@ -397,44 +403,72 @@ class OntologyRepository:
 
         if policy == MergePolicy.ADD:
             self._add_fact(
-                active, s, p, o,
-                doc_id=doc_id, template_id=template_id,
-                policy=policy, effective_date=effective_date, added_at=added_at,
-                provenance=provenance, events_out=events_out, result=result,
+                active,
+                s,
+                p,
+                o,
+                doc_id=doc_id,
+                template_id=template_id,
+                policy=policy,
+                effective_date=effective_date,
+                added_at=added_at,
+                provenance=provenance,
+                events_out=events_out,
+                result=result,
             )
             return
 
         if policy == MergePolicy.SET:
             for o_old in existing_objects:
                 self._retract_fact(
-                    active, s, p, o_old,
+                    active,
+                    s,
+                    p,
+                    o_old,
                     cause_doc_id=doc_id,
                     reason="superseded_by_set",
-                    provenance=provenance, events_out=events_out,
+                    provenance=provenance,
+                    events_out=events_out,
                     result_replaced_for=(s, p, o),
                     result=result,
                 )
             self._add_fact(
-                active, s, p, o,
-                doc_id=doc_id, template_id=template_id,
-                policy=policy, effective_date=effective_date, added_at=added_at,
-                provenance=provenance, events_out=events_out, result=result,
+                active,
+                s,
+                p,
+                o,
+                doc_id=doc_id,
+                template_id=template_id,
+                policy=policy,
+                effective_date=effective_date,
+                added_at=added_at,
+                provenance=provenance,
+                events_out=events_out,
+                result=result,
             )
             return
 
         if policy == MergePolicy.SET_BY_DATE:
             if not existing_objects:
                 self._add_fact(
-                    active, s, p, o,
-                    doc_id=doc_id, template_id=template_id,
-                    policy=policy, effective_date=effective_date, added_at=added_at,
-                    provenance=provenance, events_out=events_out, result=result,
+                    active,
+                    s,
+                    p,
+                    o,
+                    doc_id=doc_id,
+                    template_id=template_id,
+                    policy=policy,
+                    effective_date=effective_date,
+                    added_at=added_at,
+                    provenance=provenance,
+                    events_out=events_out,
+                    result=result,
                 )
                 return
 
             new_date = effective_date or ""
             should_replace = False
-            superseded_for: List[Tuple[Node, str]] = []
+            superseded_for: list[tuple[Node, str]] = []
             for o_old in existing_objects:
                 old_date = (provenance.get((s, p, o_old), (doc_id, None))[1]) or ""
                 if new_date >= old_date:
@@ -444,106 +478,143 @@ class OntologyRepository:
             if should_replace:
                 for o_old, _ in superseded_for:
                     self._retract_fact(
-                        active, s, p, o_old,
+                        active,
+                        s,
+                        p,
+                        o_old,
                         cause_doc_id=doc_id,
                         reason="superseded_by_newer",
-                        provenance=provenance, events_out=events_out,
+                        provenance=provenance,
+                        events_out=events_out,
                         result_replaced_for=(s, p, o),
                         result=result,
                     )
                 self._add_fact(
-                    active, s, p, o,
-                    doc_id=doc_id, template_id=template_id,
-                    policy=policy, effective_date=effective_date, added_at=added_at,
-                    provenance=provenance, events_out=events_out, result=result,
-                )
-            else:
-                events_out.append(FactEvent(
-                    event="reject",
-                    s=s.n3(), p=p.n3(), o=o.n3(),
+                    active,
+                    s,
+                    p,
+                    o,
                     doc_id=doc_id,
                     template_id=template_id,
-                    policy=policy.value,
+                    policy=policy,
                     effective_date=effective_date,
                     added_at=added_at,
-                    reason="older_than_existing",
-                ))
-                result.rejected.append(FactChangeRecord(
-                    event="superseded_by_existing",
-                    subject_n3=s.n3(),
-                    predicate_n3=p.n3(),
-                    object_n3=o.n3(),
-                    policy=policy.value,
-                    effective_date=effective_date,
-                ))
+                    provenance=provenance,
+                    events_out=events_out,
+                    result=result,
+                )
+            else:
+                events_out.append(
+                    FactEvent(
+                        event="reject",
+                        s=s.n3(),
+                        p=p.n3(),
+                        o=o.n3(),
+                        doc_id=doc_id,
+                        template_id=template_id,
+                        policy=policy.value,
+                        effective_date=effective_date,
+                        added_at=added_at,
+                        reason="older_than_existing",
+                    )
+                )
+                result.rejected.append(
+                    FactChangeRecord(
+                        event="superseded_by_existing",
+                        subject_n3=s.n3(),
+                        predicate_n3=p.n3(),
+                        object_n3=o.n3(),
+                        policy=policy.value,
+                        effective_date=effective_date,
+                    )
+                )
 
     @staticmethod
     def _add_fact(
-        active: Graph, s: Node, p: Node, o: Node,
+        active: Graph,
+        s: Node,
+        p: Node,
+        o: Node,
         *,
-        doc_id: str, template_id: str,
+        doc_id: str,
+        template_id: str,
         policy: MergePolicy,
-        effective_date: Optional[str],
+        effective_date: str | None,
         added_at: str,
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]],
-        events_out: List[FactEvent],
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]],
+        events_out: list[FactEvent],
         result: MergeDocumentResult,
     ):
         active.add((s, p, o))
         provenance[(s, p, o)] = (doc_id, effective_date)
-        events_out.append(FactEvent(
-            event="add",
-            s=s.n3(), p=p.n3(), o=o.n3(),
-            doc_id=doc_id,
-            template_id=template_id,
-            policy=policy.value,
-            effective_date=effective_date,
-            added_at=added_at,
-            active=True,
-        ))
-        result.changes.append(FactChangeRecord(
-            event="added",
-            subject_n3=s.n3(),
-            predicate_n3=p.n3(),
-            object_n3=o.n3(),
-            policy=policy.value,
-            effective_date=effective_date,
-        ))
+        events_out.append(
+            FactEvent(
+                event="add",
+                s=s.n3(),
+                p=p.n3(),
+                o=o.n3(),
+                doc_id=doc_id,
+                template_id=template_id,
+                policy=policy.value,
+                effective_date=effective_date,
+                added_at=added_at,
+                active=True,
+            )
+        )
+        result.changes.append(
+            FactChangeRecord(
+                event="added",
+                subject_n3=s.n3(),
+                predicate_n3=p.n3(),
+                object_n3=o.n3(),
+                policy=policy.value,
+                effective_date=effective_date,
+            )
+        )
 
     @staticmethod
     def _retract_fact(
-        active: Graph, s: Node, p: Node, o: Node,
+        active: Graph,
+        s: Node,
+        p: Node,
+        o: Node,
         *,
         cause_doc_id: str,
         reason: str,
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]],
-        events_out: List[FactEvent],
-        result_replaced_for: Optional[Tuple[Node, Node, Node]],
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]],
+        events_out: list[FactEvent],
+        result_replaced_for: tuple[Node, Node, Node] | None,
         result: MergeDocumentResult,
     ):
         active.remove((s, p, o))
         prev = provenance.pop((s, p, o), None)
-        events_out.append(FactEvent(
-            event="retract",
-            s=s.n3(), p=p.n3(), o=o.n3(),
-            cause_doc_id=cause_doc_id,
-            reason=reason,
-            retracted_at=datetime.now(timezone.utc).isoformat(),
-        ))
+        events_out.append(
+            FactEvent(
+                event="retract",
+                s=s.n3(),
+                p=p.n3(),
+                o=o.n3(),
+                cause_doc_id=cause_doc_id,
+                reason=reason,
+                retracted_at=datetime.now(timezone.utc).isoformat(),
+            )
+        )
         if result_replaced_for is not None:
             ns, np, no = result_replaced_for
-            result.changes.append(FactChangeRecord(
-                event="replaced",
-                subject_n3=ns.n3(),
-                predicate_n3=np.n3(),
-                object_n3=no.n3(),
-                policy=MergePolicy.SET.value,
-                superseded_object_n3=o.n3(),
-                superseded_doc_id=prev[0] if prev else None,
-            ))
+            result.changes.append(
+                FactChangeRecord(
+                    event="replaced",
+                    subject_n3=ns.n3(),
+                    predicate_n3=np.n3(),
+                    object_n3=no.n3(),
+                    policy=MergePolicy.SET.value,
+                    superseded_object_n3=o.n3(),
+                    superseded_doc_id=prev[0] if prev else None,
+                )
+            )
 
     @staticmethod
-    def _sorted_triples(g: Graph) -> List[Tuple[Node, Node, Node]]:
+    def _sorted_triples(g: Graph) -> list[tuple[Node, Node, Node]]:
         return sorted(list(g), key=lambda t: (t[0].n3(), t[1].n3(), t[2].n3()))
 
     # =================================================================
@@ -557,8 +628,8 @@ class OntologyRepository:
         document_id: str,
         template_id: str,
         component_path: Path,
-        effective_date: Optional[str] = None,
-        added_at: Optional[str] = None,
+        effective_date: str | None = None,
+        added_at: str | None = None,
     ) -> MergeDocumentResult:
         """
         Полный путь добавления документа в модель:
@@ -606,10 +677,10 @@ class OntologyRepository:
         return self._extract_doc_changes(full.fact_events, document_id)
 
     @staticmethod
-    def _extract_doc_changes(events: List[FactEvent], document_id: str) -> MergeDocumentResult:
+    def _extract_doc_changes(events: list[FactEvent], document_id: str) -> MergeDocumentResult:
         """Восстанавливает FactChangeRecord-ы только для конкретного документа из общего лога событий."""
         result = MergeDocumentResult()
-        retracted_index: Dict[Tuple[str, str], List[FactEvent]] = {}
+        retracted_index: dict[tuple[str, str], list[FactEvent]] = {}
         for ev in events:
             if ev.event == "retract" and ev.cause_doc_id == document_id:
                 retracted_index.setdefault((ev.s, ev.p), []).append(ev)
@@ -619,34 +690,40 @@ class OntologyRepository:
                 replaced = retracted_index.get((ev.s, ev.p), [])
                 if replaced:
                     for r in replaced:
-                        result.changes.append(FactChangeRecord(
-                            event="replaced",
+                        result.changes.append(
+                            FactChangeRecord(
+                                event="replaced",
+                                subject_n3=ev.s,
+                                predicate_n3=ev.p,
+                                object_n3=ev.o,
+                                policy=ev.policy or "",
+                                effective_date=ev.effective_date,
+                                superseded_object_n3=r.o,
+                                superseded_doc_id=None,
+                            )
+                        )
+                else:
+                    result.changes.append(
+                        FactChangeRecord(
+                            event="added",
                             subject_n3=ev.s,
                             predicate_n3=ev.p,
                             object_n3=ev.o,
                             policy=ev.policy or "",
                             effective_date=ev.effective_date,
-                            superseded_object_n3=r.o,
-                            superseded_doc_id=None,
-                        ))
-                else:
-                    result.changes.append(FactChangeRecord(
-                        event="added",
+                        )
+                    )
+            elif ev.event == "reject" and ev.doc_id == document_id:
+                result.rejected.append(
+                    FactChangeRecord(
+                        event="superseded_by_existing",
                         subject_n3=ev.s,
                         predicate_n3=ev.p,
                         object_n3=ev.o,
                         policy=ev.policy or "",
                         effective_date=ev.effective_date,
-                    ))
-            elif ev.event == "reject" and ev.doc_id == document_id:
-                result.rejected.append(FactChangeRecord(
-                    event="superseded_by_existing",
-                    subject_n3=ev.s,
-                    predicate_n3=ev.p,
-                    object_n3=ev.o,
-                    policy=ev.policy or "",
-                    effective_date=ev.effective_date,
-                ))
+                    )
+                )
         return result
 
     # =================================================================
@@ -694,11 +771,11 @@ class OntologyRepository:
         for t in schema_g:
             active.add(t)
 
-        provenance: Dict[Tuple[Node, Node, Node], Tuple[str, Optional[str]]] = {}
+        provenance: dict[tuple[Node, Node, Node], tuple[str, str | None]] = {}
 
         tmp_fd, tmp_name = tempfile.mkstemp(prefix="facts_", suffix=".jsonl", dir=str(path.parent))
         try:
-            with open(tmp_fd, "w", encoding="utf-8") as f:
+            with open(tmp_fd, "w", encoding="utf-8") as f:  # noqa: PTH123
                 for entry in history:
                     comp_path = self.component_file(entry)
                     if not comp_path.is_file():
@@ -706,7 +783,7 @@ class OntologyRepository:
                     chunk = Graph()
                     chunk.parse(comp_path, format="turtle")
 
-                    events: List[FactEvent] = []
+                    events: list[FactEvent] = []
                     self._merge_chunk_into_active(
                         active=active,
                         chunk=chunk,
@@ -725,10 +802,8 @@ class OntologyRepository:
             shutil.move(tmp_name, path)
         except Exception:
             if Path(tmp_name).exists():
-                try:
+                with contextlib.suppress(Exception):
                     Path(tmp_name).unlink()
-                except Exception:
-                    pass
             raise
 
     # =================================================================
@@ -736,13 +811,13 @@ class OntologyRepository:
     # =================================================================
 
     @staticmethod
-    def validate_model(graph: Graph, policies: Dict[URIRef, MergePolicy]) -> Tuple[bool, str]:
+    def validate_model(graph: Graph, policies: dict[URIRef, MergePolicy]) -> tuple[bool, str]:
         """
         Single-valued (SET, SET_BY_DATE) предикаты — не больше одного объекта на (s, p)
         в активном графе. Для ADD ограничения нет.
         """
-        violations: List[str] = []
-        sp_seen: Dict[Tuple[Node, Node], int] = {}
+        violations: list[str] = []
+        sp_seen: dict[tuple[Node, Node], int] = {}
 
         for s, p, _ in graph:
             if not isinstance(p, URIRef):
@@ -756,7 +831,7 @@ class OntologyRepository:
         for (s, p), cnt in sp_seen.items():
             if cnt > 1:
                 violations.append(
-                    f"Нарушение single-valued ({policies.get(p).value}) для ({s.n3()}, {p.n3()}): {cnt} объектов."
+                    f"Нарушение single-valued ({policies.get(p).value}) для ({s.n3()}, {p.n3()}): {cnt} объектов."  # type: ignore
                 )
 
         if violations:
@@ -780,7 +855,7 @@ class OntologyRepository:
     # =================================================================
 
     @staticmethod
-    def _history_fingerprint(entries: List[HistoryEntry]) -> str:
+    def _history_fingerprint(entries: list[HistoryEntry]) -> str:
         payload = json.dumps([asdict(e) for e in entries], ensure_ascii=False, sort_keys=True)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -788,7 +863,7 @@ class OntologyRepository:
         self._assembly_cache_fingerprint = None
         self._assembly_cache = None
 
-    def get_cached_assembly_for_current_history(self) -> Optional[AssembledOntology]:
+    def get_cached_assembly_for_current_history(self) -> AssembledOntology | None:
         try:
             entries = self.load_history_entries()
         except Exception:
@@ -798,7 +873,7 @@ class OntologyRepository:
             return self._assembly_cache
         return None
 
-    def last_warmup_error(self) -> Optional[str]:
+    def last_warmup_error(self) -> str | None:
         return self._last_warmup_error
 
     def warmup(self, logger: logging.Logger):

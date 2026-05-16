@@ -1,12 +1,16 @@
+"""Модуль для извлечения элемента UDDM, содержащего значение искомого поля, с помощью цепочки операций."""
+
+from __future__ import annotations
+
 import re
-from typing import Callable, List, Optional, Pattern
+from collections.abc import Callable
+from re import Pattern
 
-from core.uddm.model import UDDM, Root, P, Element, ElementType, ELEMENT_TYPE_TO_CLASS
 from core.uddm.algorithms import build_parent_index
-
+from core.uddm.model import ELEMENT_TYPE_TO_CLASS, UDDM, Element, ElementType, P, Root
 
 ElementPredicate = Callable[[Element], bool]
-ScopeOperation = Callable[[List[Element]], List[Element]]
+ScopeOperation = Callable[[list[Element]], list[Element]]
 
 
 class Predicate:
@@ -84,29 +88,29 @@ class Predicate:
 
 class FieldSelector:
     """
-    Селектор полей — инструмент для пошагового отбора нужного текста из структуры документа UDDM с помощью набора операций. 
-    Используйте этот класс для построения цепочки методов (например, `.find(...)`, `.next_element()` и т.д.), которая на каждом 
-    этапе сужает область поиска от всего документа до одного или нескольких элементов UDDM, подходящих под заданные условия. 
+    Селектор полей — инструмент для пошагового отбора нужного текста из структуры документа UDDM с помощью набора операций.
+    Используйте этот класс для построения цепочки методов (например, `.find(...)`, `.next_element()` и т.д.), которая на каждом
+    этапе сужает область поиска от всего документа до одного или нескольких элементов UDDM, подходящих под заданные условия.
 
     Этот механизм позволяет точно указать, как из дерева документа выбрать то содержимое, которое требуется для поля шаблона.
-    После применения всей цепочки операций к документу, результат (обычно параграф или несколько параграфов) 
+    После применения всей цепочки операций к документу, результат (обычно параграф или несколько параграфов)
     преобразуется в строку и передается экстрактору для окончательного извлечения значения поля.
 
-    Если после применения цепочки фильтров осталось несколько подходящих элементов, для дальнейшей обработки 
-    автоматически используется первый из них. Если необходимо выбрать какой-то конкретный элемент, используйте 
+    Если после применения цепочки фильтров осталось несколько подходящих элементов, для дальнейшей обработки
+    автоматически используется первый из них. Если необходимо выбрать какой-то конкретный элемент, используйте
     `.first()`, `.last()` или `.at(index)` в конце цепочки операций.
 
     Таким образом, `FieldSelector` — это удобный декларативный способ нахождения нужного элемента в дереве документа.
     """
 
     def __init__(self):
-        self._operations: List[Callable[[], List[Element]]] = []     # Цепочка операций
-        self._scope: List[Element] = []                              # Текущая область поиска
+        self._operations: list[Callable[[], list[Element]]] = []  # Цепочка операций
+        self._scope: list[Element] = []  # Текущая область поиска
         self._parent_index: dict[Element, tuple[Element, int]] = {}  # Индекс родителей
 
-    def _select(self, uddm: UDDM) -> Optional[str]:
+    def _select(self, uddm: UDDM) -> str | None:
         """
-        Внутренний метод, используемый экстрактором, который запускает цепочку операций 
+        Внутренний метод, используемый экстрактором, который запускает цепочку операций
         и возвращает результат в виде строки.
         """
         # Начальная область поиска - всё дерево UDDM
@@ -128,7 +132,9 @@ class FieldSelector:
         result = str(self._scope[0]).strip()
         return result
 
-    def find(self, element_type: ElementType, predicate: ElementPredicate = Predicate.always_true()) -> "FieldSelector":
+    def find(
+        self, element_type: ElementType, predicate: ElementPredicate = Predicate.always_true()
+    ) -> FieldSelector:
         """
         Находит все элементы заданного типа в дереве UDDM, удовлетворяющие заданному предикату.
 
@@ -149,7 +155,7 @@ class FieldSelector:
         """
         cls = ELEMENT_TYPE_TO_CLASS[element_type]
 
-        def dfs(v: Element, found: List[Element]) -> bool:
+        def dfs(v: Element, found: list[Element]) -> bool:
             if not isinstance(v, P):
                 for child in v:
                     if dfs(child, found):
@@ -160,8 +166,8 @@ class FieldSelector:
                 return True
             return False
 
-        def op() -> List[Element]:
-            found: List[Element] = []
+        def op() -> list[Element]:
+            found: list[Element] = []
             for scope_root in self._scope:
                 dfs(scope_root, found)
             return found
@@ -169,13 +175,14 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def next_element(self) -> "FieldSelector":
+    def next_element(self) -> FieldSelector:
         """
         Смещает каждую локальную область поиска к следующему соседнему элементу.
         Пример: для Cell это клетка справа.
         Если следующего элемента нет, область удаляется из результата.
         """
-        def next_sibling(el: Element) -> Optional[Element]:
+
+        def next_sibling(el: Element) -> Element | None:
             rel = self._parent_index.get(el)
             if rel is None:
                 return None
@@ -185,8 +192,8 @@ class FieldSelector:
                 return None
             return parent[idx + 1]
 
-        def op() -> List[Element]:
-            result: List[Element] = []
+        def op() -> list[Element]:
+            result: list[Element] = []
             for scope_root in self._scope:
                 moved = next_sibling(scope_root)
                 if moved is not None:
@@ -196,13 +203,14 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def previous_element(self) -> "FieldSelector":
+    def previous_element(self) -> FieldSelector:
         """
         Смещает каждую локальную область поиска к предыдущему соседнему элементу.
         Пример: для Cell это клетка слева.
         Если предыдущего элемента нет, область удаляется из результата.
         """
-        def previous_sibling(el: Element) -> Optional[Element]:
+
+        def previous_sibling(el: Element) -> Element | None:
             rel = self._parent_index.get(el)
             if rel is None:
                 return None
@@ -212,8 +220,8 @@ class FieldSelector:
                 return None
             return parent[idx - 1]
 
-        def op() -> List[Element]:
-            result: List[Element] = []
+        def op() -> list[Element]:
+            result: list[Element] = []
             for scope_root in self._scope:
                 moved = previous_sibling(scope_root)
                 if moved is not None:
@@ -223,22 +231,23 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def inner_element(self, index: int) -> "FieldSelector":
+    def inner_element(self, index: int) -> FieldSelector:
         """
         Смещает каждую локальную область поиска к index-му вложенному элементу (0-based).
         Индекс может быть отрицательным, тогда он считается с конца.
         Пример: для ListBlock index=-1 даст последний Item.
         Если элемента с таким индексом нет, область удаляется из результата.
         """
-        def child_at(el: Element, index: int) -> Optional[Element]:
+
+        def child_at(el: Element, index: int) -> Element | None:
             if isinstance(el, P):
                 return None
             if index < -len(el) or index >= len(el):
                 return None
             return el[index]
 
-        def op() -> List[Element]:
-            result: List[Element] = []
+        def op() -> list[Element]:
+            result: list[Element] = []
             for scope_root in self._scope:
                 moved = child_at(scope_root, index)
                 if moved is not None:
@@ -248,14 +257,15 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def outer_element(self) -> "FieldSelector":
+    def outer_element(self) -> FieldSelector:
         """
         Смещает каждую локальную область поиска к внешнему элементу (родителю).
         Пример: для Cell это Row.
         Если внешнего элемента нет, область удаляется из результата.
         """
-        def op() -> List[Element]:
-            result: List[Element] = []
+
+        def op() -> list[Element]:
+            result: list[Element] = []
             for scope_root in self._scope:
                 rel = self._parent_index.get(scope_root)
                 if rel is not None:
@@ -265,12 +275,13 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def first(self) -> "FieldSelector":
+    def first(self) -> FieldSelector:
         """
         Оставляет только первую локальную область поиска.
         Если область поиска пуста, возвращает пустой список.
         """
-        def op() -> List[Element]:
+
+        def op() -> list[Element]:
             if not self._scope:
                 return []
             return [self._scope[0]]
@@ -278,12 +289,13 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def last(self) -> "FieldSelector":
+    def last(self) -> FieldSelector:
         """
         Оставляет только последнюю локальную область поиска.
         Если область поиска пуста, возвращает пустой список.
         """
-        def op() -> List[Element]:
+
+        def op() -> list[Element]:
             if not self._scope:
                 return []
             return [self._scope[-1]]
@@ -291,13 +303,14 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def at(self, index: int) -> "FieldSelector":
+    def at(self, index: int) -> FieldSelector:
         """
         Оставляет только локальную область поиска с заданным индексом.
         Поддерживает отрицательные индексы (как в списках Python).
         Если индекс вне диапазона, возвращает пустой список.
         """
-        def op() -> List[Element]:
+
+        def op() -> list[Element]:
             if index < -len(self._scope) or index >= len(self._scope):
                 return []
             return [self._scope[index]]
@@ -312,7 +325,7 @@ class FieldSelector:
         *,
         include_left: bool = False,
         include_right: bool = False,
-    ) -> "FieldSelector":
+    ) -> FieldSelector:
         """
         Берёт срез из текущего плоского списка локальных областей между двумя «якорями».
 
@@ -337,9 +350,10 @@ class FieldSelector:
         Returns:
             FieldSelector: Тот же селектор. Если хотя бы один маркер не найден, область очищается.
         """
-        def op() -> List[Element]:
+
+        def op() -> list[Element]:
             scope = self._scope
-            li: Optional[int] = None
+            li: int | None = None
             for i, el in enumerate(scope):
                 if left_predicate(el):
                     li = i
@@ -347,7 +361,7 @@ class FieldSelector:
             if li is None:
                 return []
 
-            ri: Optional[int] = None
+            ri: int | None = None
             for j in range(li + 1, len(scope)):
                 if right_predicate(scope[j]):
                     ri = j
@@ -362,7 +376,7 @@ class FieldSelector:
         self._operations.append(op)
         return self
 
-    def apply(self, operation: ScopeOperation) -> "FieldSelector":
+    def apply(self, operation: ScopeOperation) -> FieldSelector:
         """
         Добавляет в цепочку кастомную операцию над текущим списком локальных областей поиска.
 
@@ -374,7 +388,8 @@ class FieldSelector:
         Returns:
             FieldSelector: Тот же селектор для продолжения цепочки.
         """
-        def op() -> List[Element]:
+
+        def op() -> list[Element]:
             return operation(self._scope)
 
         self._operations.append(op)

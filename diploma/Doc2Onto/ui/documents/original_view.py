@@ -13,9 +13,8 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, QUrl, Signal
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFrame,
@@ -26,10 +25,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from models.document import Document
-from app.context import get_theme_manager
 from shiboken6 import delete as shiboken_delete
+
+from app.context import get_theme_manager
+from models.document import Document
 
 try:
     from PySide6.QtPdf import QPdfDocument
@@ -45,7 +44,7 @@ except ImportError:
 _PREVIEW_SUFFIX = ".preview.pdf"
 
 
-def _mtime_ns(path: Path) -> Optional[int]:
+def _mtime_ns(path: Path) -> int | None:
     try:
         st = path.stat()
     except OSError:
@@ -57,8 +56,8 @@ def _preview_cache_path(source: Path) -> Path:
     return source.with_name(source.stem + _PREVIEW_SUFFIX)
 
 
-def _libreoffice_candidates() -> List[Path]:
-    candidates: List[Path] = []
+def _libreoffice_candidates() -> list[Path]:
+    candidates: list[Path] = []
     env = os.environ.get("SOFFICE_PATH")
     if env:
         candidates.append(Path(env))
@@ -68,15 +67,15 @@ def _libreoffice_candidates() -> List[Path]:
             candidates.append(Path(found))
     if os.name == "nt":
         for base in (
-            os.environ.get("ProgramFiles", r"C:\Program Files"),
-            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+            os.environ.get("ProgramFiles", r"C:\Program Files"),  # noqa: SIM112
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),  # noqa: SIM112
         ):
             root = Path(base)
             candidates.append(root / "LibreOffice" / "program" / "soffice.exe")
             for child in sorted(root.glob("LibreOffice *"), reverse=True):
                 candidates.append(child / "program" / "soffice.exe")
     seen: set[str] = set()
-    unique: List[Path] = []
+    unique: list[Path] = []
     for p in candidates:
         if not p.is_file():
             continue
@@ -128,7 +127,7 @@ def _convert_with_libreoffice_to_path(src: Path, dest_pdf: Path) -> bool:
     return False
 
 
-def _preview_source_paths(original: Path) -> List[Path]:
+def _preview_source_paths(original: Path) -> list[Path]:
     ext = original.suffix.lower()
     if ext == ".pdf":
         return [original]
@@ -143,7 +142,7 @@ def _preview_source_paths(original: Path) -> List[Path]:
     return [original]
 
 
-def _cache_is_fresh(cache: Path, originals: List[Path]) -> bool:
+def _cache_is_fresh(cache: Path, originals: list[Path]) -> bool:
     ct = _mtime_ns(cache)
     if ct is None:
         return False
@@ -189,12 +188,13 @@ def build_or_reuse_preview_pdf(original: Path) -> Path:
 
 class OriginalPdfPreviewWidget(QWidget):
     """Встроенный просмотр PDF с зумом (отдельный виджет в этом же модуле)."""
+
     open_original_requested = Signal()
 
     def __init__(self):
         super().__init__()
-        self._pdf_view: Optional[QPdfView] = None
-        self._blank_doc: Optional[QPdfDocument] = None
+        self._pdf_view: QPdfView | None = None
+        self._blank_doc: QPdfDocument | None = None
 
         self._toolbar = QWidget()
         tb = QHBoxLayout(self._toolbar)
@@ -311,7 +311,7 @@ class DocumentViewOriginalTab(QWidget):
 
     def __init__(self):
         super().__init__()
-        self._document: Optional[Document] = None
+        self._document: Document | None = None
         # Один поток: LibreOffice/Word не должны выполняться параллельно (COM / процессы).
         self._preview_pool = QThreadPool(self)
         self._preview_pool.setMaxThreadCount(1)
@@ -327,7 +327,7 @@ class DocumentViewOriginalTab(QWidget):
             Qt.ConnectionType.QueuedConnection,
         )
 
-        self._failure_message: Optional[str] = None
+        self._failure_message: str | None = None
 
         self._stack = QStackedWidget()
         self._message = QTextBrowser()
@@ -345,7 +345,7 @@ class DocumentViewOriginalTab(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._stack, 1)
 
-    def set_document(self, document: Optional[Document]) -> bool:
+    def set_document(self, document: Document | None) -> bool:
         self._document = document
         self._request_id += 1
         req_id = self._request_id
@@ -385,7 +385,7 @@ class DocumentViewOriginalTab(QWidget):
         self._preview_pool.start(worker)
         return True
 
-    def _original_path(self) -> Optional[Path]:
+    def _original_path(self) -> Path | None:
         if self._document is None:
             return None
         return self._document.original_file_path()

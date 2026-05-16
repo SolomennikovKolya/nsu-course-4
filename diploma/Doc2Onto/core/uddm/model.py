@@ -1,17 +1,21 @@
+"""
+Модуль, содержащий классы для представления UDDM документов в виде объектов Python,
+а также методы для сериализации и десериализации из XML.
+"""
+
 from __future__ import annotations
 
-from typing import Iterator
-from pathlib import Path
 import xml.etree.ElementTree as ET
-from typing import List
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from enum import StrEnum
+from pathlib import Path
 
 
 class UDDM:
     """Объектная модель документа в формате UDDM."""
 
-    def __init__(self, blocks: List[Block]):
+    def __init__(self, blocks: list[Block]):
         """
         Пример создания:
         ```python
@@ -55,8 +59,7 @@ class UDDM:
     def iter_paragraphs(self) -> Iterator[P]:
         """Итератор для обхода всех абзацев."""
         for text in self.iter_texts():
-            for p in text.paragraphs:
-                yield p
+            yield from text.paragraphs
 
     def iter_lists(self) -> Iterator[ListBlock]:
         """Итератор для обхода всех списков."""
@@ -72,23 +75,23 @@ class UDDM:
 
     # ----- геттеры -----
 
-    def get_all_texts(self) -> List[Text]:
+    def get_all_texts(self) -> list[Text]:
         """Получить все текстовые блоки."""
         return [text for text in self.iter_texts()]
 
-    def get_all_paragraphs(self) -> List[P]:
+    def get_all_paragraphs(self) -> list[P]:
         """Получить все абзацы."""
         return [p for p in self.iter_paragraphs()]
 
-    def get_all_texts_from_paragraphs(self) -> List[str]:
+    def get_all_texts_from_paragraphs(self) -> list[str]:
         """Получить все абзацы в виде списка строк."""
         return [str(p) for p in self.iter_paragraphs()]
 
-    def get_all_lists(self) -> List[ListBlock]:
+    def get_all_lists(self) -> list[ListBlock]:
         """Получить все списки."""
         return [lst for lst in self.iter_lists()]
 
-    def get_all_tables(self) -> List[Table]:
+    def get_all_tables(self) -> list[Table]:
         """Получить все таблицы."""
         return [table for table in self.iter_tables()]
 
@@ -163,8 +166,8 @@ class Element(ABC):
 class Root(Element):
     """Корень документа."""
 
-    def __init__(self, blocks: List[Block]):
-        self.blocks: List[Block] = blocks
+    def __init__(self, blocks: list[Block]):
+        self.blocks: list[Block] = blocks
 
     def __str__(self) -> str:
         return "\n".join(str(b) for b in self.blocks)
@@ -214,8 +217,8 @@ class Block(ABC):
 class Text(Block, Element):
     """Текстовый блок, состоящий из параграфов."""
 
-    def __init__(self, paragraphs: List[P]):
-        self.paragraphs: List[P] = paragraphs
+    def __init__(self, paragraphs: list[P]):
+        self.paragraphs: list[P] = paragraphs
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.paragraphs)
@@ -270,8 +273,8 @@ class P(Element):
 class ListBlock(Block, Element):
     """Список. Название 'ListBlock', чтобы отличать от простого списка."""
 
-    def __init__(self, items: List[Item]):
-        self.items: List[Item] = items
+    def __init__(self, items: list[Item]):
+        self.items: list[Item] = items
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.items)
@@ -298,8 +301,8 @@ class ListBlock(Block, Element):
 class Item(Element):
     """Элемент списка."""
 
-    def __init__(self, blocks: List[Block]):
-        self.blocks: List[Block] = blocks
+    def __init__(self, blocks: list[Block]):
+        self.blocks: list[Block] = blocks
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.blocks)
@@ -326,8 +329,8 @@ class Item(Element):
 class Table(Block, Element):
     """Таблица."""
 
-    def __init__(self, rows: List[Row]):
-        self.rows: List[Row] = rows
+    def __init__(self, rows: list[Row]):
+        self.rows: list[Row] = rows
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.rows)
@@ -354,8 +357,8 @@ class Table(Block, Element):
 class Row(Element):
     """Строка таблицы."""
 
-    def __init__(self, cells: List[Cell]):
-        self.cells: List[Cell] = cells
+    def __init__(self, cells: list[Cell]):
+        self.cells: list[Cell] = cells
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.cells)
@@ -382,8 +385,8 @@ class Row(Element):
 class Cell(Element):
     """Клетка таблицы."""
 
-    def __init__(self, blocks: List[Block]):
-        self.blocks: List[Block] = blocks
+    def __init__(self, blocks: list[Block]):
+        self.blocks: list[Block] = blocks
 
     def __str__(self) -> str:
         return "\n".join(str(p) for p in self.blocks)
@@ -410,14 +413,14 @@ class Cell(Element):
 class ElementType(StrEnum):
     """Типы элементов дерева UDDM."""
 
-    ROOT = "root"    # Корень документа
-    TEXT = "text"    # Текстовый блок
-    P = "p"          # Абзац
-    LIST = "list"    # Список
-    ITEM = "item"    # Элемент списка
+    ROOT = "root"  # Корень документа
+    TEXT = "text"  # Текстовый блок
+    P = "p"  # Абзац
+    LIST = "list"  # Список
+    ITEM = "item"  # Элемент списка
     TABLE = "table"  # Таблица
-    ROW = "row"      # Строка таблицы
-    CELL = "cell"    # Клетка таблицы
+    ROW = "row"  # Строка таблицы
+    CELL = "cell"  # Клетка таблицы
 
 
 # Словарь для преобразования типа элемента в класс

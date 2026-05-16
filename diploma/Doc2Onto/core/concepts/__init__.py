@@ -17,6 +17,7 @@
     * Чистый datatype: :class:`DateConcept` (литерал ``xsd:date``,
       без индивида).
 """
+
 from core.concepts.base import (
     BaseConcept,
     ConceptError,

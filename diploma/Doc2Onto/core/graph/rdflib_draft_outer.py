@@ -4,6 +4,7 @@
 Доступ: ``OUTER.XSD.string``, ``OUTER.RDF.type``.
 Для очень больших словарей (BRICK, SDO) только индекс: ``OUTER.BRICK["AHU"]``.
 """
+
 from __future__ import annotations
 
 from rdflib.namespace import (
@@ -35,8 +36,8 @@ from rdflib.namespace import (
     VOID,
     WGS,
     XSD,
+    DefinedNamespace,
 )
-from rdflib.namespace import DefinedNamespace
 from rdflib.term import URIRef
 
 from core.graph.draft_graph import DraftNode

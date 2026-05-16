@@ -1,8 +1,12 @@
+"""Модуль для извлечения и очистки значений полей из строк с помощью цепочки операций."""
+
+from __future__ import annotations
+
 import re
-from typing import Callable, List, Optional, Pattern
+from collections.abc import Callable
+from re import Pattern
 
-
-ExtractOperation = Callable[[str], Optional[str]]
+ExtractOperation = Callable[[str], str | None]
 
 
 # Базовый набор «шаблонных» подписей, которые встречаются в формах документов
@@ -37,14 +41,14 @@ class FieldExtractor:
     """
 
     def __init__(self):
-        self._operations: List[ExtractOperation] = []
+        self._operations: list[ExtractOperation] = []
 
-    def _extract(self, text: str) -> Optional[str]:
+    def _extract(self, text: str) -> str | None:
         """
         Запускает цепочку операций и возвращает итоговое значение поля
         в виде одной строки (или None, если извлечь не удалось).
         """
-        value: Optional[str] = text
+        value: str | None = text
 
         for op in self._operations:
             value = op(value)
@@ -54,11 +58,11 @@ class FieldExtractor:
         value = value.strip()
         return value or None
 
-    def regex(self, pattern: str | Pattern[str], group: int | str = 0, flags: int = 0) -> "FieldExtractor":
+    def regex(self, pattern: str | Pattern[str], group: int | str = 0, flags: int = 0) -> FieldExtractor:
         """Извлекает первое совпадение regex (или указанную группу)."""
         compiled = re.compile(pattern, flags) if isinstance(pattern, str) else pattern
 
-        def op(text: str) -> Optional[str]:
+        def op(text: str) -> str | None:
             match = compiled.search(text)
             if not match:
                 return None
@@ -70,23 +74,25 @@ class FieldExtractor:
         self._operations.append(op)
         return self
 
-    def after(self, marker: str, *, case_sensitive: bool = False) -> "FieldExtractor":
+    def after(self, marker: str, *, case_sensitive: bool = False) -> FieldExtractor:
         """Оставляет часть строки после маркера."""
-        def op(text: str) -> Optional[str]:
+
+        def op(text: str) -> str | None:
             if case_sensitive:
                 idx = text.find(marker)
             else:
                 idx = text.lower().find(marker.lower())
             if idx == -1:
                 return None
-            return text[idx + len(marker):]
+            return text[idx + len(marker) :]
 
         self._operations.append(op)
         return self
 
-    def before(self, marker: str, *, case_sensitive: bool = False) -> "FieldExtractor":
+    def before(self, marker: str, *, case_sensitive: bool = False) -> FieldExtractor:
         """Оставляет часть строки до маркера."""
-        def op(text: str) -> Optional[str]:
+
+        def op(text: str) -> str | None:
             if case_sensitive:
                 idx = text.find(marker)
             else:
@@ -98,10 +104,15 @@ class FieldExtractor:
         self._operations.append(op)
         return self
 
-    def between(self,
-                left: str, right: str, *,
-                include_left: bool = False, include_right: bool = False,
-                case_sensitive: bool = False) -> "FieldExtractor":
+    def between(
+        self,
+        left: str,
+        right: str,
+        *,
+        include_left: bool = False,
+        include_right: bool = False,
+        case_sensitive: bool = False,
+    ) -> FieldExtractor:
         """
         Извлекает подстроку между левым (`left`) и правым (`right`) маркером в исходном тексте.
 
@@ -117,7 +128,8 @@ class FieldExtractor:
 
         Если один из маркеров не найден, возвращает None.
         """
-        def op(text: str) -> Optional[str]:
+
+        def op(text: str) -> str | None:
             source = text if case_sensitive else text.lower()
             left_src = left if case_sensitive else left.lower()
             right_src = right if case_sensitive else right.lower()
@@ -138,57 +150,54 @@ class FieldExtractor:
         self._operations.append(op)
         return self
 
-    def replace(self, old: str, new: str, *, count: int = -1) -> "FieldExtractor":
+    def replace(self, old: str, new: str, *, count: int = -1) -> FieldExtractor:
         """Заменяет подстроку в текущем значении."""
         self._operations.append(lambda text: text.replace(old, new, count))
         return self
 
-    def normalize_spaces(self) -> "FieldExtractor":
+    def normalize_spaces(self) -> FieldExtractor:
         """Сжимает все последовательности whitespace в одиночный пробел."""
         self._operations.append(lambda text: " ".join(text.split()))
         return self
 
-    def trim(self) -> "FieldExtractor":
+    def trim(self) -> FieldExtractor:
         """Обрезает пробелы по краям строки."""
         self._operations.append(lambda text: text.strip())
         return self
 
-    def prefix(self, value: str) -> "FieldExtractor":
+    def prefix(self, value: str) -> FieldExtractor:
         """Добавляет префикс к строке."""
         self._operations.append(lambda text: f"{value}{text}")
         return self
 
-    def suffix(self, value: str) -> "FieldExtractor":
+    def suffix(self, value: str) -> FieldExtractor:
         """Добавляет суффикс к строке."""
         self._operations.append(lambda text: f"{text}{value}")
         return self
 
-    def lower(self) -> "FieldExtractor":
+    def lower(self) -> FieldExtractor:
         """Переводит строку в нижний регистр."""
         self._operations.append(lambda text: text.lower())
         return self
 
-    def upper(self) -> "FieldExtractor":
+    def upper(self) -> FieldExtractor:
         """Переводит строку в верхний регистр."""
         self._operations.append(lambda text: text.upper())
         return self
 
-    def keep_letters_and_spaces(self) -> "FieldExtractor":
+    def keep_letters_and_spaces(self) -> FieldExtractor:
         """Оставляет только буквы (латиница/кириллица) и пробельные символы."""
         self._operations.append(lambda text: "".join(ch for ch in text if ch.isalpha() or ch.isspace()))
         return self
 
-    def keep_digits_and_symbols(self) -> "FieldExtractor":
+    def keep_digits_and_symbols(self) -> FieldExtractor:
         """Оставляет только цифры, пробелы и спецсимволы (без букв)."""
         self._operations.append(
-            lambda text: "".join(
-                ch for ch in text
-                if ch.isdigit() or ch.isspace() or not ch.isalnum()
-            )
+            lambda text: "".join(ch for ch in text if ch.isdigit() or ch.isspace() or not ch.isalnum())
         )
         return self
 
-    def keep_regex(self, pattern: str | Pattern[str], *, flags: int = 0) -> "FieldExtractor":
+    def keep_regex(self, pattern: str | Pattern[str], *, flags: int = 0) -> FieldExtractor:
         """
         Оставляет только символы, которые поштучно соответствуют regex.
 
@@ -198,7 +207,7 @@ class FieldExtractor:
         self._operations.append(lambda text: "".join(ch for ch in text if compiled.fullmatch(ch)))
         return self
 
-    def strip_template_markers(self, *extra_markers: str) -> "FieldExtractor":
+    def strip_template_markers(self, *extra_markers: str) -> FieldExtractor:
         """
         Удаляет типовые «шаблонные» подписи из текста бланков:
 
@@ -215,11 +224,9 @@ class FieldExtractor:
             *extra_markers: Дополнительные подстроки для удаления (если зашитого
                 списка не хватает — например, специфичные подписи конкретного бланка).
         """
-        compiled_extra = [
-            re.compile(re.escape(m), re.IGNORECASE) for m in extra_markers if m
-        ]
+        compiled_extra = [re.compile(re.escape(m), re.IGNORECASE) for m in extra_markers if m]
 
-        def op(text: str) -> Optional[str]:
+        def op(text: str) -> str | None:
             result = _TEMPLATE_LABEL_RE.sub("", text)
             result = _TEMPLATE_PAREN_RE.sub(" ", result)
             result = _TEMPLATE_FILLERS_RE.sub(" ", result)
@@ -236,7 +243,7 @@ class FieldExtractor:
         *patterns: str | Pattern[str],
         group: int | str = 0,
         flags: int = 0,
-    ) -> "FieldExtractor":
+    ) -> FieldExtractor:
         """
         Перебирает регулярные выражения по порядку и возвращает результат первого совпадения.
 
@@ -250,11 +257,9 @@ class FieldExtractor:
             group: Группа для извлечения из совпадения (0 — всё совпадение).
             flags: Флаги компиляции для строковых паттернов.
         """
-        compiled: List[Pattern[str]] = [
-            re.compile(p, flags) if isinstance(p, str) else p for p in patterns
-        ]
+        compiled: list[Pattern[str]] = [re.compile(p, flags) if isinstance(p, str) else p for p in patterns]
 
-        def op(text: str) -> Optional[str]:
+        def op(text: str) -> str | None:
             for pat in compiled:
                 m = pat.search(text)
                 if not m:
@@ -268,7 +273,7 @@ class FieldExtractor:
         self._operations.append(op)
         return self
 
-    def apply(self, operation: ExtractOperation) -> "FieldExtractor":
+    def apply(self, operation: ExtractOperation) -> FieldExtractor:
         """Добавляет пользовательскую операцию в цепочку."""
         self._operations.append(operation)
         return self

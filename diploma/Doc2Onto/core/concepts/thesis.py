@@ -1,7 +1,9 @@
 """Концепт :ВКР — выпускная квалификационная работа."""
+
 from __future__ import annotations
 
-from typing import ClassVar, Sequence
+from collections.abc import Sequence
+from typing import ClassVar
 
 from core.concepts._hash import short_sha1
 from core.concepts.base import BaseConcept, ConceptError, ConceptKind, ConceptParts

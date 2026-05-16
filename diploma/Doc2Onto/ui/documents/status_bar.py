@@ -1,22 +1,25 @@
-from typing import Optional
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
+"""Виджет для отображения статуса обработки документа по этапам и ошибок пайплайна."""
 
-from models.document import Document
+from __future__ import annotations
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+
 from app.context import get_theme_manager
+from models.document import Document
+
+_STEPS = [
+    "Документ загружен",
+    "Извлечены данные",
+    "Определён класс",
+    "Извлечены поля",
+    "Построены триплеты",
+    "Знания добавлены",
+]
 
 
 class StatusBarWidget(QWidget):
     """Прогресс обработки документа по статусам и сообщение об ошибке пайплайна."""
-
-    _STEPS = [
-        "Документ загружен",
-        "Извлечены данные",
-        "Определён класс",
-        "Извлечены поля",
-        "Построены триплеты",
-        "Знания добавлены",
-    ]
 
     def __init__(self):
         super().__init__()
@@ -30,7 +33,7 @@ class StatusBarWidget(QWidget):
         steps_row.setSpacing(0)
 
         self._step_labels: list[QLabel] = []
-        for text in self._STEPS:
+        for text in _STEPS:
             label = QLabel(f"●\n{text}")
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -44,7 +47,7 @@ class StatusBarWidget(QWidget):
         self._error_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         root.addWidget(self._error_label)
 
-        self._last_document: Optional[Document] = None
+        self._last_document: Document | None = None
         self.apply_theme()
 
     def apply_theme(self):
@@ -52,7 +55,7 @@ class StatusBarWidget(QWidget):
         self._error_label.setStyleSheet(f"color: {t.color_status_error};")
         self.set_status(self._last_document)
 
-    def set_status(self, document: Optional[Document]):
+    def set_status(self, document: Document | None):
         """Отображает текущий статус документа и последнюю ошибку пайплайна (если есть)."""
         self._last_document = document
         t = get_theme_manager().current
@@ -67,7 +70,7 @@ class StatusBarWidget(QWidget):
         error_message = document.pipeline_error_message
 
         status_idx = int(status)
-        failed_idx: Optional[int] = int(failed_target) if failed_target is not None else None
+        failed_idx: int | None = int(failed_target) if failed_target is not None else None
 
         for i, label in enumerate(self._step_labels):
             if failed_idx is not None and i == failed_idx:

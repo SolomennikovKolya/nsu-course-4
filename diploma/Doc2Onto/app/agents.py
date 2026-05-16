@@ -1,18 +1,21 @@
-import os
+"""Модуль-агент для общения с OpenAI."""
+
+from __future__ import annotations
+
 import logging
+import os
 from datetime import datetime
-from time import perf_counter
-from typing import Optional
-from openai import DefaultHttpxClient, OpenAI
 from pathlib import Path
 from string import Template as StringTemplate
+from time import perf_counter
 
-from app.settings import DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS, AGENTS_LOG_PATH, LOG_LINE_LENGTH
+from openai import DefaultHttpxClient, OpenAI
+
 from app.logger import create_agents_logger
+from app.settings import AGENTS_LOG_PATH, DEFAULT_MODEL, DEFAULT_TIMEOUT_SECONDS, LOG_LINE_LENGTH
 
-
-_client: Optional[OpenAI] = None
-_logger: Optional[logging.Logger] = None
+_client: OpenAI | None = None
+_logger: logging.Logger | None = None
 
 
 def _get_agents_logger() -> logging.Logger:
@@ -30,7 +33,7 @@ def get_openai_client() -> OpenAI:
     if _client is not None:
         return _client
 
-    api_key = os.getenv("OPENAI_API_KEY").strip()
+    api_key = str(os.getenv("OPENAI_API_KEY")).strip()
     if not api_key:
         raise RuntimeError("Не задана переменная среды OPENAI_API_KEY")
 
@@ -43,7 +46,7 @@ def get_openai_client() -> OpenAI:
     return _client
 
 
-def ask_gpt(prompt: str, *, system_prompt: Optional[str] = None, model: Optional[str] = None) -> str:
+def ask_gpt(prompt: str, *, system_prompt: str | None = None, model: str | None = None) -> str:
     logger = _get_agents_logger()
     used_model = model or DEFAULT_MODEL
     started_at = datetime.now()
@@ -78,34 +81,46 @@ def ask_gpt(prompt: str, *, system_prompt: Optional[str] = None, model: Optional
         text = getattr(response, "output_text", None)
         elapsed_ms = int((perf_counter() - started_perf) * 1000)
         if not text:
-            logger.info("\n".join([
-                "[ASSISTANT RESPONSE]",
-                "(empty)",
-                "-" * LOG_LINE_LENGTH,
-                f"duration_ms={elapsed_ms}",
-                "=" * LOG_LINE_LENGTH,
-            ]))
+            logger.info(
+                "\n".join(
+                    [
+                        "[ASSISTANT RESPONSE]",
+                        "(empty)",
+                        "-" * LOG_LINE_LENGTH,
+                        f"duration_ms={elapsed_ms}",
+                        "=" * LOG_LINE_LENGTH,
+                    ]
+                )
+            )
             raise RuntimeError("OpenAI вернул пустой ответ")
 
         answer = text.strip()
-        logger.info("\n".join([
-            "[ASSISTANT RESPONSE]",
-            answer,
-            "-" * LOG_LINE_LENGTH,
-            f"duration_ms={elapsed_ms}",
-            "=" * LOG_LINE_LENGTH,
-        ]))
+        logger.info(
+            "\n".join(
+                [
+                    "[ASSISTANT RESPONSE]",
+                    answer,
+                    "-" * LOG_LINE_LENGTH,
+                    f"duration_ms={elapsed_ms}",
+                    "=" * LOG_LINE_LENGTH,
+                ]
+            )
+        )
         return answer
 
     except Exception as exc:
         elapsed_ms = int((perf_counter() - started_perf) * 1000)
-        logger.exception("\n".join([
-            "[ERROR]",
-            str(exc),
-            "-" * LOG_LINE_LENGTH,
-            f"duration_ms={elapsed_ms}",
-            "=" * LOG_LINE_LENGTH,
-        ]))
+        logger.exception(
+            "\n".join(
+                [
+                    "[ERROR]",
+                    str(exc),
+                    "-" * LOG_LINE_LENGTH,
+                    f"duration_ms={elapsed_ms}",
+                    "=" * LOG_LINE_LENGTH,
+                ]
+            )
+        )
         raise
 
 

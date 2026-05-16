@@ -1,10 +1,14 @@
+"""Модуль, реализующий пайплайн обработки документов от загрузки до добавления в модель."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Self
+from typing import Self
 
 from app.context import get_logger
 from models.document import Document, DocumentContext, document_context
-from modules import Converter, Classifier, Extractor, GraphBuilder, Connector
-from modules.base import BaseModule, ModuleResult
+from modules import Classifier, Connector, Converter, Extractor, GraphBuilder
+from modules.base import BaseModule
 
 
 @dataclass(frozen=True)
@@ -15,15 +19,15 @@ class PipelineResult:
     FAILED = "FAILED"
 
     success: bool
-    message: Optional[str] = None
-    failed_status: Optional[Document.Status] = None  # Статус, до которого не удалось дойти
+    message: str | None = None
+    failed_status: Document.Status | None = None  # Статус, до которого не удалось дойти
 
     @classmethod
-    def ok(cls, *, message: Optional[str] = None) -> Self:
+    def ok(cls, *, message: str | None = None) -> Self:
         return cls(success=True, message=message)
 
     @classmethod
-    def failed(cls, *, message: Optional[str] = None, failed_status: Optional[Document.Status] = None) -> Self:
+    def failed(cls, *, message: str | None = None, failed_status: Document.Status | None = None) -> Self:
         return cls(success=False, message=message, failed_status=failed_status)
 
     def __bool__(self) -> bool:
@@ -34,7 +38,6 @@ class PipelineResult:
 
 
 class Pipeline:
-
     @dataclass
     class Stage:
         name: str
@@ -48,7 +51,7 @@ class Pipeline:
     def setup(self):
         """
         Настройка пайплайна. Определение последовательности стадий обработки документа.
-        Настройка выполняется не сразу при инициализации пайплайна, а при первом запуске, 
+        Настройка выполняется не сразу при инициализации пайплайна, а при первом запуске,
         чтобы избежать проблем с импортами.
         """
         self.stages = [
@@ -56,31 +59,31 @@ class Pipeline:
                 name="conversion",
                 start_status=Document.Status.UPLOADED,
                 target_status=Document.Status.UDDM_EXTRACTED,
-                module=Converter()
+                module=Converter(),
             ),
             Pipeline.Stage(
                 name="classification",
                 start_status=Document.Status.UDDM_EXTRACTED,
                 target_status=Document.Status.CLASS_DETERMINED,
-                module=Classifier()
+                module=Classifier(),
             ),
             Pipeline.Stage(
                 name="extraction",
                 start_status=Document.Status.CLASS_DETERMINED,
                 target_status=Document.Status.FIELDS_EXTRACTED,
-                module=Extractor()
+                module=Extractor(),
             ),
             Pipeline.Stage(
                 name="graph_building",
                 start_status=Document.Status.FIELDS_EXTRACTED,
                 target_status=Document.Status.TRIPLES_BUILT,
-                module=GraphBuilder()
+                module=GraphBuilder(),
             ),
             Pipeline.Stage(
                 name="model_insertion",
                 start_status=Document.Status.TRIPLES_BUILT,
                 target_status=Document.Status.ADDED_TO_MODEL,
-                module=Connector()
+                module=Connector(),
             ),
         ]
 
@@ -88,7 +91,9 @@ class Pipeline:
 
         self.setup_done = True
 
-    def run(self, doc: Document, final_stage: Document.Status = Document.Status.ADDED_TO_MODEL) -> PipelineResult:
+    def run(
+        self, doc: Document, final_stage: Document.Status = Document.Status.ADDED_TO_MODEL
+    ) -> PipelineResult:
         """Начинает / продолжает обработку докумнта до достижения final_stage."""
         if not self.setup_done:
             self.setup()
@@ -96,12 +101,14 @@ class Pipeline:
         doc.pipeline_failed_target = None
         doc.pipeline_error_message = None
 
-        self.logger.info(f"[Pipeline] started")
+        self.logger.info("[Pipeline] started")
         self.logger.info(f'  Document: "{doc.name}" [id={doc.id}]')
         self.logger.info(f"  Target status: {doc.status} -> {final_stage}")
 
         if int(doc.status) >= int(final_stage):
-            self.logger.info(f"[Pipeline] code: {PipelineResult.OK} (document already at status {doc.status})")
+            self.logger.info(
+                f"[Pipeline] code: {PipelineResult.OK} (document already at status {doc.status})"
+            )
             return PipelineResult.ok()
 
         with document_context(doc) as ctx:

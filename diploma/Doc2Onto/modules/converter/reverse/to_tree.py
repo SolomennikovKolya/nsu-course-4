@@ -1,14 +1,13 @@
-from typing import List
+from __future__ import annotations
 
-from core.uddm.model import UDDM, Block, Text, ListBlock, Table
+from core.uddm.model import UDDM, Block, ListBlock, Table, Text
 from modules.converter.reverse.base import BaseReverseConverter
 
 
 class UDDMToTree(BaseReverseConverter):
-
     def convert(self, uddm: UDDM) -> str:
         """Преобразует UDDM в древовидное текстовое представление."""
-        lines: List[str] = []
+        lines: list[str] = []
 
         for i, b in enumerate(uddm.root):
             is_last = i == len(uddm.root) - 1
@@ -16,7 +15,7 @@ class UDDMToTree(BaseReverseConverter):
 
         return "ROOT\n" + "\n".join(lines)
 
-    def _walk_block(self, lines: List[str], block: Block, prefix: str, is_last: bool):
+    def _walk_block(self, lines: list[str], block: Block, prefix: str, is_last: bool):
         branch = "└── " if is_last else "├── "
         next_prefix = prefix + ("    " if is_last else "│   ")
 
