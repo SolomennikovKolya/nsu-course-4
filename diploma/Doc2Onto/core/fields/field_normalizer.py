@@ -97,7 +97,7 @@ class FieldNormalizer:
     Сообщение об ошибке доступно в :attr:`last_error`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self._rules: List[Tuple[str, NormalizationRule]] = []
         self._last_error: Optional[str] = None
 
@@ -138,7 +138,7 @@ class FieldNormalizer:
         (None, если значение прошло цепочку)."""
         return self._last_error
 
-    def _reject(self, message: str) -> None:
+    def _reject(self, message: str):
         """Установить сообщение об ошибке (для использования внутри правил)."""
         self._last_error = message
 

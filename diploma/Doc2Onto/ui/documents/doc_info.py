@@ -1,19 +1,25 @@
 import json
 from typing import Optional, Dict, Any
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QComboBox,
     QPushButton, QMessageBox, QStackedLayout, QSizePolicy,
-    QApplication, QDialog, QTextEdit, QDialogButtonBox
+    QApplication, QDialog, QTextEdit, QTabWidget
 )
 
-from app.context import get_pipeline, get_doc_manager, get_temp_manager, get_ontology_repository
+from app.context import (
+    get_pipeline, get_doc_manager, get_temp_manager,
+    get_ontology_repository, get_theme_manager,
+)
 from app.settings import APP_NAME
 from models.document import Document
 from ui.common.editable_title import EditableTitleWidget
+from ui.common.accessory import wrap_tab_page_content
 from ui.documents.status_bar import StatusBarWidget
-from ui.documents.doc_view import DocumentViewWidget
-from ui.common.design import DELETE_BUTTON_STYLE
+from ui.documents.original_view import DocumentViewOriginalTab
+from ui.documents.uddm_view import DocumentViewUddmTab
+from ui.documents.graph_view import DocumentViewGraphTab
 
 
 # Декларативная таблица доступных действий по статусу документа.
@@ -34,12 +40,51 @@ ACTIONS_BY_STATUS: Dict[Document.Status, Dict[str, Any]] = {
     Document.Status.ADDED_TO_MODEL:    {"main": "rollback", "restart": False, "delete": True, "class": "locked"},
 }
 
-_MAIN_LABELS = {
+_MAIN_BUTTON_LABELS = {
     "run":       "Запустить обработку",
     "continue":  "Продолжить обработку",
     "add":       "Добавить в модель",
     "rollback":  "Откатить из модели",
 }
+
+
+class DocumentViewWidget(QWidget):
+    """Вкладки предпросмотра документа и его промежуточных данных."""
+
+    def __init__(self):
+        super().__init__()
+
+        self._document: Optional[Document] = None
+        self._tabs = QTabWidget()
+        self._original_tab = DocumentViewOriginalTab()
+        self._uddm_tab = DocumentViewUddmTab()
+        self._graph_tab = DocumentViewGraphTab()
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(self._tabs)
+
+        self._tabs.addTab(wrap_tab_page_content(self._original_tab), "Оригинал")
+        self._tabs.addTab(self._uddm_tab, "UDDM")
+        self._tabs.addTab(wrap_tab_page_content(self._graph_tab), "Граф")
+        self._apply_no_document_state()
+
+    def set_document(self, document: Optional[Document]):
+        """Установка текущего документа в виджет."""
+        self._document = document
+        self._tabs.setTabEnabled(0, self._original_tab.set_document(document))
+        self._tabs.setTabEnabled(1, self._uddm_tab.set_document(document))
+        self._tabs.setTabEnabled(2, self._graph_tab.set_document(document))
+        if document is None:
+            self._tabs.setCurrentIndex(0)
+
+    def apply_theme(self):
+        self._original_tab.apply_theme()
+        self._graph_tab.apply_theme()
+
+    def _apply_no_document_state(self):
+        """Установка текста по умолчанию при отсутствии документа."""
+        self.set_document(None)
 
 
 class DocumentInfoWidget(QWidget):
@@ -80,7 +125,7 @@ class DocumentInfoWidget(QWidget):
         self._title = EditableTitleWidget(
             placeholder="",
             title_style="font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;",
-            subdued_style="color:#8a8a8a;",
+            subdued_style=f"color:{get_theme_manager().current.color_title_placeholder};",
         )
         self._title.committed.connect(self._on_rename_doc)
         page_layout.addWidget(self._title)
@@ -111,7 +156,7 @@ class DocumentInfoWidget(QWidget):
         self._changes_button.clicked.connect(self._on_show_changes)
 
         self._delete_button = QPushButton("Удалить документ")
-        self._delete_button.setStyleSheet(DELETE_BUTTON_STYLE)
+        self._delete_button.setStyleSheet(get_theme_manager().current.delete_button_style())
         self._delete_button.clicked.connect(self._on_delete_doc)
 
         buttons_layout = QHBoxLayout()
@@ -151,6 +196,13 @@ class DocumentInfoWidget(QWidget):
 
     def get_document(self) -> Optional[Document]:
         return self._document
+
+    def apply_theme(self):
+        t = get_theme_manager().current
+        self._title.set_subdued_style(f"color:{t.color_title_placeholder};")
+        self._delete_button.setStyleSheet(t.delete_button_style())
+        self._status_widget.apply_theme()
+        self._document_view.apply_theme()
 
     def refresh_classes(self):
         """Обновляет список классов в комбо-боксе при изменении набора шаблонов."""
@@ -445,7 +497,7 @@ class DocumentInfoWidget(QWidget):
         meta = ACTIONS_BY_STATUS.get(doc.status, {})
         main_kind = meta.get("main", "run")
 
-        self._action_button.setText(_MAIN_LABELS.get(main_kind, "..."))
+        self._action_button.setText(_MAIN_BUTTON_LABELS.get(main_kind, "..."))
 
         # Если класс не задан и нужен — главную кнопку отключаем
         if doc.doc_class is None and main_kind in ("run", "continue", "add"):

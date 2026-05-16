@@ -6,10 +6,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.context import get_temp_manager
-from app.settings import APP_NAME
+from app.settings import APP_NAME, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 from models.template import Template
 from ui.templates.temp_info import TemplateInfoWidget
-from ui.common.design import MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 
 
 class TemplatesCache:
@@ -81,6 +80,9 @@ class TemplatesTab(QWidget):
 
         self._load_temps_cache()
         self._refresh_list()
+
+    def apply_theme(self):
+        self._info_widget.apply_theme()
 
     def _on_temp_added(self):
         name, ok = QInputDialog.getText(self, APP_NAME, "Название шаблона:")

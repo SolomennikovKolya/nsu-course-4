@@ -1,0 +1,50 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+extend-exclude = [".venv", "build", "dist", "docs"]
+
+[tool.ruff.lint]
+# Включённые наборы правил:
+#   E, W   — pycodestyle (PEP 8)
+#   F      — pyflakes (неиспользуемые импорты/переменные, ошибки имён)
+#   I      — isort (порядок и группировка импортов)
+#   UP     — pyupgrade (переписать под современный синтаксис)
+#   B      — flake8-bugbear (потенциальные баги: изменяемые дефолты и т.п.)
+#   SIM    — flake8-simplify (упрощения выражений)
+#   RUF    — собственные правила ruff
+#   N      — pep8-naming (имена классов/функций/переменных)
+#   PTH    — flake8-use-pathlib (Path вместо os.path)
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "N", "PTH"]
+
+ignore = [
+    "E501",    # длину строки контролирует форматтер
+    "B008",    # вызов функции в дефолте аргумента — у Qt это норма (Signal(), QColor(...))
+    "N802",    # имена методов Qt — camelCase (paint, sizeHint, eventFilter)
+    "N803",    # параметры Qt-методов тоже camelCase
+    "N815",    # mixedCase в class-атрибутах (camelCase у Qt-полей)
+    "SIM108",  # тернарка вместо if/else — иногда читается хуже
+    "RUF001",  # кириллические похожие символы в строках — у нас они намеренно
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Точки входа: допустим расширенный набор импортов и операций
+"main.py" = ["E402"]
+# Тесты: разрешаем длинные имена и неиспользуемые аргументы фикстур
+"tests/**" = ["N802", "N803", "F841"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "core", "models", "modules", "storage", "ui"]
+combine-as-imports = true
+split-on-trailing-comma = true
+
+[tool.ruff.lint.pep8-naming]
+# Qt-сигналы — class-атрибуты в snake_case, ruff не должен жаловаться
+extend-ignore-names = ["theme_changed", "document_*", "template_*", "ontology_*"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"

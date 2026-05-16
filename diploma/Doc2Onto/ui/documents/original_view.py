@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from models.document import Document
-from ui.common.design import UI_COLOR_RED
+from app.context import get_theme_manager
 from shiboken6 import delete as shiboken_delete
 
 try:
@@ -327,6 +327,8 @@ class DocumentViewOriginalTab(QWidget):
             Qt.ConnectionType.QueuedConnection,
         )
 
+        self._failure_message: Optional[str] = None
+
         self._stack = QStackedWidget()
         self._message = QTextBrowser()
         self._message.setReadOnly(True)
@@ -355,6 +357,7 @@ class DocumentViewOriginalTab(QWidget):
         self._message.setPlaceholderText("")
         self._stack.setCurrentWidget(self._message)
         self._pdf_preview.clear()
+        self._failure_message = None
 
         path = self._original_path()
         if path is None:
@@ -393,6 +396,7 @@ class DocumentViewOriginalTab(QWidget):
         path = Path(pdf_path)
         if self._pdf_preview.load_pdf(path):
             self._stack.setCurrentWidget(self._pdf_preview)
+            self._failure_message = None
         else:
             self._message.setPlainText("Не удалось открыть PDF для предпросмотра.")
             self._stack.setCurrentWidget(self._message)
@@ -400,11 +404,24 @@ class DocumentViewOriginalTab(QWidget):
     def _on_preview_pdf_failed(self, req_id: int, message: str):
         if req_id != self._request_id:
             return
-        self._message.setHtml(
-            f"<p style='color:{UI_COLOR_RED};'>Не удалось подготовить предпросмотр.</p>"
-            f"<pre style='color:#eeeeee;'>{message}</pre>"
-        )
+        self._failure_message = message
+        self._apply_failure_html()
         self._stack.setCurrentWidget(self._message)
+
+    def _apply_failure_html(self):
+        if self._failure_message is None:
+            return
+        t = get_theme_manager().current
+        from html import escape
+
+        self._message.setHtml(
+            f"<p style='color:{t.color_status_error};'>Не удалось подготовить предпросмотр.</p>"
+            f"<pre style='color:{t.color_code_pre};'>{escape(self._failure_message)}</pre>"
+        )
+
+    def apply_theme(self):
+        if self._failure_message is not None and self._stack.currentWidget() is self._message:
+            self._apply_failure_html()
 
     def _open_original_externally(self):
         path = self._original_path()

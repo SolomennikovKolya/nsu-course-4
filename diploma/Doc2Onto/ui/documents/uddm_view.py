@@ -4,7 +4,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QFrame, QTabWidget, QTextBrowser, QTextEdit, QVBoxLayout, QWidget
 
 from models.document import Document
-from ui.documents.view.common import read_text_file, wrap_tab_page_content
+from ui.common.accessory import read_text_file, wrap_tab_page_content
 
 
 class DocumentViewUddmTab(QWidget):

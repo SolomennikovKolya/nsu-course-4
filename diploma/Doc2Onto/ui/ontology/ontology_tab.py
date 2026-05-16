@@ -11,21 +11,17 @@ from PySide6.QtWidgets import (
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
-from app.context import get_ontology_repository
-from app.settings import SUBJECT_NAMESPACE_IRI
-from ui.common.design import (
-    UI_COLOR_LINK_CLASS,
-    UI_COLOR_LINK_INDIVIDUAL,
-    UI_COLOR_TEXT_DIM,
-    UI_COLOR_TEXT_MUTED,
-    UI_COLOR_TEXT_SECONDARY,
-    UI_COLOR_TEXT_SUBTLE,
-    MIN_LEFT_PANEL_WIDTH,
-    SPLITTER_RATIO_SIZES,
-)
+from app.context import get_ontology_repository, get_theme_manager
+from app.settings import SUBJECT_NAMESPACE_IRI, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 
 
 _NS = SUBJECT_NAMESPACE_IRI
+
+
+def _ui():
+    return get_theme_manager().current
+
+
 _META_RDF_TYPES: Set[URIRef] = {
     OWL.Class,
     RDFS.Class,
@@ -383,14 +379,14 @@ class IndividualCardWidget(QWidget):
         layout.addWidget(self._title_label)
 
         self._iri_label = QLabel()
-        self._iri_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};font-family:monospace;")
+        self._iri_label.setStyleSheet(f"color:{_ui().color_text_muted};font-family:monospace;")
         self._iri_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._iri_label.setWordWrap(True)
         layout.addWidget(self._iri_label)
 
         self._classes_label = QLabel()
         self._classes_label.setWordWrap(True)
-        self._classes_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SUBTLE};")
+        self._classes_label.setStyleSheet(f"color:{_ui().color_text_subtle};")
         layout.addWidget(self._classes_label)
 
         sep = QFrame()
@@ -431,6 +427,13 @@ class IndividualCardWidget(QWidget):
         layout.addWidget(self._ttl_button)
 
         self.set_graph(None)
+
+    def apply_theme(self):
+        t = _ui()
+        self._iri_label.setStyleSheet(f"color:{t.color_text_muted};font-family:monospace;")
+        self._classes_label.setStyleSheet(f"color:{t.color_text_subtle};")
+        if self._graph is not None and self._iri is not None:
+            self.show_individual(self._iri)
 
     def set_graph(self, graph: Optional[Graph]):
         self._graph = graph
@@ -485,11 +488,11 @@ class IndividualCardWidget(QWidget):
                 # а на деле клик ничего не делал.
                 target_kind = classify_link_target(g, o)
                 if target_kind == "individual":
-                    o_item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
+                    o_item.setForeground(QColor(_ui().color_link_individual))
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к индивиду)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(o)))
                 elif target_kind == "class":
-                    o_item.setForeground(QColor(UI_COLOR_LINK_CLASS))
+                    o_item.setForeground(QColor(_ui().color_link_class))
                     o_item.setToolTip(short_iri(str(o)) + "\n(клик — перейти к классу)")
                     o_item.setData(Qt.ItemDataRole.UserRole, ("class", str(o)))
                 else:
@@ -509,7 +512,7 @@ class IndividualCardWidget(QWidget):
             else:
                 badge = QTableWidgetItem("—")
                 badge.setData(Qt.ItemDataRole.UserRole, None)
-                badge.setForeground(QColor(UI_COLOR_TEXT_DIM))
+                badge.setForeground(QColor(_ui().color_text_dim))
             self._props_table.setItem(r, 2, badge)
 
         # --- входящие ---
@@ -524,11 +527,11 @@ class IndividualCardWidget(QWidget):
             s_item = QTableWidgetItem(s_text)
             target_kind = classify_link_target(g, s)
             if target_kind == "individual":
-                s_item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
+                s_item.setForeground(QColor(_ui().color_link_individual))
                 s_item.setData(Qt.ItemDataRole.UserRole, ("individual", str(s)))
                 s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к индивиду)")
             elif target_kind == "class":
-                s_item.setForeground(QColor(UI_COLOR_LINK_CLASS))
+                s_item.setForeground(QColor(_ui().color_link_class))
                 s_item.setData(Qt.ItemDataRole.UserRole, ("class", str(s)))
                 s_item.setToolTip(short_iri(str(s)) + "\n(клик — перейти к классу)")
             else:
@@ -640,19 +643,19 @@ class ClassCardWidget(QWidget):
         layout.addWidget(self._title_label)
 
         self._iri_label = QLabel()
-        self._iri_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};font-family:monospace;")
+        self._iri_label.setStyleSheet(f"color:{_ui().color_text_muted};font-family:monospace;")
         self._iri_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._iri_label.setWordWrap(True)
         layout.addWidget(self._iri_label)
 
         self._parents_label = QLabel()
         self._parents_label.setWordWrap(True)
-        self._parents_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SUBTLE};")
+        self._parents_label.setStyleSheet(f"color:{_ui().color_text_subtle};")
         layout.addWidget(self._parents_label)
 
         self._comment_label = QLabel()
         self._comment_label.setWordWrap(True)
-        self._comment_label.setStyleSheet(f"color:{UI_COLOR_TEXT_SECONDARY};")
+        self._comment_label.setStyleSheet(f"color:{_ui().color_text_secondary};")
         self._comment_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self._comment_label)
 
@@ -686,6 +689,14 @@ class ClassCardWidget(QWidget):
         self._individuals_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._individuals_table.cellClicked.connect(self._on_individuals_cell_clicked)
         layout.addWidget(self._individuals_table, 2)
+
+    def apply_theme(self):
+        t = _ui()
+        self._iri_label.setStyleSheet(f"color:{t.color_text_muted};font-family:monospace;")
+        self._parents_label.setStyleSheet(f"color:{t.color_text_subtle};")
+        self._comment_label.setStyleSheet(f"color:{t.color_text_secondary};")
+        if self._graph is not None and self._iri is not None:
+            self.show_class(self._iri)
 
     def set_graph(self, graph: Optional[Graph]):
         self._graph = graph
@@ -726,7 +737,7 @@ class ClassCardWidget(QWidget):
         self._subclasses_table.setRowCount(len(subclasses))
         for r, sub in enumerate(subclasses):
             item = QTableWidgetItem(class_label(g, sub))
-            item.setForeground(QColor(UI_COLOR_LINK_CLASS))
+            item.setForeground(QColor(_ui().color_link_class))
             item.setData(Qt.ItemDataRole.UserRole, str(sub))
             item.setToolTip(short_iri(str(sub)) + "\n(клик — перейти)")
             self._subclasses_table.setItem(r, 0, item)
@@ -742,7 +753,7 @@ class ClassCardWidget(QWidget):
         self._individuals_table.setRowCount(len(directs))
         for r, ind in enumerate(directs):
             item = QTableWidgetItem(display_name(g, ind, types_of(g, ind)))
-            item.setForeground(QColor(UI_COLOR_LINK_INDIVIDUAL))
+            item.setForeground(QColor(_ui().color_link_individual))
             item.setData(Qt.ItemDataRole.UserRole, str(ind))
             item.setToolTip(short_iri(str(ind)) + "\n(клик — перейти)")
             self._individuals_table.setItem(r, 0, item)
@@ -812,10 +823,10 @@ class OntologyTab(QWidget):
         empty_page = QWidget()
         empty_layout = QVBoxLayout(empty_page)
         empty_layout.setContentsMargins(12, 12, 12, 12)
-        empty_label = QLabel("Выберите класс или индивид")
-        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_label.setStyleSheet(f"color:{UI_COLOR_TEXT_MUTED};")
-        empty_layout.addWidget(empty_label)
+        self._empty_hint_label = QLabel("Выберите класс или индивид")
+        self._empty_hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_hint_label.setStyleSheet(f"color:{_ui().color_text_muted};")
+        empty_layout.addWidget(self._empty_hint_label)
         self._stack.addWidget(empty_page)
 
         self._class_card = ClassCardWidget()
@@ -852,6 +863,14 @@ class OntologyTab(QWidget):
         self._class_card.set_graph(self._graph)
         self._stack.setCurrentIndex(self._PAGE_EMPTY)
         self._rebuild_tree()
+
+    def apply_theme(self):
+        t = _ui()
+        self._empty_hint_label.setStyleSheet(f"color:{t.color_text_muted};")
+        self._individual_card.apply_theme()
+        self._class_card.apply_theme()
+        if self._graph is not None:
+            self._rebuild_tree()
 
     # ---------- tree ----------
 
@@ -927,7 +946,7 @@ class OntologyTab(QWidget):
         children.sort(key=lambda c: class_label(g, c))
 
         item = QTreeWidgetItem([class_label(g, cls)])
-        item.setForeground(0, QColor(UI_COLOR_LINK_CLASS))
+        item.setForeground(0, QColor(_ui().color_link_class))
         item.setData(0, Qt.ItemDataRole.UserRole, ("class", str(cls)))
         # Класс остаётся выбираемым — теперь у него есть собственная карточка.
         parent.addChild(item)
@@ -944,7 +963,7 @@ class OntologyTab(QWidget):
         sortable.sort(key=lambda t: t[0])
         for _, ind in sortable:
             ind_item = QTreeWidgetItem([display_name(g, ind, types_of(g, ind))])
-            ind_item.setForeground(0, QColor(UI_COLOR_LINK_INDIVIDUAL))
+            ind_item.setForeground(0, QColor(_ui().color_link_individual))
             ind_item.setData(0, Qt.ItemDataRole.UserRole, ("individual", str(ind)))
             ind_item.setToolTip(0, short_iri(str(ind)))
             item.addChild(ind_item)

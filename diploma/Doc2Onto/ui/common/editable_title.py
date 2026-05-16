@@ -96,6 +96,10 @@ class EditableTitleWidget(QWidget):
             self._edit.setText(self._value)
         self._apply_label()
 
+    def set_subdued_style(self, subdued_style: str):
+        self._subdued_style = subdued_style
+        self._apply_label()
+
     def set_enabled_editing(self, enabled: bool):
         self._edit_btn.setVisible(enabled)
         self._edit_btn.setEnabled(enabled)

@@ -151,7 +151,7 @@ class Connector(BaseModule):
 
     def _extract_effective_date(self, extraction_result: Optional[ExtractionResult], doc: Document) -> Optional[str]:
         """
-        Находит дату документа: extraction_result -> meta -> None.
+        Находит дату документа: extraction_result -> meta.
         Парсинг русских форматов: '20 декабря 2024 г.', '12.09.2025', '"29" сентября 2025 г.'.
         """
         if extraction_result is None:

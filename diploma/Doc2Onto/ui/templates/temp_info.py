@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget
 )
 
-from app.context import get_doc_manager, get_pipeline, get_temp_manager
+from app.context import get_doc_manager, get_pipeline, get_temp_manager, get_theme_manager
 from app.agents import ask_gpt, read_prompt
 from app.settings import (
     PROJECT_ROOT, APP_NAME,
@@ -30,13 +30,6 @@ from models.document import Document
 from models.template import Template, TemplateCodeLoader, template_context
 from ui.common.editable_title import EditableTitleWidget
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
-from ui.common.design import (
-    DELETE_BUTTON_STYLE,
-    UI_COLOR_GRAY,
-    UI_COLOR_GREEN,
-    UI_COLOR_RED,
-    UI_COLOR_YELLOW,
-)
 from utils.ontology_summary import build_schema_summary
 
 
@@ -61,18 +54,19 @@ class ValidationResultDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # --- Шапка со статусом ---
+        t = get_theme_manager().current
         if not report.issues:
             status_text = "Замечаний нет — шаблон валиден."
-            status_color = UI_COLOR_GREEN
+            status_color = t.color_status_success
         elif report.has_errors:
             n_err = len(report.errors)
             n_warn = len(report.warnings)
             status_text = f"Найдено ошибок: {n_err}, предупреждений: {n_warn}."
-            status_color = UI_COLOR_RED
+            status_color = t.color_status_error
         else:
             n_warn = len(report.warnings)
             status_text = f"Ошибок нет, предупреждений: {n_warn}."
-            status_color = UI_COLOR_YELLOW
+            status_color = t.color_status_warning
 
         status_label = QLabel(status_text)
         status_label.setStyleSheet(
@@ -109,17 +103,17 @@ class ValidationResultDialog(QDialog):
             for issue in issues:
                 level = "Ошибка" if issue.is_error() else "Предупреждение"
                 row = QTreeWidgetItem([issue.message, level])
-                level_color = UI_COLOR_RED if issue.is_error() else UI_COLOR_YELLOW
+                level_color = t.color_status_error if issue.is_error() else t.color_status_warning
                 row.setForeground(1, QColor(level_color))
                 if issue.detail:
                     detail_item = QTreeWidgetItem([issue.detail, ""])
-                    detail_item.setForeground(0, QColor(UI_COLOR_GRAY))
+                    detail_item.setForeground(0, QColor(t.color_status_neutral))
                     row.addChild(detail_item)
                 cat_item.addChild(row)
 
         if not report.issues:
             ok_item = QTreeWidgetItem(["Все проверки пройдены.", ""])
-            ok_item.setForeground(0, QColor(UI_COLOR_GREEN))
+            ok_item.setForeground(0, QColor(t.color_status_success))
             self._tree.addTopLevelItem(ok_item)
 
 
@@ -188,7 +182,7 @@ class TemplateInfoWidget(QWidget):
         self.title = EditableTitleWidget(
             placeholder="Название шаблона",
             title_style="font-size:16px;font-weight:bold;",
-            subdued_style="color:#8a8a8a;",
+            subdued_style=f"color:{get_theme_manager().current.color_title_placeholder};",
         )
         self.title.committed.connect(self._on_template_name_committed)
         page_layout.addWidget(self.title)
@@ -255,7 +249,7 @@ class TemplateInfoWidget(QWidget):
 
         self.delete_btn = QPushButton("Удалить шаблон")
         self.delete_btn.setMaximumWidth(140)
-        self.delete_btn.setStyleSheet(DELETE_BUTTON_STYLE)
+        self.delete_btn.setStyleSheet(get_theme_manager().current.delete_button_style())
         self.delete_btn.clicked.connect(self._on_delete_template)
 
         actions_layout.addWidget(self.edit_btn)
@@ -277,6 +271,13 @@ class TemplateInfoWidget(QWidget):
 
         return page
 
+    def apply_theme(self):
+        t = get_theme_manager().current
+        self.delete_btn.setStyleSheet(t.delete_button_style())
+        self.title.set_subdued_style(f"color:{t.color_title_placeholder};")
+        if self.template is not None:
+            self._set_code_preview(self.template)
+
     def set_template(self, template: Optional[Template]):
         self.template = template
         if template is None:
@@ -296,18 +297,23 @@ class TemplateInfoWidget(QWidget):
         self._loading_fields = False
 
     def _set_code_preview(self, template: Template):
+        t = get_theme_manager().current
+        sty = t.code_pygments_style
+        fg = t.code_plain_message_fg
         path = template.code_file_path()
         if not path.exists():
-            self.code_preview.setHtml(plain_message_to_preview_html("(файл code.py не найден)"))
+            msg = plain_message_to_preview_html("(файл code.py не найден)", style=sty, message_color=fg)
+            self.code_preview.setHtml(msg)
             return
 
         try:
             source = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            self.code_preview.setHtml(plain_message_to_preview_html(f"(не удалось прочитать code.py: {exc})"))
+            msg = plain_message_to_preview_html(f"(не удалось прочитать code.py: {exc})", style=sty, message_color=fg)
+            self.code_preview.setHtml(msg)
             return
 
-        self.code_preview.setHtml(python_code_to_preview_html(source))
+        self.code_preview.setHtml(python_code_to_preview_html(source, style=sty))
 
     def _on_template_name_committed(self, new_name: str):
         if self._loading_fields or self.template is None:

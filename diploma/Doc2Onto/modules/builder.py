@@ -167,7 +167,7 @@ class GraphBuilder(BaseModule):
         self.log(ERROR, msg, exc_info=True)
         return ModuleResult.failed(message=msg)
 
-    def _log_build_summary(self, graph: DraftGraph) -> None:
+    def _log_build_summary(self, graph: DraftGraph):
         """
         Диагностика после успешной сборки.
         Логирует сводку по построенному графу: общая статистика и разбор

@@ -13,7 +13,7 @@
      цитаты, горизонтальные разделители.
   4. По умолчанию убирает вступительные блоки-цитаты (`> …`),
      служившие пометками для рабочего процесса.
-  5. Сохраняет результат в `docs/thesis/_built/thesis.md`.
+  5. Сохраняет результат в `docs/thesis/thesis.md`.
 
 Использование:
   python scripts/build_thesis.py              # сборка с настройками по умолчанию
@@ -89,7 +89,7 @@ def unwrap_paragraphs(text: str) -> str:
     in_code_block = False
     paragraph_buf: List[str] = []
 
-    def flush_paragraph() -> None:
+    def flush_paragraph():
         if not paragraph_buf:
             return
         joined = " ".join(s.strip() for s in paragraph_buf if s.strip())
@@ -185,7 +185,7 @@ def read_part(path: Path, *, strip_meta: bool) -> str:
     return text.rstrip() + "\n"
 
 
-def build(output: Path, *, strip_meta: bool) -> None:
+def build(output: Path, *, strip_meta: bool):
     chunks: List[str] = []
     for name in PARTS:
         path = THESIS_DIR / name
@@ -234,7 +234,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main():
     args = parse_args()
     build(args.output, strip_meta=not args.keep_meta)
 

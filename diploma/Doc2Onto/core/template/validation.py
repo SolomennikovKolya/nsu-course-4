@@ -188,13 +188,13 @@ class TemplateValidationReport:
 
     # ----- мутаторы -----
 
-    def add_error(self, category: str, message: str, detail: Optional[str] = None) -> None:
+    def add_error(self, category: str, message: str, detail: Optional[str] = None):
         self.issues.append(ValidationIssue("error", category, message, detail))
 
-    def add_warning(self, category: str, message: str, detail: Optional[str] = None) -> None:
+    def add_warning(self, category: str, message: str, detail: Optional[str] = None):
         self.issues.append(ValidationIssue("warning", category, message, detail))
 
-    def extend(self, other: "TemplateValidationReport") -> None:
+    def extend(self, other: "TemplateValidationReport"):
         self.issues.extend(other.issues)
 
     # ----- сериализация для логов -----
@@ -362,7 +362,7 @@ def _load_ast(code_path: Path, report: TemplateValidationReport) -> Optional[ast
         return None
 
 
-def _validate_security(tree: ast.AST, report: TemplateValidationReport) -> None:
+def _validate_security(tree: ast.AST, report: TemplateValidationReport):
     """AST-проверки безопасности — без выполнения кода."""
     for node in ast.walk(tree):
 
@@ -396,7 +396,7 @@ def _validate_security(tree: ast.AST, report: TemplateValidationReport) -> None:
                 )
 
 
-def _check_import_root(module_name: str, node: ast.AST, report: TemplateValidationReport) -> None:
+def _check_import_root(module_name: str, node: ast.AST, report: TemplateValidationReport):
     if not module_name:
         return
     root = module_name.split(".", 1)[0]
@@ -432,7 +432,7 @@ def _position_detail(node: ast.AST) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _validate_fields_list(fields_list: List[Field], report: TemplateValidationReport) -> None:
+def _validate_fields_list(fields_list: List[Field], report: TemplateValidationReport):
     if not fields_list:
         report.add_error("fields", "Метод fields() вернул пустой список — нечего извлекать.")
         return
@@ -480,7 +480,7 @@ def _validate_fields_list(fields_list: List[Field], report: TemplateValidationRe
 # ---------------------------------------------------------------------------
 
 
-def _validate_classify(code: BaseTemplateCode, report: TemplateValidationReport) -> None:
+def _validate_classify(code: BaseTemplateCode, report: TemplateValidationReport):
     classify = getattr(code, "classify", None)
     if not callable(classify):
         # Уже зафиксировано в structure.
@@ -512,7 +512,7 @@ def _validate_build(
     code: BaseTemplateCode,
     fields_list: List[Field],
     report: TemplateValidationReport,
-) -> None:
+):
     """Проверяет, что build() не падает на синтетических значениях полей.
 
     Значения подбираются такими, чтобы пройти типовые трансформеры (ФИО, дата,
@@ -592,7 +592,7 @@ def _validate_ontology(
     tree: ast.AST,
     schema_path: Path,
     report: TemplateValidationReport,
-) -> None:
+):
     """Сверяет все имена ``ONTO.<x>`` / ``ONTO[<x>]`` в коде со схемой."""
     try:
         g = Graph()

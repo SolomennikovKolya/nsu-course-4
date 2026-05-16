@@ -8,6 +8,7 @@ from app.settings import DOCUMENTS_DIR, TEMPLATES_DIR, APP_LOG_PATH
 # чтобы избежать циклических зависимостей
 if TYPE_CHECKING:
     import logging
+    from ui.themes.manager import ThemeManager
     from storage.document_manager import DocumentManager
     from storage.ontology_repository import OntologyRepository
     from storage.template_manager import TemplateManager
@@ -24,6 +25,7 @@ class AppContext:
     temp_manager: TemplateManager
     ontology_repository: OntologyRepository
     pipeline: Pipeline
+    theme_manager: ThemeManager
 
 
 def init_app_context() -> AppContext:
@@ -44,6 +46,8 @@ def init_app_context() -> AppContext:
     _app_context.ontology_repository.warmup(_app_context.logger)
     from app.pipeline import Pipeline
     _app_context.pipeline = Pipeline()
+    from ui.themes.manager import ThemeManager
+    _app_context.theme_manager = ThemeManager()
 
     return _app_context
 
@@ -83,3 +87,7 @@ def get_ontology_repository() -> OntologyRepository:
 
 def get_pipeline() -> Pipeline:
     return _get_context_attr("pipeline")
+
+
+def get_theme_manager() -> ThemeManager:
+    return _get_context_attr("theme_manager")

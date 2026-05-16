@@ -42,7 +42,7 @@ def is_yellow(run) -> bool:
     return color is not None and color == WD_COLOR_INDEX.YELLOW
 
 
-def clear_yellow(run) -> None:
+def clear_yellow(run):
     run.font.highlight_color = None
 
 
@@ -55,14 +55,14 @@ def iter_paragraphs(doc) -> Iterable[Paragraph]:
                     yield para
 
 
-def delete_paragraph(paragraph: Paragraph) -> None:
+def delete_paragraph(paragraph: Paragraph):
     """Удаляет параграф из документа."""
     element = paragraph._element
     element.getparent().remove(element)
     paragraph._p = paragraph._element = None  # type: ignore[assignment]
 
 
-def replace_paragraph_text(paragraph: Paragraph, new_text: str) -> None:
+def replace_paragraph_text(paragraph: Paragraph, new_text: str):
     """
     Заменяет текст параграфа: первый run получает новый текст и теряет
     жёлтый highlight, остальные жёлтые run-ы очищаются.
@@ -82,7 +82,7 @@ def replace_paragraph_text(paragraph: Paragraph, new_text: str) -> None:
             clear_yellow(run)
 
 
-def replace_yellow_runs(paragraph: Paragraph, new_text: str) -> None:
+def replace_yellow_runs(paragraph: Paragraph, new_text: str):
     """
     Заменяет содержимое всех жёлтых run-ов параграфа: первый жёлтый run
     получает new_text, остальные обнуляются. Не-жёлтые run-ы не трогаем.
@@ -152,7 +152,7 @@ def add_paragraphs_after(
     return cursor
 
 
-def set_cell_text(cell, text: str, *, keep_first_para_format: bool = True) -> None:
+def set_cell_text(cell, text: str, *, keep_first_para_format: bool = True):
     """
     Полностью заменяет содержимое ячейки таблицы одним параграфом
     с указанным текстом, сохраняя форматирование первого параграфа.
@@ -182,7 +182,7 @@ def set_cell_text(cell, text: str, *, keep_first_para_format: bool = True) -> No
 # =============================================================================
 
 
-def fill_individual_assignment() -> None:
+def fill_individual_assignment():
     src = PRACTICE_DIR / "Соломенников_Николай_Александрович_ИЗ_на_практику.docx"
     dst = PRACTICE_DIR / "Соломенников_Николай_Александрович_ИЗ_на_практику_filled.docx"
     print(f"\n[ИЗ] {src.name}")
@@ -309,7 +309,7 @@ def fill_individual_assignment() -> None:
 # =============================================================================
 
 
-def fill_practice_report() -> None:
+def fill_practice_report():
     src = PRACTICE_DIR / "Соломенников_Николай_Александрович_Отчет_о_практике.docx"
     dst = PRACTICE_DIR / "Соломенников_Николай_Александрович_Отчет_о_практике_filled.docx"
     print(f"\n[ОТЧЁТ] {src.name}")
@@ -403,7 +403,7 @@ REPORT_BODY: List[str] = [
 # =============================================================================
 
 
-def fill_supervisor_review() -> None:
+def fill_supervisor_review():
     src = PRACTICE_DIR / "Соломенников_Николай_Александрович_Отзыв_руководителя_практики.docx"
     dst = PRACTICE_DIR / "Соломенников_Николай_Александрович_Отзыв_руководителя_практики_filled.docx"
     print(f"\n[ОТЗЫВ] {src.name}")
@@ -514,7 +514,7 @@ REVIEW_BODY: List[str] = [
 # =============================================================================
 
 
-def main() -> None:
+def main():
     fill_individual_assignment()
     fill_practice_report()
     fill_supervisor_review()
