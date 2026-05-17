@@ -1218,6 +1218,7 @@ class DocumentViewGraphTab(QWidget):
 
         self._items: list[_TripleListItem] = []
         self._build_ui()
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
 
     # ---------- UI ----------
 
@@ -1306,7 +1307,7 @@ class DocumentViewGraphTab(QWidget):
         lay.addWidget(details_btn)
         return banner
 
-    def apply_theme(self):
+    def _on_theme_changed(self, _theme_id: str):
         t = _th()
         self._error_banner.setStyleSheet(t.style_graph_error_banner())
         empty = self._detail_stack.widget(0)

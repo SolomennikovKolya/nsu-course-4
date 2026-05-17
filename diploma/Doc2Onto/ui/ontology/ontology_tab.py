@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 from rdflib import Graph, Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
-from app.context import get_ontology_repository, get_theme_manager
+from app.context import get_events, get_ontology_repository, get_theme_manager
 from app.settings import MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES, SUBJECT_NAMESPACE_IRI
 
 _NS = SUBJECT_NAMESPACE_IRI
@@ -453,8 +453,9 @@ class IndividualCardWidget(QWidget):
         layout.addWidget(self._ttl_button)
 
         self.set_graph(None)
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
 
-    def apply_theme(self):
+    def _on_theme_changed(self, _theme_id: str):
         t = _ui()
         self._iri_label.setStyleSheet(f"color:{t.color_text_muted};font-family:monospace;")
         self._classes_label.setStyleSheet(f"color:{t.color_text_subtle};")
@@ -543,7 +544,7 @@ class IndividualCardWidget(QWidget):
 
         # --- входящие ---
         inrows: list[tuple[URIRef, URIRef]] = []
-        for s, p, o in g.triples((None, None, iri)):
+        for s, p, _o in g.triples((None, None, iri)):
             if isinstance(s, URIRef) and isinstance(p, URIRef):
                 inrows.append((s, p))
         inrows.sort(key=lambda t: (predicate_label(g, t[1]), str(t[0])))
@@ -714,7 +715,9 @@ class ClassCardWidget(QWidget):
         self._individuals_table.cellClicked.connect(self._on_individuals_cell_clicked)
         layout.addWidget(self._individuals_table, 2)
 
-    def apply_theme(self):
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _theme_id: str):
         t = _ui()
         self._iri_label.setStyleSheet(f"color:{t.color_text_muted};font-family:monospace;")
         self._parents_label.setStyleSheet(f"color:{t.color_text_subtle};")
@@ -805,9 +808,6 @@ class ClassCardWidget(QWidget):
 class OntologyTab(QWidget):
     """Третья вкладка приложения — навигация по содержимому онтологии."""
 
-    document_navigation_requested = Signal(str)
-    template_navigation_requested = Signal(str)
-
     # Индексы страниц в правом стэке: empty / class / individual.
     _PAGE_EMPTY = 0
     _PAGE_CLASS = 1
@@ -856,12 +856,16 @@ class OntologyTab(QWidget):
         self._class_card.individual_clicked.connect(self._on_card_individual_clicked)
         self._stack.addWidget(self._class_card)
 
+        events = get_events()
         self._individual_card = IndividualCardWidget()
         self._individual_card.individual_clicked.connect(self._on_card_individual_clicked)
         self._individual_card.class_clicked.connect(self._on_class_link_clicked)
-        self._individual_card.document_clicked.connect(self.document_navigation_requested)
-        self._individual_card.template_clicked.connect(self.template_navigation_requested)
+        self._individual_card.document_clicked.connect(events.document_navigation_requested)
+        self._individual_card.template_clicked.connect(events.template_navigation_requested)
         self._stack.addWidget(self._individual_card)
+
+        events.ontology_changed.connect(self.refresh_graph)
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
 
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
@@ -886,11 +890,10 @@ class OntologyTab(QWidget):
         self._stack.setCurrentIndex(self._PAGE_EMPTY)
         self._rebuild_tree()
 
-    def apply_theme(self):
-        t = _ui()
-        self._empty_hint_label.setStyleSheet(f"color:{t.color_text_muted};")
-        self._individual_card.apply_theme()
-        self._class_card.apply_theme()
+    def _on_theme_changed(self, _theme_id: str):
+        # Карточки и делегаты сами подписаны на смену темы.
+        # Здесь только лейбл-плейсхолдер и перерисовка foreground-цветов в дереве.
+        self._empty_hint_label.setStyleSheet(f"color:{_ui().color_text_muted};")
         if self._graph is not None:
             self._rebuild_tree()
 

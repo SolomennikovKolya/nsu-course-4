@@ -50,6 +50,7 @@ from core.template.validation import TemplateValidationReport, validate_template
 from models.document import Document
 from models.template import Template, template_context
 from ui.common.editable_title import EditableTitleWidget
+from ui.common.qss import set_role, set_severity
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from utils.ontology_summary import build_schema_summary
 
@@ -73,23 +74,21 @@ class ValidationResultDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # --- Шапка со статусом ---
-        t = get_theme_manager().current
         if not report.issues:
             status_text = "Замечаний нет — шаблон валиден."
-            status_color = t.color_status_success
+            severity = "success"
         elif report.has_errors:
             n_err = len(report.errors)
             n_warn = len(report.warnings)
             status_text = f"Найдено ошибок: {n_err}, предупреждений: {n_warn}."
-            status_color = t.color_status_error
+            severity = "error"
         else:
             n_warn = len(report.warnings)
             status_text = f"Ошибок нет, предупреждений: {n_warn}."
-            status_color = t.color_status_warning
+            severity = "warning"
 
         status_label = QLabel(status_text)
-        status_label.setStyleSheet(f"color:{status_color}; padding:2px 0; font-weight:bold;")
+        set_severity(status_label, severity)
         layout.addWidget(status_label)
 
         # --- Дерево замечаний ---
@@ -101,6 +100,9 @@ class ValidationResultDialog(QDialog):
         self._tree.setWordWrap(True)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         layout.addWidget(self._tree, 1)
+
+        # У QTreeWidgetItem нет property-селекторов — берём цвета из текущей темы.
+        t = get_theme_manager().current
 
         # Группируем по категориям в порядке категорий
         category_order = ["structure", "security", "fields", "classify", "build", "ontology"]
@@ -182,6 +184,8 @@ class TemplateInfoWidget(QWidget):
         self.stack.addWidget(self._build_empty_page())
         self.stack.addWidget(self._build_detail_page())
 
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
+
     def _build_empty_page(self) -> QWidget:
         page = QWidget()
         empty_layout = QVBoxLayout(page)
@@ -197,11 +201,7 @@ class TemplateInfoWidget(QWidget):
         page_layout = QVBoxLayout(page)
 
         # --- Заголовок ---
-        self.title = EditableTitleWidget(
-            placeholder="Название шаблона",
-            title_style="font-size:16px;font-weight:bold;",
-            subdued_style=f"color:{get_theme_manager().current.color_title_placeholder};",
-        )
+        self.title = EditableTitleWidget(placeholder="Название шаблона")
         self.title.committed.connect(self._on_template_name_committed)
         page_layout.addWidget(self.title)
 
@@ -269,7 +269,7 @@ class TemplateInfoWidget(QWidget):
 
         self.delete_btn = QPushButton("Удалить шаблон")
         self.delete_btn.setMaximumWidth(140)
-        self.delete_btn.setStyleSheet(get_theme_manager().current.delete_button_style())
+        set_role(self.delete_btn, "delete")
         self.delete_btn.clicked.connect(self._on_delete_template)
 
         actions_layout.addWidget(self.edit_btn)
@@ -291,10 +291,7 @@ class TemplateInfoWidget(QWidget):
 
         return page
 
-    def apply_theme(self):
-        t = get_theme_manager().current
-        self.delete_btn.setStyleSheet(t.delete_button_style())
-        self.title.set_subdued_style(f"color:{t.color_title_placeholder};")
+    def _on_theme_changed(self, _theme_id: str):
         if self.template is not None:
             self._set_code_preview(self.template)
 

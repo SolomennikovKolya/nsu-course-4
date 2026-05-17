@@ -15,79 +15,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.common.qss import set_role
+
 
 class EditableTitleWidget(QWidget):
     """
-    Аккуратный заголовок с inline-редактированием.
+    Заголовок с inline-редактированием.
 
     - По кнопке ✎ переходит в режим редактирования.
     - Enter / потеря фокуса — сохранить.
     - Escape — отменить изменения.
     """
 
-    committed = Signal(str)  # новое значение
+    committed = Signal(str)
     cancelled = Signal()
 
-    def __init__(
-        self,
-        *,
-        placeholder: str = "",
-        title_style: str = "font-size:16px;font-weight:bold;",
-        subdued_style: str = "color:#8a8a8a;",
-    ):
+    def __init__(self, *, placeholder: str = ""):
         super().__init__()
         self._placeholder = placeholder
-        self._title_style = title_style
-        self._subdued_style = subdued_style
         self._value: str = ""
         self._editing = False
         self._frozen_height: int | None = None
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        self._stack = QStackedWidget()
-        self._stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        root.addWidget(self._stack)
-
-        # ---- view mode ----
-        view = QWidget()
-        view_layout = QHBoxLayout(view)
-        view_layout.setContentsMargins(0, 0, 0, 0)
-        view_layout.setSpacing(6)
-
-        self._label = QLabel()
-        self._label.setWordWrap(True)
-        self._label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        view_layout.addWidget(self._label, 1)
-
-        self._edit_btn = QToolButton()
-        self._edit_btn.setText("✎")
-        self._edit_btn.setToolTip("Переименовать")
-        self._edit_btn.clicked.connect(self.start_edit)
-        view_layout.addWidget(self._edit_btn, 0, Qt.AlignmentFlag.AlignTop)
-
-        # ---- edit mode ----
-        edit = QWidget()
-        edit_layout = QHBoxLayout(edit)
-        edit_layout.setContentsMargins(0, 0, 0, 0)
-        edit_layout.setSpacing(6)
-
-        self._edit = _EscapeAwareLineEdit()
-        self._edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        # Убираем «странные» внутренние отступы и делаем визуально ближе к заголовку.
-        self._edit.setStyleSheet("QLineEdit { padding: 0px; margin: 0px; }")
-        self._edit.returnPressed.connect(self._commit_from_editor)
-        self._edit.editingFinished.connect(self._commit_from_focus_out)
-        self._edit.escape_pressed.connect(self.cancel_edit)
-        edit_layout.addWidget(self._edit, 1)
-
-        self._stack.addWidget(view)
-        self._stack.addWidget(edit)
-
-        self._apply_label()
+        self._build_ui()
 
     def value(self) -> str:
         return self._value
@@ -98,17 +47,12 @@ class EditableTitleWidget(QWidget):
             self._edit.setText(self._value)
         self._apply_label()
 
-    def set_subdued_style(self, subdued_style: str):
-        self._subdued_style = subdued_style
-        self._apply_label()
-
     def set_enabled_editing(self, enabled: bool):
         self._edit_btn.setVisible(enabled)
         self._edit_btn.setEnabled(enabled)
 
     def setToolTip(self, tip: str):  # type: ignore[override]
         super().setToolTip(tip)
-        # self._label.setToolTip(tip)
         self._edit.setToolTip(tip)
 
     def start_edit(self):
@@ -132,10 +76,10 @@ class EditableTitleWidget(QWidget):
         self._apply_label()
         self.cancelled.emit()
 
-    def _commit_from_editor(self):
+    def _on_return_pressed(self):
         self._commit(self._edit.text())
 
-    def _commit_from_focus_out(self):
+    def _on_editing_finished(self):
         # editingFinished вызывается и при Escape (через потерю фокуса),
         # но Escape мы перехватываем в keyPressEvent у QLineEdit ниже.
         if self._editing:
@@ -144,7 +88,6 @@ class EditableTitleWidget(QWidget):
     def _commit(self, new_value: str):
         new_value = (new_value or "").strip()
         if not new_value:
-            # пустое имя — просто отмена (визуально мягче, чем ошибка)
             self.cancel_edit()
             return
         self._value = new_value
@@ -154,19 +97,62 @@ class EditableTitleWidget(QWidget):
         self._apply_label()
         self.committed.emit(new_value)
 
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self._stack = QStackedWidget()
+        self._stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        root.addWidget(self._stack)
+
+        view = QWidget()
+        view_layout = QHBoxLayout(view)
+        view_layout.setContentsMargins(0, 0, 0, 0)
+        view_layout.setSpacing(6)
+
+        self._label = QLabel()
+        self._label.setWordWrap(True)
+        self._label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        view_layout.addWidget(self._label, 1)
+
+        self._edit_btn = QToolButton()
+        self._edit_btn.setText("✎")
+        self._edit_btn.setToolTip("Переименовать")
+        self._edit_btn.clicked.connect(self.start_edit)
+        view_layout.addWidget(self._edit_btn, 0, Qt.AlignmentFlag.AlignTop)
+
+        edit = QWidget()
+        edit_layout = QHBoxLayout(edit)
+        edit_layout.setContentsMargins(0, 0, 0, 0)
+        edit_layout.setSpacing(6)
+
+        self._edit = _EscapeAwareLineEdit()
+        self._edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # Убираем «странные» внутренние отступы — визуально ближе к заголовку.
+        self._edit.setStyleSheet("QLineEdit { padding: 0px; margin: 0px; }")
+        self._edit.returnPressed.connect(self._on_return_pressed)
+        self._edit.editingFinished.connect(self._on_editing_finished)
+        self._edit.escape_pressed.connect(self.cancel_edit)
+        edit_layout.addWidget(self._edit, 1)
+
+        self._stack.addWidget(view)
+        self._stack.addWidget(edit)
+
+        self._apply_label()
+
     def _apply_label(self):
         if self._value:
             self._label.setText(self._value)
-            self._label.setStyleSheet(self._title_style)
+            set_role(self._label, "heading")
         else:
             self._label.setText(self._placeholder)
-            self._label.setStyleSheet(f"{self._title_style}{self._subdued_style}")
+            set_role(self._label, "heading-placeholder")
 
     def _freeze_current_height(self):
-        """
-        При переходе в edit-mode фиксируем высоту виджета, иначе QLabel с wordWrap и QLineEdit
-        имеют разные sizeHint (особенно при длинном/многострочном заголовке) и интерфейс «прыгает».
-        """
+        # При переходе в edit-mode фиксируем высоту: иначе QLabel с wordWrap и QLineEdit
+        # имеют разные sizeHint, и интерфейс «прыгает» на длинном заголовке.
         if self._frozen_height is not None:
             return
         self._frozen_height = self.height() if self.height() > 0 else self.sizeHint().height()
@@ -174,7 +160,6 @@ class EditableTitleWidget(QWidget):
         self.setMaximumHeight(self._frozen_height)
 
     def _unfreeze_height_later(self):
-        """Снимаем фиксацию высоты после обновления лейаута/переносов текста."""
         if self._frozen_height is None:
             return
 

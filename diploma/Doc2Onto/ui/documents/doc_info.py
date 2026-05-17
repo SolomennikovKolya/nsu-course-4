@@ -24,15 +24,16 @@ from PySide6.QtWidgets import (
 
 from app.context import (
     get_doc_manager,
+    get_events,
     get_ontology_repository,
     get_pipeline,
     get_temp_manager,
-    get_theme_manager,
 )
 from app.settings import APP_NAME
 from models.document import Document
 from ui.common.accessory import wrap_tab_page_content
 from ui.common.editable_title import EditableTitleWidget
+from ui.common.qss import set_role
 from ui.documents.graph_view import DocumentViewGraphTab
 from ui.documents.original_view import DocumentViewOriginalTab
 from ui.documents.status_bar import StatusBarWidget
@@ -65,7 +66,7 @@ _MAIN_BUTTON_LABELS = {
 
 
 class DocumentViewWidget(QWidget):
-    """Вкладки предпросмотра документа и его промежуточных данных."""
+    """Предпросмотр документа и его промежуточных данных."""
 
     def __init__(self):
         super().__init__()
@@ -94,10 +95,6 @@ class DocumentViewWidget(QWidget):
         if document is None:
             self._tabs.setCurrentIndex(0)
 
-    def apply_theme(self):
-        self._original_tab.apply_theme()
-        self._graph_tab.apply_theme()
-
     def _apply_no_document_state(self):
         """Установка текста по умолчанию при отсутствии документа."""
         self.set_document(None)
@@ -106,9 +103,8 @@ class DocumentViewWidget(QWidget):
 class DocumentInfoWidget(QWidget):
     """Виджет для отображения информации о документе и управления его обработкой."""
 
-    document_changed = Signal(Document)
+    document_info_changed = Signal(Document)
     document_deleted = Signal(Document)
-    ontology_changed = Signal()
 
     def __init__(self):
         super().__init__()
@@ -121,73 +117,13 @@ class DocumentInfoWidget(QWidget):
         self._stack = QStackedLayout(self)
         self._stack.addWidget(self._build_empty_page())
         self._stack.addWidget(self._build_document_page())
-
-    # ---------- pages ----------
-
-    def _build_empty_page(self) -> QWidget:
-        self._empty_page = QWidget()
-        empty_layout = QVBoxLayout(self._empty_page)
-
-        empty_label = QLabel("Выберите документ")
-        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        empty_layout.addWidget(empty_label)
-        return self._empty_page
-
-    def _build_document_page(self) -> QWidget:
-        self._document_page = QWidget()
-        page_layout = QVBoxLayout(self._document_page)
-
-        self._title = EditableTitleWidget(
-            placeholder="",
-            title_style="font-size:16px;font-weight:bold;padding: 0px 4px 4px 4px;",
-            subdued_style=f"color:{get_theme_manager().current.color_title_placeholder};",
-        )
-        self._title.committed.connect(self._on_rename_doc)
-        page_layout.addWidget(self._title)
-
-        self._class_combo = QComboBox()
-        self._class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._class_combo.addItem("Класс не определён", None)
-        for t in self._temp_manager.list():
-            self._class_combo.addItem(t.name, t.id)
-        self._class_combo.currentIndexChanged.connect(self._on_change_class)
-        page_layout.addWidget(self._class_combo, 1)
-
-        self._status_widget = StatusBarWidget()
-        page_layout.addWidget(self._status_widget)
-        page_layout.addSpacing(8)
-
-        self._document_view = DocumentViewWidget()
-        self._document_view.setMinimumHeight(240)
-        page_layout.addWidget(self._document_view, 1)
-
-        self._action_button = QPushButton()
-        self._action_button.clicked.connect(self._on_action_clicked)
-
-        self._restart_button = QPushButton("Перезапустить пайплайн")
-        self._restart_button.clicked.connect(self._on_restart_pipeline)
-
-        self._changes_button = QPushButton("Что изменилось")
-        self._changes_button.clicked.connect(self._on_show_changes)
-
-        self._delete_button = QPushButton("Удалить документ")
-        self._delete_button.setStyleSheet(get_theme_manager().current.delete_button_style())
-        self._delete_button.clicked.connect(self._on_delete_doc)
-
-        buttons_layout = QHBoxLayout()
-        buttons_layout.addWidget(self._action_button)
-        buttons_layout.addWidget(self._changes_button)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self._restart_button)
-        buttons_layout.addWidget(self._delete_button)
-        page_layout.addLayout(buttons_layout)
-
-        return self._document_page
-
-    # ---------- public API ----------
+        self._stack.setCurrentWidget(self._empty_page)
 
     def set_document(self, document: Document | None):
+        """Установка текущего документа в виджет. Если документ не изменился, ничего не делает."""
+        if self._document == document:
+            return
+
         self._document = document
         self._document_view.set_document(document)
 
@@ -211,14 +147,8 @@ class DocumentInfoWidget(QWidget):
         self._update_buttons()
 
     def get_document(self) -> Document | None:
+        """Возвращает текущий документ, отображаемый в виджете."""
         return self._document
-
-    def apply_theme(self):
-        t = get_theme_manager().current
-        self._title.set_subdued_style(f"color:{t.color_title_placeholder};")
-        self._delete_button.setStyleSheet(t.delete_button_style())
-        self._status_widget.apply_theme()
-        self._document_view.apply_theme()
 
     def refresh_classes(self):
         """Обновляет список классов в комбо-боксе при изменении набора шаблонов."""
@@ -236,20 +166,20 @@ class DocumentInfoWidget(QWidget):
 
         self._class_combo.blockSignals(False)
 
-    # ---------- slots ----------
-
-    def _on_rename_doc(self, new_name: str):
+    def _on_rename_document(self, new_name: str):
         doc = self._document
         if doc is None:
             return
+
         try:
             self._doc_manager.rename(doc, new_name)
         except Exception as e:
             QMessageBox.warning(self, APP_NAME, "Не удалось переименовать документ: " + str(e))
             self._title.set_value(doc.name)
             return
+
         self._title.set_value(new_name)
-        self.document_changed.emit(doc)
+        self.document_info_changed.emit(doc)
 
     def _on_change_class(self):
         doc = self._document
@@ -291,7 +221,6 @@ class DocumentInfoWidget(QWidget):
                 return
 
         doc.doc_class = new_class
-
         if new_class is not None:
             doc.status = Document.Status.CLASS_DETERMINED
         else:
@@ -305,36 +234,18 @@ class DocumentInfoWidget(QWidget):
         self._status_widget.set_status(doc)
         self._update_buttons()
         self._document_view.set_document(doc)
-        self.document_changed.emit(doc)
+        self.document_info_changed.emit(doc)
 
     def _on_action_clicked(self):
         doc = self._document
         if doc is None:
             return
-        action = ACTIONS_BY_STATUS.get(doc.status, {}).get("main")
 
+        action = ACTIONS_BY_STATUS.get(doc.status, {}).get("main")
         if action in ("run", "continue", "add"):
             self._run_pipeline_to_appropriate_target(doc)
         elif action == "rollback":
-            self._on_rollback()
-
-    def _run_pipeline_to_appropriate_target(self, doc: Document):
-        # target = Document.Status.TRIPLES_BUILT if doc.status == Document.Status.UPLOADED \
-        #     or int(doc.status) < int(Document.Status.TRIPLES_BUILT) else Document.Status.ADDED_TO_MODEL
-        # if doc.status == Document.Status.TRIPLES_BUILT:
-        #     target = Document.Status.ADDED_TO_MODEL
-        target = Document.Status.ADDED_TO_MODEL
-
-        self._pipeline.run(doc, target)
-        self._doc_manager.save_metadata(doc)
-
-        if doc.status == Document.Status.ADDED_TO_MODEL:
-            self.ontology_changed.emit()
-
-        self._status_widget.set_status(doc)
-        self._update_buttons()
-        self._document_view.set_document(doc)
-        self.document_changed.emit(doc)
+            self._rollback_from_model()
 
     def _on_restart_pipeline(self):
         doc = self._document
@@ -361,39 +272,7 @@ class DocumentInfoWidget(QWidget):
         self._status_widget.set_status(doc)
         self._update_buttons()
         self._document_view.set_document(doc)
-        self.document_changed.emit(doc)
-
-    def _on_rollback(self):
-        doc = self._document
-        if doc is None:
-            return
-
-        reply = QMessageBox.question(
-            self,
-            APP_NAME,
-            "Откатить документ из модели? Артефакты документа сохранятся.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            self._repo.rollback_document(doc.id)
-        except Exception as ex:
-            QMessageBox.warning(self, APP_NAME, f"Не удалось откатить документ: {ex}")
-            return
-
-        doc.status = Document.Status.TRIPLES_BUILT
-        doc.pipeline_failed_target = None
-        doc.pipeline_error_message = None
-        self._doc_manager.save_metadata(doc)
-
-        self.ontology_changed.emit()
-
-        self._status_widget.set_status(doc)
-        self._update_buttons()
-        self._document_view.set_document(doc)
-        self.document_changed.emit(doc)
+        self.document_info_changed.emit(doc)
 
     def _on_delete_doc(self):
         doc = self._document
@@ -418,7 +297,7 @@ class DocumentInfoWidget(QWidget):
         if is_in_model:
             try:
                 self._repo.rollback_document(doc.id)
-                self.ontology_changed.emit()
+                get_events().ontology_changed.emit()
             except Exception as ex:
                 QMessageBox.warning(self, APP_NAME, f"Не удалось откатить документ перед удалением: {ex}")
                 return
@@ -456,6 +335,113 @@ class DocumentInfoWidget(QWidget):
         view.setPlainText(text)
         layout.addWidget(view)
         dlg.exec()
+
+    def _build_empty_page(self) -> QWidget:
+        self._empty_page = QWidget()
+        empty_layout = QVBoxLayout(self._empty_page)
+
+        empty_label = QLabel("Выберите документ")
+        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        empty_layout.addWidget(empty_label)
+        return self._empty_page
+
+    def _build_document_page(self) -> QWidget:
+        self._document_page = QWidget()
+        page_layout = QVBoxLayout(self._document_page)
+
+        self._title = EditableTitleWidget(placeholder="")
+        self._title.committed.connect(self._on_rename_document)
+        page_layout.addWidget(self._title)
+
+        self._class_combo = QComboBox()
+        self._class_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._class_combo.addItem("Класс не определён", None)
+        for t in self._temp_manager.list():
+            self._class_combo.addItem(t.name, t.id)
+        self._class_combo.currentIndexChanged.connect(self._on_change_class)
+        page_layout.addWidget(self._class_combo, 1)
+
+        self._status_widget = StatusBarWidget()
+        page_layout.addWidget(self._status_widget)
+        page_layout.addSpacing(8)
+
+        self._document_view = DocumentViewWidget()
+        self._document_view.setMinimumHeight(240)
+        page_layout.addWidget(self._document_view, 1)
+
+        self._action_button = QPushButton()
+        self._action_button.clicked.connect(self._on_action_clicked)
+
+        self._restart_button = QPushButton("Перезапустить пайплайн")
+        self._restart_button.clicked.connect(self._on_restart_pipeline)
+
+        self._changes_button = QPushButton("Что изменилось")
+        self._changes_button.clicked.connect(self._on_show_changes)
+
+        self._delete_button = QPushButton("Удалить документ")
+        set_role(self._delete_button, "delete")
+        self._delete_button.clicked.connect(self._on_delete_doc)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addWidget(self._action_button)
+        buttons_layout.addWidget(self._changes_button)
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self._restart_button)
+        buttons_layout.addWidget(self._delete_button)
+        page_layout.addLayout(buttons_layout)
+
+        return self._document_page
+
+    def _run_pipeline_to_appropriate_target(self, doc: Document):
+        # target = Document.Status.TRIPLES_BUILT if doc.status == Document.Status.UPLOADED \
+        #     or int(doc.status) < int(Document.Status.TRIPLES_BUILT) else Document.Status.ADDED_TO_MODEL
+        # if doc.status == Document.Status.TRIPLES_BUILT:
+        #     target = Document.Status.ADDED_TO_MODEL
+        target = Document.Status.ADDED_TO_MODEL
+
+        self._pipeline.run(doc, target)
+        self._doc_manager.save_metadata(doc)
+
+        if doc.status == Document.Status.ADDED_TO_MODEL:
+            get_events().ontology_changed.emit()
+
+        self._status_widget.set_status(doc)
+        self._update_buttons()
+        self._document_view.set_document(doc)
+        self.document_info_changed.emit(doc)
+
+    def _rollback_from_model(self):
+        doc = self._document
+        if doc is None:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            APP_NAME,
+            "Откатить документ из модели? Артефакты документа сохранятся.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self._repo.rollback_document(doc.id)
+        except Exception as ex:
+            QMessageBox.warning(self, APP_NAME, f"Не удалось откатить документ: {ex}")
+            return
+
+        doc.status = Document.Status.TRIPLES_BUILT
+        doc.pipeline_failed_target = None
+        doc.pipeline_error_message = None
+        self._doc_manager.save_metadata(doc)
+
+        get_events().ontology_changed.emit()
+
+        self._status_widget.set_status(doc)
+        self._update_buttons()
+        self._document_view.set_document(doc)
+        self.document_info_changed.emit(doc)
 
     @staticmethod
     def _format_change_report(report: dict) -> str:
@@ -500,8 +486,6 @@ class DocumentInfoWidget(QWidget):
         if not added and not replaced and not rejected:
             lines.append("Изменений нет.")
         return "\n".join(lines)
-
-    # ---------- buttons state ----------
 
     def _update_buttons(self):
         doc = self._document

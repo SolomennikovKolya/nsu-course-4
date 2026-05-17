@@ -345,6 +345,8 @@ class DocumentViewOriginalTab(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._stack, 1)
 
+        get_theme_manager().theme_changed.connect(self._on_theme_changed)
+
     def set_document(self, document: Document | None) -> bool:
         self._document = document
         self._request_id += 1
@@ -419,7 +421,7 @@ class DocumentViewOriginalTab(QWidget):
             f"<pre style='color:{t.color_code_pre};'>{escape(self._failure_message)}</pre>"
         )
 
-    def apply_theme(self):
+    def _on_theme_changed(self, _theme_id: str):
         if self._failure_message is not None and self._stack.currentWidget() is self._message:
             self._apply_failure_html()
 

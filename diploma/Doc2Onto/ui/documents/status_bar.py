@@ -1,12 +1,12 @@
-"""Виджет для отображения статуса обработки документа по этапам и ошибок пайплайна."""
+"""Статус-бар обработки документа: прогресс по этапам и сообщение об ошибке."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from app.context import get_theme_manager
 from models.document import Document
+from ui.common.qss import set_severity
 
 _STEPS = [
     "Документ загружен",
@@ -23,7 +23,31 @@ class StatusBarWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        self._step_labels: list[QLabel] = []
+        self._build_ui()
 
+    def set_status(self, document: Document | None):
+        """Отображает текущий статус документа и последнюю ошибку пайплайна (если есть)."""
+        if document is None:
+            for label in self._step_labels:
+                set_severity(label, "disabled")
+            self._error_label.setText("")
+            return
+
+        status_idx = int(document.status)
+        failed_idx = int(document.pipeline_failed_target) if document.pipeline_failed_target is not None else None
+
+        for i, label in enumerate(self._step_labels):
+            if failed_idx is not None and i == failed_idx:
+                set_severity(label, "error")
+            elif i <= status_idx:
+                set_severity(label, "success")
+            else:
+                set_severity(label, "disabled")
+
+        self._error_label.setText(document.pipeline_error_message or "")
+
+    def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(6)
@@ -32,11 +56,11 @@ class StatusBarWidget(QWidget):
         steps_row.setContentsMargins(0, 0, 0, 0)
         steps_row.setSpacing(0)
 
-        self._step_labels: list[QLabel] = []
         for text in _STEPS:
             label = QLabel(f"●\n{text}")
             label.setWordWrap(True)
             label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            set_severity(label, "disabled")
             steps_row.addWidget(label, 1)
             self._step_labels.append(label)
 
@@ -45,42 +69,5 @@ class StatusBarWidget(QWidget):
         self._error_label = QLabel("")
         self._error_label.setWordWrap(True)
         self._error_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        set_severity(self._error_label, "error")
         root.addWidget(self._error_label)
-
-        self._last_document: Document | None = None
-        self.apply_theme()
-
-    def apply_theme(self):
-        t = get_theme_manager().current
-        self._error_label.setStyleSheet(f"color: {t.color_status_error};")
-        self.set_status(self._last_document)
-
-    def set_status(self, document: Document | None):
-        """Отображает текущий статус документа и последнюю ошибку пайплайна (если есть)."""
-        self._last_document = document
-        t = get_theme_manager().current
-        if document is None:
-            for label in self._step_labels:
-                label.setStyleSheet(f"color: {t.color_text_disabled}")
-            self._error_label.setText("")
-            return
-
-        status = document.status
-        failed_target = document.pipeline_failed_target
-        error_message = document.pipeline_error_message
-
-        status_idx = int(status)
-        failed_idx: int | None = int(failed_target) if failed_target is not None else None
-
-        for i, label in enumerate(self._step_labels):
-            if failed_idx is not None and i == failed_idx:
-                label.setStyleSheet(f"color: {t.color_status_error}; font-weight: bold")
-            elif i <= status_idx:
-                label.setStyleSheet(f"color: {t.color_status_success}; font-weight: bold")
-            else:
-                label.setStyleSheet(f"color: {t.color_text_disabled}")
-
-        if error_message:
-            self._error_label.setText(error_message)
-        else:
-            self._error_label.setText("")

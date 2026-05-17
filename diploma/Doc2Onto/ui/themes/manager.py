@@ -32,27 +32,6 @@ class ThemeManager(QObject):
         self._app: QApplication | None = None  # Приложение, к которому применяется тема
         self._load()
 
-    def _load(self):
-        if not UI_SETTINGS_PATH.exists():
-            return
-        try:
-            raw = json.loads(UI_SETTINGS_PATH.read_text(encoding="utf-8"))
-            tid = raw.get("theme_id")
-            if isinstance(tid, str) and tid in THEME_REGISTRY:
-                self._theme_id = tid
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    def _save(self):
-        try:
-            UI_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-            UI_SETTINGS_PATH.write_text(
-                json.dumps({"theme_id": self._theme_id}, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-        except OSError:
-            pass
-
     @property
     def theme_id(self) -> str:
         """Идентификатор текущей темы."""
@@ -93,3 +72,24 @@ class ThemeManager(QObject):
             return
 
         self._app.setStyleSheet(self.current.global_application_stylesheet())
+
+    def _load(self):
+        if not UI_SETTINGS_PATH.exists():
+            return
+        try:
+            raw = json.loads(UI_SETTINGS_PATH.read_text(encoding="utf-8"))
+            tid = raw.get("theme_id")
+            if isinstance(tid, str) and tid in THEME_REGISTRY:
+                self._theme_id = tid
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    def _save(self):
+        try:
+            UI_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            UI_SETTINGS_PATH.write_text(
+                json.dumps({"theme_id": self._theme_id}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass

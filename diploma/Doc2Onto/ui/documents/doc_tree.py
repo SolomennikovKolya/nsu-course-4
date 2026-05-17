@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTreeWidget,
@@ -58,9 +57,8 @@ class _DocumentsTreeDelegate(QStyledItemDelegate):
                 else _DocumentTreeKind.FOLDER
             )
 
-        if not (opt.state & QStyle.StateFlag.State_Selected):
-            color = QColor(get_theme_manager().current.color_for_doc_tree_kind(kind))
-            opt.palette.setColor(QPalette.ColorRole.Text, color)
+        color = QColor(get_theme_manager().current.color_for_doc_tree_kind(kind))
+        opt.palette.setColor(QPalette.ColorRole.Text, color)
 
         super().paint(painter, opt, index)
 
@@ -125,17 +123,19 @@ class _DocumentsCache:
 class DocumentTreeWidget(QWidget):
     """Дерево документов, сгруппированное по классам, с собственным кешем и раскраской по теме."""
 
-    document_selected = Signal(object)  # Document | None
+    document_selection_changed = Signal(object)  # Изменился выбор документа (Document | None)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
 
         self._cache = _DocumentsCache()
+        self._cache.load()
 
         self._tree = QTreeWidget()
         self._tree.setHeaderHidden(True)
         self._tree.setIndentation(20)
         self._tree.setItemDelegate(_DocumentsTreeDelegate(self._tree))
+        self._refresh()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -143,13 +143,6 @@ class DocumentTreeWidget(QWidget):
 
         self._tree.itemSelectionChanged.connect(self._on_selection_changed)
         get_theme_manager().theme_changed.connect(self._on_theme_changed)
-
-    # ---------- public API ----------
-
-    def load_documents(self):
-        """Полная загрузка кеша документов (с перерисовкой дерева)."""
-        self._cache.load()
-        self._refresh()
 
     def add_or_update_document(self, doc: Document, *, select: bool = False):
         """Добавить или обновить документ; при ``select=True`` выделить его в дереве."""
@@ -182,15 +175,11 @@ class DocumentTreeWidget(QWidget):
                     return True
         return False
 
-    # ---------- slots ----------
-
     def _on_selection_changed(self):
-        self.document_selected.emit(self.current_document())
+        self.document_selection_changed.emit(self.current_document())
 
     def _on_theme_changed(self, _theme_id: str):
         self._tree.viewport().update()
-
-    # ---------- internals ----------
 
     def _refresh(self, selected_doc: Document | None = None, restore_focus: bool = False):
         had_focus = restore_focus and self._tree.hasFocus()

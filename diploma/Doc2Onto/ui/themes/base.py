@@ -67,14 +67,6 @@ class BaseAppTheme:
             return self.color_status_warning
         return self.color_text_primary
 
-    def delete_button_style(self) -> str:
-        return (
-            "QPushButton:hover { "
-            f"background-color: {self.color_delete_button}; "
-            f"color: {self.color_on_error}; "
-            "}"
-        )
-
     def style_generator_header(self) -> str:
         return (
             "padding:8px 10px; "
@@ -117,82 +109,126 @@ class BaseAppTheme:
         )
 
     def style_graph_error_banner(self) -> str:
-        return (
-            f"background:{self.color_status_error}; color:{self.color_on_error}; padding:6px 10px;"
-        )
+        return f"background:{self.color_status_error}; color:{self.color_on_error}; padding:6px 10px;"
+
+    def html_colored(self, text: str, color: str) -> str:
+        """Обёрнуть текст в ``<span>`` с цветом темы."""
+        return f'<span style="color:{color}">{text}</span>'
+
+    def html_error(self, text: str) -> str:
+        return self.html_colored(text, self.color_status_error)
+
+    def html_warning(self, text: str) -> str:
+        return self.html_colored(text, self.color_status_warning)
+
+    def html_muted(self, text: str) -> str:
+        return self.html_colored(text, self.color_text_muted)
+
+    def html_subtle(self, text: str) -> str:
+        return self.html_colored(text, self.color_text_subtle)
+
+    def html_link_individual(self, text: str) -> str:
+        return self.html_colored(text, self.color_link_individual)
+
+    def html_link_class(self, text: str) -> str:
+        return self.html_colored(text, self.color_link_class)
 
     def global_application_stylesheet(self) -> str:
-        """Глобальная таблица стилей для QApplication."""
-        w, p, pi = self.color_window, self.color_panel, self.color_panel_inset
-        b = self.color_border
-        t = self.color_text_primary
-        tm = self.color_text_muted
+        """Глобальная таблица стилей для QApplication.
+
+        Помимо базового оформления виджетов содержит property-селекторы для
+        семантической раскраски лейблов (см. ``ui/common/qss.py``):
+            QLabel[role="muted"], QLabel[role="subtle"], QLabel[role="placeholder"],
+            QLabel[role="monospace"], QLabel[role="title"],
+            QLabel[severity="success" | "warning" | "error" | "neutral" | "disabled"].
+        """
         return f"""
 QMainWindow, QWidget {{
-    background-color: {w};
-    color: {t};
+    background-color: {self.color_window};
+    color: {self.color_text_primary};
 }}
 QTabWidget::pane {{
-    border: 1px solid {b};
-    background: {w};
+    border: 1px solid {self.color_border};
+    background: {self.color_window};
 }}
 QTabBar::tab {{
-    background: {p};
-    color: {t};
+    background: {self.color_panel};
+    color: {self.color_text_primary};
     padding: 6px 14px;
-    border: 1px solid {b};
+    border: 1px solid {self.color_border};
     border-bottom: none;
     border-top-left-radius: 4px;
     border-top-right-radius: 4px;
     margin-right: 2px;
 }}
 QTabBar::tab:selected {{
-    background: {w};
+    background: {self.color_window};
     font-weight: bold;
 }}
 QTabBar::tab:!selected {{
-    color: {tm};
+    color: {self.color_text_muted};
 }}
 QTreeWidget, QListWidget, QTableWidget {{
-    background-color: {pi};
-    color: {t};
-    alternate-background-color: {p};
-    border: 1px solid {b};
+    background-color: {self.color_panel_inset};
+    color: {self.color_text_primary};
+    alternate-background-color: {self.color_panel};
+    border: 1px solid {self.color_border};
     border-radius: 2px;
 }}
 QHeaderView::section {{
-    background-color: {p};
-    color: {t};
+    background-color: {self.color_panel};
+    color: {self.color_text_primary};
     padding: 4px;
-    border: 1px solid {b};
+    border: 1px solid {self.color_border};
 }}
 QLineEdit, QTextEdit, QPlainTextEdit, QComboBox {{
-    background-color: {pi};
-    color: {t};
-    border: 1px solid {b};
+    background-color: {self.color_panel_inset};
+    color: {self.color_text_primary};
+    border: 1px solid {self.color_border};
     border-radius: 2px;
     padding: 4px;
 }}
 QPushButton {{
-    background-color: {p};
-    color: {t};
-    border: 1px solid {b};
+    background-color: {self.color_panel};
+    color: {self.color_text_primary};
+    border: 1px solid {self.color_border};
     border-radius: 3px;
     padding: 5px 12px;
 }}
 QPushButton:disabled {{
     color: {self.color_text_disabled};
 }}
+QPushButton[role="delete"]:hover {{
+    background-color: {self.color_delete_button};
+    color: {self.color_on_error};
+}}
 QSplitter::handle {{
-    background: {b};
+    background: {self.color_border};
 }}
 QScrollArea {{
     border: none;
     background: transparent;
 }}
 QToolTip {{
-    background-color: {pi};
-    color: {t};
-    border: 1px solid {b};
+    background-color: {self.color_panel_inset};
+    color: {self.color_text_primary};
+    border: 1px solid {self.color_border};
 }}
+
+/* --- семантические лейблы (выставляются через ui.common.qss.set_role/set_severity) --- */
+QLabel[role="muted"]              {{ color: {self.color_text_muted}; }}
+QLabel[role="subtle"]             {{ color: {self.color_text_subtle}; }}
+QLabel[role="secondary"]          {{ color: {self.color_text_secondary}; }}
+QLabel[role="dim"]                {{ color: {self.color_text_dim}; }}
+QLabel[role="placeholder"]        {{ color: {self.color_title_placeholder}; }}
+QLabel[role="title"]              {{ font-size: 18px; font-weight: bold; }}
+QLabel[role="heading"]            {{ font-size: 16px; font-weight: bold; }}
+QLabel[role="heading-placeholder"]{{ font-size: 16px; font-weight: bold; color: {self.color_title_placeholder}; }}
+QLabel[role="monospace"]          {{ font-family: monospace; color: {self.color_text_muted}; }}
+
+QLabel[severity="success"]  {{ color: {self.color_status_success}; font-weight: bold; }}
+QLabel[severity="warning"]  {{ color: {self.color_status_warning}; font-weight: bold; }}
+QLabel[severity="error"]    {{ color: {self.color_status_error}; font-weight: bold; }}
+QLabel[severity="neutral"]  {{ color: {self.color_status_neutral}; }}
+QLabel[severity="disabled"] {{ color: {self.color_text_disabled}; }}
 """

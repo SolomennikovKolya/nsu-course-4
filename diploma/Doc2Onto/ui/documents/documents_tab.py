@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -15,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.context import get_doc_manager, get_pipeline
+from app.context import get_doc_manager, get_events, get_pipeline
 from app.settings import APP_NAME, MIN_LEFT_PANEL_WIDTH, SPLITTER_RATIO_SIZES
 from models.document import Document
 from modules.converter.converter import ConverterRegistry
@@ -26,47 +25,14 @@ from ui.documents.doc_tree import DocumentTreeWidget
 class DocumentsTab(QWidget):
     """Интерфейс для работы с документами."""
 
-    ontology_changed = Signal()  # документ добавлен/откачен/удалён из модели
-
     def __init__(self):
         super().__init__()
         self._pipeline = get_pipeline()
         self._doc_manager = get_doc_manager()
+        self._build_ui()
+        self._wire_signals()
 
-        # --- Левая панель ---
-        self._upload_btn = QPushButton("Загрузить документ")
-        self._tree = DocumentTreeWidget()
-
-        left_panel = QWidget()
-        left_panel.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
-        left_layout = QVBoxLayout(left_panel)
-        left_layout.addWidget(self._upload_btn)
-        left_layout.addWidget(self._tree)
-
-        # --- Правая панель ---
-        self._info_widget = DocumentInfoWidget()
-
-        # --- Основной макет ---
-        splitter = QSplitter()
-        splitter.addWidget(left_panel)
-        splitter.addWidget(self._info_widget)
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes(SPLITTER_RATIO_SIZES)
-
-        main_layout = QHBoxLayout(self)
-        main_layout.addWidget(splitter)
-
-        # --- Сигналы ---
-        self._upload_btn.clicked.connect(self._on_doc_upload)
-        self._tree.document_selected.connect(self._info_widget.set_document)
-        self._info_widget.document_changed.connect(self._on_doc_info_changed)
-        self._info_widget.document_deleted.connect(self._on_doc_deleted)
-        self._info_widget.ontology_changed.connect(self.ontology_changed)
-
-        self._tree.load_documents()
-
-    def _on_doc_upload(self):
+    def _on_document_upload(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, "Выберите документы")
         if not file_paths:
             return
@@ -102,25 +68,48 @@ class DocumentsTab(QWidget):
             self._doc_manager.save_metadata(doc)
             self._tree.add_or_update_document(doc)
 
-    def _on_doc_info_changed(self, doc: Document):
-        if doc is not None:
-            self._tree.add_or_update_document(doc, select=True)
+    def _on_document_info_changed(self, doc: Document):
+        self._tree.add_or_update_document(doc, select=True)
+        self._info.set_document(doc)
 
-    def _on_doc_deleted(self, deleted_doc: Document):
+    def _on_document_deleted(self, deleted_doc: Document):
         self._tree.remove_document(deleted_doc)
-        self._info_widget.set_document(None)
+        self._info.set_document(None)
 
-    def apply_theme(self):
-        """Обновляет виджеты, не покрытые делегатом дерева (дерево само подписано на смену темы)."""
-        self._info_widget.apply_theme()
-
-    def refresh_templates(self):
-        """Обновляет список классов документов. Вызывается из MainWindow при изменении списка шаблонов."""
-        selected = self._info_widget.get_document()
+    def _on_templates_changed(self):
+        selected = self._info.get_document()
         self._tree.sync_groups_with_meta()
-        self._info_widget.set_document(selected)
-        self._info_widget.refresh_classes()
+        self._info.set_document(selected)
+        self._info.refresh_classes()
 
-    def select_document_by_id(self, doc_id: str):
-        """Активирует элемент дерева для документа с заданным id (если найден)."""
-        self._tree.select_document_by_id(doc_id)
+    def _build_ui(self):
+        self._upload_btn = QPushButton("Загрузить документ")
+        self._tree = DocumentTreeWidget()
+
+        left_panel = QWidget()
+        left_panel.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.addWidget(self._upload_btn)
+        left_layout.addWidget(self._tree)
+
+        self._info = DocumentInfoWidget()
+
+        splitter = QSplitter()
+        splitter.addWidget(left_panel)
+        splitter.addWidget(self._info)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes(SPLITTER_RATIO_SIZES)
+
+        main_layout = QHBoxLayout(self)
+        main_layout.addWidget(splitter)
+
+    def _wire_signals(self):
+        self._upload_btn.clicked.connect(self._on_document_upload)
+        self._tree.document_selection_changed.connect(self._info.set_document)
+        self._info.document_info_changed.connect(self._on_document_info_changed)
+        self._info.document_deleted.connect(self._on_document_deleted)
+
+        events = get_events()
+        events.templates_changed.connect(self._on_templates_changed)
+        events.document_navigation_requested.connect(self._tree.select_document_by_id)

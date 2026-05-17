@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from storage.document_manager import DocumentManager
     from storage.ontology_repository import OntologyRepository
     from storage.template_manager import TemplateManager
+    from ui.common.events import AppEvents
     from ui.themes.manager import ThemeManager
 
 _app_context: AppContext | None = None
@@ -29,6 +30,7 @@ class AppContext:
     ontology_repository: OntologyRepository
     pipeline: Pipeline
     theme_manager: ThemeManager
+    events: AppEvents
 
 
 def init_app_context() -> AppContext:
@@ -41,22 +43,31 @@ def init_app_context() -> AppContext:
     from app.logger import create_app_logger
 
     _app_context.logger = create_app_logger(APP_LOG_PATH)
+
     from storage.document_manager import DocumentManager
 
     _app_context.doc_manager = DocumentManager(DOCUMENTS_DIR)
+
     from storage.template_manager import TemplateManager
 
     _app_context.temp_manager = TemplateManager(TEMPLATES_DIR)
+
     from storage.ontology_repository import OntologyRepository
 
     _app_context.ontology_repository = OntologyRepository()
     _app_context.ontology_repository.warmup(_app_context.logger)
+
     from app.pipeline import Pipeline
 
     _app_context.pipeline = Pipeline()
+
     from ui.themes.manager import ThemeManager
 
     _app_context.theme_manager = ThemeManager()
+
+    from ui.common.events import AppEvents
+
+    _app_context.events = AppEvents()
 
     return _app_context
 
@@ -102,3 +113,7 @@ def get_pipeline() -> Pipeline:
 
 def get_theme_manager() -> ThemeManager:
     return _get_context_attr("theme_manager")
+
+
+def get_events() -> AppEvents:
+    return _get_context_attr("events")

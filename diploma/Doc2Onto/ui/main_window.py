@@ -1,10 +1,10 @@
-"""Главное окно приложения, содержащее вкладки для управления документами, шаблонами и онтологией."""
+"""Главное окно приложения: вкладки документов, шаблонов, онтологии и настроек."""
 
 from __future__ import annotations
 
 from PySide6.QtWidgets import QMainWindow, QTabWidget
 
-from app.context import get_theme_manager
+from app.context import get_events
 from app.settings import APP_NAME, MAIN_WINDOW_H, MAIN_WINDOW_W
 from ui.documents.documents_tab import DocumentsTab
 from ui.ontology.ontology_tab import OntologyTab
@@ -13,13 +13,22 @@ from ui.templates.templates_tab import TemplatesTab
 
 
 class MainWindow(QMainWindow):
-    """Главное окно приложения, содержащее вкладки для управления документами, шаблонами и онтологией."""
+    """Главное окно приложения."""
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.resize(MAIN_WINDOW_W, MAIN_WINDOW_H)
+        self._build_ui()
+        self._wire_signals()
 
+    def _on_document_navigation_requested(self, _doc_id: str):
+        self._tabs.setCurrentWidget(self._docs_tab)
+
+    def _on_template_navigation_requested(self, _template_id: str):
+        self._tabs.setCurrentWidget(self._temps_tab)
+
+    def _build_ui(self):
         self._tabs = QTabWidget()
         self._docs_tab = DocumentsTab()
         self._temps_tab = TemplatesTab()
@@ -31,29 +40,9 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._settings_tab, "Настройки")
         self.setCentralWidget(self._tabs)
 
-        self._tabs.currentChanged.connect(self._on_tab_changed)
-        self._docs_tab.ontology_changed.connect(self._onto_tab.refresh_graph)
-        self._temps_tab.templates_changed.connect(self._docs_tab.refresh_templates)
-        self._onto_tab.document_navigation_requested.connect(self._on_document_navigation_requested)
-        self._onto_tab.template_navigation_requested.connect(self._on_template_navigation_requested)
-        get_theme_manager().theme_changed.connect(self._on_global_theme_changed)
-
-    def _on_tab_changed(self, index: int):
-        if self._tabs.widget(index) is self._docs_tab:
-            self._docs_tab.refresh_templates()
-        elif self._tabs.widget(index) is self._onto_tab:
-            self._onto_tab.refresh_graph()
-
-    def _on_document_navigation_requested(self, doc_id: str):
-        self._tabs.setCurrentWidget(self._docs_tab)
-        self._docs_tab.select_document_by_id(doc_id)
-
-    def _on_template_navigation_requested(self, template_id: str):
-        self._tabs.setCurrentWidget(self._temps_tab)
-        self._temps_tab.select_template_by_id(template_id)
-
-    def _on_global_theme_changed(self, _theme_id: str):
-        self._docs_tab.apply_theme()
-        self._temps_tab.apply_theme()
-        self._onto_tab.apply_theme()
-        self._settings_tab.apply_external_theme_change()
+    def _wire_signals(self):
+        # MainWindow слушает шину только ради переключения активной вкладки;
+        # сам выбор элемента делает соответствующая вкладка в своём обработчике.
+        events = get_events()
+        events.document_navigation_requested.connect(self._on_document_navigation_requested)
+        events.template_navigation_requested.connect(self._on_template_navigation_requested)
