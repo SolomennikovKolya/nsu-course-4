@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -50,6 +50,7 @@ from core.template.validation import TemplateValidationReport, validate_template
 from models.document import Document
 from models.template import Template, template_context
 from ui.common.editable_title import EditableTitleWidget
+from ui.common.item_delegate import ITEM_KIND_ROLE, ThemedItemDelegate
 from ui.common.qss import set_role, set_severity
 from ui.templates.python_code_html import plain_message_to_preview_html, python_code_to_preview_html
 from utils.ontology_summary import build_schema_summary
@@ -99,10 +100,8 @@ class ValidationResultDialog(QDialog):
         self._tree.setAlternatingRowColors(True)
         self._tree.setWordWrap(True)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._tree.setItemDelegate(ThemedItemDelegate(self._tree))
         layout.addWidget(self._tree, 1)
-
-        # У QTreeWidgetItem нет property-селекторов — берём цвета из текущей темы.
-        t = get_theme_manager().current
 
         # Группируем по категориям в порядке категорий
         category_order = ["structure", "security", "fields", "classify", "build", "ontology"]
@@ -123,17 +122,16 @@ class ValidationResultDialog(QDialog):
             for issue in issues:
                 level = "Ошибка" if issue.is_error() else "Предупреждение"
                 row = QTreeWidgetItem([issue.message, level])
-                level_color = t.color_status_error if issue.is_error() else t.color_status_warning
-                row.setForeground(1, QColor(level_color))
+                row.setData(1, ITEM_KIND_ROLE, "severity_error" if issue.is_error() else "severity_warning")
                 if issue.detail:
                     detail_item = QTreeWidgetItem([issue.detail, ""])
-                    detail_item.setForeground(0, QColor(t.color_status_neutral))
+                    detail_item.setData(0, ITEM_KIND_ROLE, "severity_neutral")
                     row.addChild(detail_item)
                 cat_item.addChild(row)
 
         if not report.issues:
             ok_item = QTreeWidgetItem(["Все проверки пройдены.", ""])
-            ok_item.setForeground(0, QColor(t.color_status_success))
+            ok_item.setData(0, ITEM_KIND_ROLE, "severity_success")
             self._tree.addTopLevelItem(ok_item)
 
 
@@ -199,16 +197,15 @@ class TemplateInfoWidget(QWidget):
     def _build_detail_page(self) -> QWidget:
         page = QWidget()
         page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
 
-        # --- Заголовок ---
-        self.title = EditableTitleWidget(placeholder="Название шаблона")
-        self.title.committed.connect(self._on_template_name_committed)
-        page_layout.addWidget(self.title)
-
-        # --- Описание ---
+        # --- Заголовок и описание ---
         description_widget = QWidget()
         description_layout = QVBoxLayout(description_widget)
-        description_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.title = EditableTitleWidget(placeholder="Название шаблона")
+        self.title.committed.connect(self._on_template_name_committed)
+        description_layout.addWidget(self.title)
 
         self.description_stack = QStackedWidget()
 
@@ -224,7 +221,9 @@ class TemplateInfoWidget(QWidget):
         self.description_stack.addWidget(self.description_edit)
         self.description_stack.setCurrentWidget(self.description_view)
 
-        description_actions = QHBoxLayout()
+        description_actions_widget = QWidget()
+        description_actions = QHBoxLayout(description_actions_widget)
+        description_actions.setContentsMargins(0, 0, 0, 0)
         self.toggle_description_mode_btn = QPushButton("Редактировать описание")
         self.toggle_description_mode_btn.clicked.connect(self._on_toggle_description_mode)
         description_actions.addWidget(self.toggle_description_mode_btn)
@@ -237,16 +236,12 @@ class TemplateInfoWidget(QWidget):
         description_actions.addWidget(self.generate_description_btn)
         description_actions.addStretch()
 
-        description_layout.addWidget(self.description_stack, 1)
-        description_layout.addLayout(description_actions)
-        description_layout.addSpacing(6)
+        description_layout.addWidget(self.description_stack)
+        description_layout.addWidget(description_actions_widget)
 
         # --- Предпросмотр кода шаблона и кнопки действий---
         code_preview_widget = QWidget()
         code_preview_layout = QVBoxLayout(code_preview_widget)
-        code_preview_layout.setContentsMargins(0, 0, 0, 0)
-        code_preview_layout.addSpacing(6)
-        code_preview_layout.addWidget(QLabel("Предпросмотр кода:"))
         self.code_preview = QTextBrowser()
         self.code_preview.setReadOnly(True)
         self.code_preview.setOpenExternalLinks(False)

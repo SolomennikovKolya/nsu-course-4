@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.settings import SPACING
 from ui.common.qss import set_role
 
 
@@ -109,7 +110,7 @@ class EditableTitleWidget(QWidget):
         view = QWidget()
         view_layout = QHBoxLayout(view)
         view_layout.setContentsMargins(0, 0, 0, 0)
-        view_layout.setSpacing(6)
+        view_layout.setSpacing(SPACING)
 
         self._label = QLabel()
         self._label.setWordWrap(True)
@@ -126,7 +127,7 @@ class EditableTitleWidget(QWidget):
         edit = QWidget()
         edit_layout = QHBoxLayout(edit)
         edit_layout.setContentsMargins(0, 0, 0, 0)
-        edit_layout.setSpacing(6)
+        edit_layout.setSpacing(SPACING)
 
         self._edit = _EscapeAwareLineEdit()
         self._edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)

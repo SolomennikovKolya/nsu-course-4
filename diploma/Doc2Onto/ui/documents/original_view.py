@@ -17,18 +17,19 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
+    QLabel,
+    QPlainTextEdit,
     QPushButton,
     QStackedWidget,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 from shiboken6 import delete as shiboken_delete
 
-from app.context import get_theme_manager
+from app.settings import SPACING
 from models.document import Document
+from ui.common.qss import set_role, set_severity
 
 try:
     from PySide6.QtPdf import QPdfDocument
@@ -224,7 +225,7 @@ class OriginalPdfPreviewWidget(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(6)
+        root.setSpacing(SPACING)
         root.addWidget(self._toolbar)
 
         self._toolbar.setEnabled(_QT_PDF)
@@ -327,13 +328,8 @@ class DocumentViewOriginalTab(QWidget):
             Qt.ConnectionType.QueuedConnection,
         )
 
-        self._failure_message: str | None = None
-
         self._stack = QStackedWidget()
-        self._message = QTextBrowser()
-        self._message.setReadOnly(True)
-        self._message.setOpenExternalLinks(True)
-        self._message.setFrameShape(QFrame.Shape.NoFrame)
+        self._message = self._build_message_page()
         self._stack.addWidget(self._message)
 
         self._pdf_preview = OriginalPdfPreviewWidget()
@@ -345,8 +341,6 @@ class DocumentViewOriginalTab(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._stack, 1)
 
-        get_theme_manager().theme_changed.connect(self._on_theme_changed)
-
     def set_document(self, document: Document | None) -> bool:
         self._document = document
         self._request_id += 1
@@ -355,34 +349,30 @@ class DocumentViewOriginalTab(QWidget):
         # Дождаться конвертации в фоне: иначе воркер может открыть .preview.pdf уже после close().
         self._preview_pool.waitForDone()
 
-        self._message.clear()
-        self._message.setPlaceholderText("")
+        self._show_status("")
         self._stack.setCurrentWidget(self._message)
         self._pdf_preview.clear()
-        self._failure_message = None
 
         path = self._original_path()
         if path is None:
-            self._message.setPlaceholderText("Документ не выбран")
+            self._show_status("Документ не выбран")
             return False
         if not path.exists():
-            self._message.setPlaceholderText("Оригинальный файл документа отсутствует")
+            self._show_status("Оригинальный файл документа отсутствует")
             return False
 
         ext = path.suffix.lower()
         if ext not in (".pdf", ".docx", ".doc"):
-            self._message.setPlainText(
-                f"Предпросмотр для формата «{ext or '(нет расширения)'}» не поддерживается."
-            )
+            self._show_status(f"Предпросмотр для формата «{ext or '(нет расширения)'}» не поддерживается.")
             return True
 
         if not _QT_PDF:
-            self._message.setPlainText(
+            self._show_status(
                 "Встроенный просмотр PDF недоступен: в сборке PySide6 нет модулей QtPdf / QtPdfWidgets."
             )
             return True
 
-        self._message.setPlainText("Подготовка предпросмотра…")
+        self._show_status("Подготовка предпросмотра…")
         worker = _PreviewPdfWorker(req_id=req_id, original=path, bridge=self._preview_bridge)
         self._preview_pool.start(worker)
         return True
@@ -398,32 +388,48 @@ class DocumentViewOriginalTab(QWidget):
         path = Path(pdf_path)
         if self._pdf_preview.load_pdf(path):
             self._stack.setCurrentWidget(self._pdf_preview)
-            self._failure_message = None
         else:
-            self._message.setPlainText("Не удалось открыть PDF для предпросмотра.")
+            self._show_status("Не удалось открыть PDF для предпросмотра.")
             self._stack.setCurrentWidget(self._message)
 
     def _on_preview_pdf_failed(self, req_id: int, message: str):
         if req_id != self._request_id:
             return
-        self._failure_message = message
-        self._apply_failure_html()
+        self._show_failure(message)
         self._stack.setCurrentWidget(self._message)
 
-    def _apply_failure_html(self):
-        if self._failure_message is None:
-            return
-        t = get_theme_manager().current
-        from html import escape
+    def _build_message_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
-        self._message.setHtml(
-            f"<p style='color:{t.color_status_error};'>Не удалось подготовить предпросмотр.</p>"
-            f"<pre style='color:{t.color_code_pre};'>{escape(self._failure_message)}</pre>"
-        )
+        self._message_label = QLabel()
+        self._message_label.setWordWrap(True)
+        self._message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        set_severity(self._message_label, "disabled")
+        layout.addWidget(self._message_label)
 
-    def _on_theme_changed(self, _theme_id: str):
-        if self._failure_message is not None and self._stack.currentWidget() is self._message:
-            self._apply_failure_html()
+        self._message_trace = QPlainTextEdit()
+        self._message_trace.setReadOnly(True)
+        set_role(self._message_trace, "monospace")
+        self._message_trace.setVisible(False)
+        layout.addWidget(self._message_trace, 1)
+        return page
+
+    def _show_status(self, text: str):
+        """Короткий статус — серый, без traceback."""
+        self._message_label.setText(text)
+        set_severity(self._message_label, "disabled")
+        self._message_trace.setPlainText("")
+        self._message_trace.setVisible(False)
+
+    def _show_failure(self, message: str):
+        """Ошибка с traceback — красный заголовок + моноширинный текст ошибки."""
+        self._message_label.setText("Не удалось подготовить предпросмотр.")
+        set_severity(self._message_label, "error")
+        self._message_trace.setPlainText(message)
+        self._message_trace.setVisible(True)
 
     def _open_original_externally(self):
         path = self._original_path()

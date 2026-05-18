@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from app.settings import SPACING
 from models.document import Document
 from ui.common.qss import set_severity
 
@@ -35,7 +36,9 @@ class StatusBarWidget(QWidget):
             return
 
         status_idx = int(document.status)
-        failed_idx = int(document.pipeline_failed_target) if document.pipeline_failed_target is not None else None
+        failed_idx = (
+            int(document.pipeline_failed_target) if document.pipeline_failed_target is not None else None
+        )
 
         for i, label in enumerate(self._step_labels):
             if failed_idx is not None and i == failed_idx:
@@ -50,7 +53,7 @@ class StatusBarWidget(QWidget):
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(6)
+        root.setSpacing(SPACING)
 
         steps_row = QHBoxLayout()
         steps_row.setContentsMargins(0, 0, 0, 0)

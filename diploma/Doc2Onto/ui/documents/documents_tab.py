@@ -102,6 +102,7 @@ class DocumentsTab(QWidget):
         splitter.setSizes(SPLITTER_RATIO_SIZES)
 
         main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(splitter)
 
     def _wire_signals(self):

@@ -37,7 +37,6 @@ class BaseAppTheme:
 
     color_info_accent: str = ""
     color_on_error: str = ""
-    color_code_pre: str = ""
     color_delete_button: str = ""
 
     rgba_hint_banner_bg: str = ""
@@ -49,89 +48,26 @@ class BaseAppTheme:
     code_plain_message_fg: str = ""
     code_pygments_style: type[Style]
 
-    def color_for_severity_level(self, level: int) -> str:
-        """Уровень предупреждения в UI: 0 — ок, 1 — внимание, 2+ — ошибка."""
-        if level <= 0:
-            return self.color_status_success
-        if level == 1:
-            return self.color_status_warning
-        return self.color_status_error
+    def color_for_item_kind(self, kind: str) -> str | None:
+        """Цвет foreground для элементов QTreeWidget/QTableWidget по семантической роли.
 
-    def color_for_doc_tree_kind(self, kind: str) -> str:
-        """Тон строки в дереве документов (см. ``DocumentTreeKind``)."""
-        if kind == "folder":
-            return self.color_text_subtle
-        if kind == "doc_complete":
-            return self.color_status_success
-        if kind == "doc_in_progress":
-            return self.color_status_warning
-        return self.color_text_primary
-
-    def style_generator_header(self) -> str:
-        return (
-            "padding:8px 10px; "
-            f"background:{self.rgba_hint_banner_bg}; "
-            f"border-left:3px solid {self.color_info_accent}; "
-            "border-radius:2px; "
-            f"color:{self.color_text_secondary};"
-        )
-
-    def style_monospace_preview_panel(self) -> str:
-        return (
-            "padding:10px 12px; "
-            f"background:{self.rgba_subtle_panel_bg}; "
-            f"border:1px solid {self.rgba_subtle_panel_border}; "
-            "border-radius:3px; "
-            f"color:{self.color_text_secondary};"
-        )
-
-    def style_pipeline_widget(self) -> str:
-        return (
-            "padding:4px 8px; "
-            f"background:{self.rgba_subtle_panel_bg}; "
-            f"border:1px solid {self.rgba_subtle_panel_border}; "
-            "border-radius:3px; "
-            f"color:{self.color_text_secondary}; "
-            "font-size:11px;"
-        )
-
-    def style_build_error_context_box(self) -> str:
-        return (
-            "padding:6px; "
-            f"background:{self.rgba_build_error_ctx_bg}; "
-            f"border:1px solid {self.rgba_build_error_ctx_border}; border-radius:3px;"
-        )
-
-    def style_build_error_header(self) -> str:
-        return (
-            f"background:{self.color_status_error}; color:{self.color_on_error}; "
-            "padding:8px; border-radius:4px;"
-        )
-
-    def style_graph_error_banner(self) -> str:
-        return f"background:{self.color_status_error}; color:{self.color_on_error}; padding:6px 10px;"
-
-    def html_colored(self, text: str, color: str) -> str:
-        """Обёрнуть текст в ``<span>`` с цветом темы."""
-        return f'<span style="color:{color}">{text}</span>'
-
-    def html_error(self, text: str) -> str:
-        return self.html_colored(text, self.color_status_error)
-
-    def html_warning(self, text: str) -> str:
-        return self.html_colored(text, self.color_status_warning)
-
-    def html_muted(self, text: str) -> str:
-        return self.html_colored(text, self.color_text_muted)
-
-    def html_subtle(self, text: str) -> str:
-        return self.html_colored(text, self.color_text_subtle)
-
-    def html_link_individual(self, text: str) -> str:
-        return self.html_colored(text, self.color_link_individual)
-
-    def html_link_class(self, text: str) -> str:
-        return self.html_colored(text, self.color_link_class)
+        Используется ``ThemedItemDelegate`` (``ui.common.item_delegate``).
+        ``None`` означает «не переопределять — взять цвет темы по умолчанию».
+        """
+        return {
+            # Ссылки на узлы онтологии
+            "link_individual": self.color_link_individual,
+            "link_class": self.color_link_class,
+            # Уровни (success/warning/error/neutral)
+            "severity_success": self.color_status_success,
+            "severity_warning": self.color_status_warning,
+            "severity_error": self.color_status_error,
+            "severity_neutral": self.color_status_neutral,
+            # Тон
+            "subtle": self.color_text_subtle,
+            "muted": self.color_text_muted,
+            "dim": self.color_text_dim,
+        }.get(kind)
 
     def global_application_stylesheet(self) -> str:
         """Глобальная таблица стилей для QApplication.
@@ -224,11 +160,76 @@ QLabel[role="placeholder"]        {{ color: {self.color_title_placeholder}; }}
 QLabel[role="title"]              {{ font-size: 18px; font-weight: bold; }}
 QLabel[role="heading"]            {{ font-size: 16px; font-weight: bold; }}
 QLabel[role="heading-placeholder"]{{ font-size: 16px; font-weight: bold; color: {self.color_title_placeholder}; }}
-QLabel[role="monospace"]          {{ font-family: monospace; color: {self.color_text_muted}; }}
+QLabel[role="monospace"], QTextEdit[role="monospace"], QPlainTextEdit[role="monospace"] {{
+    font-family: monospace;
+}}
+QLabel[role="iri"]                {{ font-family: monospace; color: {self.color_text_muted}; }}
 
 QLabel[severity="success"]  {{ color: {self.color_status_success}; font-weight: bold; }}
 QLabel[severity="warning"]  {{ color: {self.color_status_warning}; font-weight: bold; }}
 QLabel[severity="error"]    {{ color: {self.color_status_error}; font-weight: bold; }}
 QLabel[severity="neutral"]  {{ color: {self.color_status_neutral}; }}
 QLabel[severity="disabled"] {{ color: {self.color_text_disabled}; }}
+
+/* --- блочные стили (баннеры, информационные панели, контейнеры ошибок) --- */
+QLabel[role="info-banner"], QFrame[role="info-banner"] {{
+    padding: 8px 10px;
+    background: {self.rgba_hint_banner_bg};
+    border-left: 3px solid {self.color_info_accent};
+    border-radius: 2px;
+    color: {self.color_text_secondary};
+}}
+QLabel[role="subtle-panel"], QFrame[role="subtle-panel"], QTextEdit[role="subtle-panel"], QPlainTextEdit[role="subtle-panel"] {{
+    padding: 10px 12px;
+    background: {self.rgba_subtle_panel_bg};
+    border: 1px solid {self.rgba_subtle_panel_border};
+    border-radius: 3px;
+    color: {self.color_text_secondary};
+}}
+QLabel[role="pipeline-info"] {{
+    padding: 4px 8px;
+    background: {self.rgba_subtle_panel_bg};
+    border: 1px solid {self.rgba_subtle_panel_border};
+    border-radius: 3px;
+    color: {self.color_text_secondary};
+    font-size: 11px;
+}}
+QFrame[role="error-context"] {{
+    padding: 6px;
+    background: {self.rgba_build_error_ctx_bg};
+    border: 1px solid {self.rgba_build_error_ctx_border};
+    border-radius: 3px;
+}}
+QLabel[role="error-header"] {{
+    background: {self.color_status_error};
+    color: {self.color_on_error};
+    padding: 8px;
+    border-radius: 4px;
+}}
+QFrame[role="error-banner"], QLabel[role="error-banner"] {{
+    background: {self.color_status_error};
+    color: {self.color_on_error};
+    padding: 6px 10px;
+}}
+
+/* --- акцентные/прочие лейблы --- */
+QLabel[role="override-badge"] {{ color: {self.color_link_individual}; font-weight: bold; font-size: 10px; }}
+QLabel[role="bold"]           {{ font-weight: bold; }}
+QLabel[role="bold-medium"]    {{ font-weight: bold; font-size: 13px; }}
+QLabel[role="muted-italic"]   {{ color: {self.color_text_muted}; font-style: italic; }}
+QLabel[role="secondary-soft"] {{ color: {self.color_text_secondary}; }}
+
+/* --- цветные стрипы (вертикальный индикатор слева у строки) --- */
+QFrame[role="stripe"]                       {{ border-radius: 1px; background-color: transparent; }}
+QFrame[role="stripe"][severity="success"]   {{ background-color: {self.color_status_success}; }}
+QFrame[role="stripe"][severity="warning"]   {{ background-color: {self.color_status_warning}; }}
+QFrame[role="stripe"][severity="error"]     {{ background-color: {self.color_status_error}; }}
+QFrame[role="stripe"][severity="neutral"]   {{ background-color: {self.color_status_neutral}; }}
+QFrame[role="stripe"][severity="link"]      {{ background-color: {self.color_link_individual}; }}
+
+/* --- сам триплет в списке: «выключенное» состояние --- */
+QFrame[role="triple-item"][muted="true"] {{
+    background: {self.color_panel_inset};
+    color: {self.color_text_muted};
+}}
 """

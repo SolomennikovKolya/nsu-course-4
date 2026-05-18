@@ -100,7 +100,6 @@ class DarkTheme(BaseAppTheme):
 
     color_info_accent = "#5a8bd6"
     color_on_error = "#ffffff"
-    color_code_pre = "#eeeeee"
     color_delete_button = "#D32F2F"
 
     rgba_hint_banner_bg = "rgba(80,140,220,0.12)"

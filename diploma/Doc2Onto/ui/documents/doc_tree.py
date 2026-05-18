@@ -3,64 +3,29 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from app.context import get_doc_manager, get_temp_manager, get_theme_manager
+from app.context import get_doc_manager, get_temp_manager
 from models.document import Document
-
-# UserRole — объект Document; KindRole — семантический тон строки для раскраски.
-_TREE_KIND_ROLE = Qt.ItemDataRole.UserRole + 1
+from ui.common.item_delegate import ITEM_KIND_ROLE, ThemedItemDelegate
 
 
-class _DocumentTreeKind:
-    """Семантические роли строк дерева."""
-
-    FOLDER = "folder"
-    DOC_DEFAULT = "doc_default"
-    DOC_COMPLETE = "doc_complete"
-    DOC_IN_PROGRESS = "doc_in_progress"
-
-
-def _doc_tree_kind_from_status(status: Document.Status) -> str:
+def _kind_for_doc_status(status: Document.Status) -> str | None:
+    """Возвращает kind для делегата по статусу документа."""
+    if status == Document.Status.ADDED_TO_MODEL:
+        return "severity_success"
     if status in (
         Document.Status.UPLOADED,
         Document.Status.UDDM_EXTRACTED,
         Document.Status.CLASS_DETERMINED,
     ):
-        return _DocumentTreeKind.DOC_DEFAULT
-    if status == Document.Status.ADDED_TO_MODEL:
-        return _DocumentTreeKind.DOC_COMPLETE
-    return _DocumentTreeKind.DOC_IN_PROGRESS
-
-
-class _DocumentsTreeDelegate(QStyledItemDelegate):
-    """Читает KindRole и красит текст актуальными токенами темы."""
-
-    def paint(self, painter, option: QStyleOptionViewItem, index):
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-
-        kind = index.data(_TREE_KIND_ROLE)
-        if not isinstance(kind, str):
-            doc = index.data(Qt.ItemDataRole.UserRole)
-            kind = (
-                _doc_tree_kind_from_status(doc.status)
-                if isinstance(doc, Document)
-                else _DocumentTreeKind.FOLDER
-            )
-
-        color = QColor(get_theme_manager().current.color_for_doc_tree_kind(kind))
-        opt.palette.setColor(QPalette.ColorRole.Text, color)
-
-        super().paint(painter, opt, index)
+        return None  # дефолтный цвет темы
+    return "severity_warning"
 
 
 class _DocumentsCache:
@@ -123,26 +88,15 @@ class _DocumentsCache:
 class DocumentTreeWidget(QWidget):
     """Дерево документов, сгруппированное по классам, с собственным кешем и раскраской по теме."""
 
-    document_selection_changed = Signal(object)  # Изменился выбор документа (Document | None)
+    document_selection_changed = Signal(object)  # Document | None
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-
         self._cache = _DocumentsCache()
         self._cache.load()
-
-        self._tree = QTreeWidget()
-        self._tree.setHeaderHidden(True)
-        self._tree.setIndentation(20)
-        self._tree.setItemDelegate(_DocumentsTreeDelegate(self._tree))
+        self._build_ui()
+        self._wire_signals()
         self._refresh()
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._tree)
-
-        self._tree.itemSelectionChanged.connect(self._on_selection_changed)
-        get_theme_manager().theme_changed.connect(self._on_theme_changed)
 
     def add_or_update_document(self, doc: Document, *, select: bool = False):
         """Добавить или обновить документ; при ``select=True`` выделить его в дереве."""
@@ -160,14 +114,14 @@ class DocumentTreeWidget(QWidget):
         self._refresh(selected_doc=selected, restore_focus=True)
 
     def current_document(self) -> Document | None:
-        """Возвращает выделенный в дереве документ или None, если ничего не выделено или выделена папка."""
+        """Возвращает выделенный документ или ``None``, если ничего не выделено."""
         item = self._tree.currentItem()
         if not item:
             return None
         return item.data(0, Qt.ItemDataRole.UserRole)
 
     def select_document_by_id(self, doc_id: str) -> bool:
-        """Выделить документ по id; возвращает True, если документ найден."""
+        """Выделить документ по id; возвращает ``True``, если документ найден."""
         for group in self._cache.group_names():
             for doc in self._cache.docs_in_group(group):
                 if doc.id == doc_id:
@@ -178,8 +132,18 @@ class DocumentTreeWidget(QWidget):
     def _on_selection_changed(self):
         self.document_selection_changed.emit(self.current_document())
 
-    def _on_theme_changed(self, _theme_id: str):
-        self._tree.viewport().update()
+    def _build_ui(self):
+        self._tree = QTreeWidget()
+        self._tree.setHeaderHidden(True)
+        self._tree.setIndentation(20)
+        self._tree.setItemDelegate(ThemedItemDelegate(self._tree))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._tree)
+
+    def _wire_signals(self):
+        self._tree.itemSelectionChanged.connect(self._on_selection_changed)
 
     def _refresh(self, selected_doc: Document | None = None, restore_focus: bool = False):
         had_focus = restore_focus and self._tree.hasFocus()
@@ -188,13 +152,15 @@ class DocumentTreeWidget(QWidget):
         for group in self._cache.group_names():
             folder = QTreeWidgetItem([group])
             folder.setFlags(folder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            folder.setData(0, _TREE_KIND_ROLE, _DocumentTreeKind.FOLDER)
+            folder.setData(0, ITEM_KIND_ROLE, "subtle")
             self._tree.addTopLevelItem(folder)
 
             for doc in self._cache.docs_in_group(group):
                 item = QTreeWidgetItem([doc.name])
                 item.setData(0, Qt.ItemDataRole.UserRole, doc)
-                item.setData(0, _TREE_KIND_ROLE, _doc_tree_kind_from_status(doc.status))
+                kind = _kind_for_doc_status(doc.status)
+                if kind:
+                    item.setData(0, ITEM_KIND_ROLE, kind)
                 folder.addChild(item)
 
         self._tree.expandAll()

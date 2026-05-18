@@ -100,7 +100,6 @@ class LightTheme(BaseAppTheme):
 
     color_info_accent = "#1976d2"
     color_on_error = "#ffffff"
-    color_code_pre = "#37474f"
     color_delete_button = "#b71c1c"
 
     rgba_hint_banner_bg = "rgba(25,118,210,0.10)"

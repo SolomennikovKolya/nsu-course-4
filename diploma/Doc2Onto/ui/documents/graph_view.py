@@ -47,25 +47,25 @@ from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS, XSD
 from rdflib.util import from_n3
 
-from app.context import get_theme_manager
-from app.settings import ONTOLOGY_SCHEMA_PATH, SUBJECT_NAMESPACE_IRI
+from app.settings import ONTOLOGY_SCHEMA_PATH, SPACING, SUBJECT_NAMESPACE_IRI
 from core.graph.draft_graph import DraftGraph, DraftNode, DraftTriple, EditedGraph
 from models.document import Document
 from models.extraction_result import ExtractionResult
 from ui.common.accessory import read_text_file
-
-
-def _th():
-    return get_theme_manager().current
-
+from ui.common.qss import set_role, set_severity, set_state
 
 # =====================================================================
 # Утилитарные функции
 # =====================================================================
 
 
-def _warn_color(level: int) -> str:
-    return _th().color_for_severity_level(level)
+def _severity_for_level(level: int) -> str:
+    """Маппинг уровня предупреждения в семантику ``severity`` для QSS-селекторов."""
+    if level <= 0:
+        return "success"
+    if level == 1:
+        return "warning"
+    return "error"
 
 
 _TRIPLE_TYPE_LABELS: dict[DraftTriple.Type, str] = {
@@ -301,8 +301,7 @@ class _BuildErrorDialog(QDialog):
             f"<b>{_html_escape(report.exception_type)}</b>: {_html_escape(report.exception_message)}"
         )
         header.setWordWrap(True)
-        theme = _th()
-        header.setStyleSheet(theme.style_build_error_header())
+        set_role(header, "error-header")
         layout.addWidget(header)
 
         if report.timestamp:
@@ -321,7 +320,7 @@ class _BuildErrorDialog(QDialog):
         if ctx_lines:
             ctx_box = QLabel("<br/>".join(ctx_lines))
             ctx_box.setWordWrap(True)
-            ctx_box.setStyleSheet(_th().style_build_error_context_box())
+            set_role(ctx_box, "error-context")
             layout.addWidget(ctx_box)
 
         layout.addWidget(QLabel("Traceback:"))
@@ -362,7 +361,6 @@ class _NodeGeneratorDialog(QDialog):
         self._kind = kind
         self._n3: str = ""
         self._concepts = self._collect_concepts(kind)
-        self._theme = _th()
 
         mono = QFont("Consolas")
         if not mono.exactMatch():
@@ -380,21 +378,14 @@ class _NodeGeneratorDialog(QDialog):
             f"(хеш в IRI, ISO-дату, ссылку на индивид перечисления и т. п.)."
         )
         header.setWordWrap(True)
-        header.setStyleSheet(self._theme.style_generator_header())
+        set_role(header, "info-banner")
         layout.addWidget(header)
 
         # --- Сгруппированные поля формы ---
         form = QFrame()
-        # form.setStyleSheet(
-        #     "QFrame { "
-        #     "background:rgba(255,255,255,0.04); "
-        #     "border:1px solid rgba(255,255,255,0.08); "
-        #     "border-radius:4px; "
-        #     "}"
-        # )
         form_lay = QVBoxLayout(form)
         form_lay.setContentsMargins(12, 10, 12, 12)
-        form_lay.setSpacing(6)
+        form_lay.setSpacing(SPACING)
 
         form_lay.addWidget(QLabel("<b>Концепт онтологии:</b>"))
         self._combo = QComboBox()
@@ -420,7 +411,7 @@ class _NodeGeneratorDialog(QDialog):
         self._preview.setMinimumHeight(64)
         self._preview.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self._preview.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._preview.setStyleSheet(self._theme.style_monospace_preview_panel())
+        set_role(self._preview, "subtle-panel")
         layout.addWidget(self._preview)
         layout.addStretch(1)
 
@@ -437,15 +428,15 @@ class _NodeGeneratorDialog(QDialog):
         self._combo.currentIndexChanged.connect(self._update_preview)
 
         if not self._concepts:
-            self._preview.setText(
-                f"<span style='color:{self._theme.color_status_error};'>"
-                f"Нет подходящих концептов для этого типа узла."
-                f"</span>"
-            )
+            self._set_preview("Нет подходящих концептов для этого типа узла.", error=True)
             self._input.setEnabled(False)
             self._buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
         else:
             self._update_preview()
+
+    def _set_preview(self, text: str, *, error: bool = False):
+        self._preview.setText(text)
+        set_severity(self._preview, "error" if error else None)
 
     @staticmethod
     def _collect_concepts(kind: DraftNode.Type):
@@ -502,22 +493,18 @@ class _NodeGeneratorDialog(QDialog):
         self._n3 = ""
 
         if cls is None or not raw.strip():
-            self._preview.setText("(введите значение)")
+            self._set_preview("(введите значение)")
             ok_btn.setEnabled(False)
             return
 
         try:
             parts = cls.parse(raw)
         except ConceptError as ex:
-            self._preview.setText(
-                f"<span style='color:{self._theme.color_status_error};'>Ошибка: {_html_escape(str(ex))}</span>"
-            )
+            self._set_preview(f"Ошибка: {ex}", error=True)
             ok_btn.setEnabled(False)
             return
         except Exception as ex:
-            self._preview.setText(
-                f"<span style='color:{self._theme.color_status_error};'>Непредвиденная ошибка: {_html_escape(str(ex))}</span>"
-            )
+            self._set_preview(f"Непредвиденная ошибка: {ex}", error=True)
             ok_btn.setEnabled(False)
             return
 
@@ -526,19 +513,17 @@ class _NodeGeneratorDialog(QDialog):
             try:
                 local = cls.iri_local(parts)
             except Exception as ex:
-                self._preview.setText(
-                    f"<span style='color:{self._theme.color_status_error};'>Ошибка построения IRI: {_html_escape(str(ex))}</span>"
-                )
+                self._set_preview(f"Ошибка построения IRI: {ex}", error=True)
                 ok_btn.setEnabled(False)
                 return
             iri = URIRef(SUBJECT_NAMESPACE_IRI + local)
             n3 = iri.n3(nm)
-            self._preview.setText(f"<b>IRI индивида:</b> <code>{_html_escape(n3)}</code>")
+            self._set_preview(f"IRI индивида: {n3}")
         else:
             datatype = XSD.date if cls is DateConcept else XSD.string
             lit = Literal(parts.canonical, datatype=datatype)
             n3 = lit.n3(nm)
-            self._preview.setText(f"<b>Литерал:</b> <code>{_html_escape(n3)}</code>")
+            self._set_preview(f"Литерал: {n3}")
 
         self._n3 = n3
         ok_btn.setEnabled(True)
@@ -575,15 +560,17 @@ class _TripleListItem(QFrame):
         self.nm_graph = nm_graph
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
+        set_role(self, "triple-item")
         # Минимум — высота 2 строк, максимум растёт по контенту.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(4, 4, 4, 4)
-        outer.setSpacing(6)
+        outer.setSpacing(SPACING)
 
         self._stripe = QFrame()
         self._stripe.setFixedWidth(4)
+        set_role(self._stripe, "stripe")
         outer.addWidget(self._stripe)
 
         mono = QFont("Consolas")
@@ -592,7 +579,7 @@ class _TripleListItem(QFrame):
 
         self._index_lbl = QLabel(f"#{triple_index}")
         self._index_lbl.setFont(mono)
-        self._index_lbl.setStyleSheet(f"color:{_th().color_text_disabled};")
+        set_severity(self._index_lbl, "disabled")
         self._index_lbl.setFixedWidth(40)
         outer.addWidget(self._index_lbl)
 
@@ -601,12 +588,6 @@ class _TripleListItem(QFrame):
         self._summary.setWordWrap(True)
         self._summary.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         outer.addWidget(self._summary, stretch=1)
-
-        # self._type_badge = QLabel()
-        # self._type_badge.setFont(mono)
-        # self._type_badge.setStyleSheet("color:gray;")
-        # self._type_badge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        # outer.addWidget(self._type_badge)
 
         self.refresh(extraction=None)
 
@@ -623,23 +604,13 @@ class _TripleListItem(QFrame):
         o_n3 = _term_n3_short(self.nm_graph, o.get_rdf_node())
         self._summary.setText(f"{s_n3}  {p_n3}  {o_n3}")
 
-        # self._type_badge.setText(f"({_TRIPLE_TYPE_LABELS[tr.triple_type]})")
-
         if excluded:
-            stripe_color = _th().color_status_neutral
-            self.setStyleSheet(
-                "QFrame { background: "
-                + _th().color_panel_inset
-                + "; color: "
-                + _th().color_text_muted
-                + "; }"
-            )
+            set_state(self, "muted", "true")
+            set_severity(self._stripe, "neutral")
         else:
+            set_state(self, "muted", None)
             level = _triple_warn_level(self.edited, idx, extraction)
-            stripe_color = _warn_color(level)
-            self.setStyleSheet("")
-
-        self._stripe.setStyleSheet(f"background-color: {stripe_color}; border-radius: 1px;")
+            set_severity(self._stripe, _severity_for_level(level))
 
     def compute_height_for_width(self, total_width: int) -> int:
         """Высота строки для заданной общей ширины (для setSizeHint).
@@ -697,7 +668,7 @@ class _TripleDetailPanel(QWidget):
         outer.setSpacing(8)
 
         self._title = QLabel()
-        self._title.setStyleSheet("font-weight:bold; font-size:13px;")
+        set_role(self._title, "bold-medium")
         self._title.setWordWrap(True)
         outer.addWidget(self._title)
 
@@ -718,16 +689,16 @@ class _TripleDetailPanel(QWidget):
         # цветной border-left — читаемо и в тёмной, и в светлой теме.
         self._hints_lbl = QLabel()
         self._hints_lbl.setWordWrap(True)
-        self._hints_lbl.setStyleSheet(_th().style_generator_header())
+        set_role(self._hints_lbl, "info-banner")
         outer.addWidget(self._hints_lbl)
 
         # Used-in (другие триплеты, где встречается выбранная нода).
         self._usedin_label = QLabel("Номера триплетов, в которых встречается:")
-        self._usedin_label.setStyleSheet(f"color:{_th().color_text_muted}; font-style:italic;")
+        set_role(self._usedin_label, "muted-italic")
         outer.addWidget(self._usedin_label)
         self._usedin_list = QLabel()
         self._usedin_list.setWordWrap(True)
-        self._usedin_list.setStyleSheet(f"color:{_th().color_text_secondary};")
+        set_role(self._usedin_list, "secondary-soft")
         self._usedin_list.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         outer.addWidget(self._usedin_list)
 
@@ -740,14 +711,6 @@ class _TripleDetailPanel(QWidget):
         actions.addWidget(self._exclude_btn)
         actions.addStretch(1)
         outer.addLayout(actions)
-
-    def apply_shell_styles(self):
-        t = _th()
-        self._hints_lbl.setStyleSheet(t.style_generator_header())
-        self._usedin_label.setStyleSheet(f"color:{t.color_text_muted}; font-style:italic;")
-        self._usedin_list.setStyleSheet(f"color:{t.color_text_secondary};")
-        for block in self._node_blocks.values():
-            block.apply_static_label_styles()
 
     # ---------- API ----------
 
@@ -970,11 +933,12 @@ class _NodeEditorBlock(QFrame):
 
         self.setFrameShape(QFrame.Shape.StyledPanel)
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(6, 6, 6, 6)
-        outer.setSpacing(6)
+        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setSpacing(SPACING)
 
         self._stripe = QFrame()
         self._stripe.setFixedWidth(4)
+        set_role(self._stripe, "stripe")
         outer.addWidget(self._stripe)
 
         right = QVBoxLayout()
@@ -985,20 +949,18 @@ class _NodeEditorBlock(QFrame):
         head = QHBoxLayout()
         head.setContentsMargins(0, 0, 0, 0)
         self._role_lbl = QLabel()
-        self._role_lbl.setStyleSheet("font-weight:bold;")
+        set_role(self._role_lbl, "bold")
         head.addWidget(self._role_lbl)
 
         # Бейдж «ИЗМЕНЕН» — виден, когда у узла есть override.
         self._override_badge = QLabel("ИЗМЕНЕН")
-        self._override_badge.setStyleSheet(
-            f"color:{_th().color_link_individual}; font-weight:bold; font-size:10px;"
-        )
+        set_role(self._override_badge, "override-badge")
         self._override_badge.setVisible(False)
         head.addWidget(self._override_badge)
 
         head.addStretch(1)
         self._used_in_lbl = QLabel()
-        self._used_in_lbl.setStyleSheet(f"color:{_th().color_text_muted}; font-style:italic;")
+        set_role(self._used_in_lbl, "muted-italic")
         head.addWidget(self._used_in_lbl)
         right.addLayout(head)
 
@@ -1041,26 +1003,22 @@ class _NodeEditorBlock(QFrame):
 
         right.addLayout(edit_row)
 
-        self._meta_lbl = QLabel()
-        self._meta_lbl.setWordWrap(True)
-        self._meta_lbl.setStyleSheet(f"color:{_th().color_text_muted};")
-        right.addWidget(self._meta_lbl)
+        self._meta_source_lbl = QLabel()
+        self._meta_source_lbl.setWordWrap(True)
+        set_role(self._meta_source_lbl, "muted")
+        right.addWidget(self._meta_source_lbl)
+
+        self._meta_problem_lbl = QLabel()
+        self._meta_problem_lbl.setWordWrap(True)
+        set_severity(self._meta_problem_lbl, "error")
+        right.addWidget(self._meta_problem_lbl)
 
         # Pipeline: Извлечение → Нормализация → Сборка. Нейтральный
         # полупрозрачный overlay — корректно ложится на тёмный фон.
         self._pipeline_lbl = QLabel()
         self._pipeline_lbl.setWordWrap(True)
-        self._pipeline_lbl.setStyleSheet(_th().style_pipeline_widget())
+        set_role(self._pipeline_lbl, "pipeline-info")
         right.addWidget(self._pipeline_lbl)
-
-    def apply_static_label_styles(self):
-        t = _th()
-        self._override_badge.setStyleSheet(
-            f"color:{t.color_link_individual}; font-weight:bold; font-size:10px;"
-        )
-        self._used_in_lbl.setStyleSheet(f"color:{t.color_text_muted}; font-style:italic;")
-        self._meta_lbl.setStyleSheet(f"color:{t.color_text_muted};")
-        self._pipeline_lbl.setStyleSheet(t.style_pipeline_widget())
 
     # ---------- API ----------
 
@@ -1081,12 +1039,12 @@ class _NodeEditorBlock(QFrame):
 
         # Стрипп: красный важнее всего; иначе override → голубой; иначе обычный warn.
         if warn_level >= 2:
-            stripe_color = _warn_color(warn_level)
+            stripe_severity = _severity_for_level(warn_level)
         elif is_overridden:
-            stripe_color = _th().color_link_individual
+            stripe_severity = "link"
         else:
-            stripe_color = _warn_color(warn_level)
-        self._stripe.setStyleSheet(f"background-color:{stripe_color}; border-radius:1px;")
+            stripe_severity = _severity_for_level(warn_level)
+        set_severity(self._stripe, stripe_severity)
 
         self._override_badge.setVisible(is_overridden)
         self._reset_btn.setVisible(is_overridden)
@@ -1096,17 +1054,18 @@ class _NodeEditorBlock(QFrame):
         self._edit.setText(n3)
         self._edit.blockSignals(False)
 
-        # Метаданные узла.
-        meta_parts = []
-        if node.source:
-            meta_parts.append(f"источник: {_html_escape(node.source)}")
+        # Метаданные узла: источник (плейн, муoтрое) и проблема (отдельный лейбл, severity=error).
+        self._meta_source_lbl.setText(f"источник: {node.source}" if node.source else "")
+        self._meta_source_lbl.setVisible(bool(node.source))
+
         if node.error:
-            meta_parts.append(
-                f"<span style='color:{_th().color_status_error};'>ошибка: {_html_escape(node.error)}</span>"
-            )
-        if not node.is_complete() and node.error is None:
-            meta_parts.append(f"<span style='color:{_th().color_status_error};'>значение отсутствует</span>")
-        self._meta_lbl.setText(" · ".join(meta_parts) if meta_parts else "")
+            problem = f"ошибка: {node.error}"
+        elif not node.is_complete():
+            problem = "значение отсутствует"
+        else:
+            problem = ""
+        self._meta_problem_lbl.setText(problem)
+        self._meta_problem_lbl.setVisible(bool(problem))
 
         if used_in_count > 0:
             self._used_in_lbl.setText(f"используется ещё в {used_in_count} триплете(ах)")
@@ -1114,16 +1073,19 @@ class _NodeEditorBlock(QFrame):
         else:
             self._used_in_lbl.setVisible(False)
 
-        self._pipeline_lbl.setText(self._pipeline_html(node, extraction))
+        self._pipeline_lbl.setText(self._pipeline_summary(node, extraction))
 
     def set_empty(self):
         self.setEnabled(False)
         self._role_lbl.setText("")
-        self._stripe.setStyleSheet("background-color: transparent;")
+        set_severity(self._stripe, None)
         self._edit.blockSignals(True)
         self._edit.setText("")
         self._edit.blockSignals(False)
-        self._meta_lbl.setText("")
+        self._meta_source_lbl.setText("")
+        self._meta_source_lbl.setVisible(False)
+        self._meta_problem_lbl.setText("")
+        self._meta_problem_lbl.setVisible(False)
         self._pipeline_lbl.setText("")
         self._used_in_lbl.setVisible(False)
         self._override_badge.setVisible(False)
@@ -1138,7 +1100,7 @@ class _NodeEditorBlock(QFrame):
 
     # ---------- pipeline ----------
 
-    def _pipeline_html(self, node: DraftNode, extr: ExtractionResult | None) -> str:
+    def _pipeline_summary(self, node: DraftNode, extr: ExtractionResult | None) -> str:
         field = node.source
         ext_part = self._extraction_summary(field, extr)
         norm_part = self._normalization_summary(field, extr)
@@ -1148,40 +1110,37 @@ class _NodeEditorBlock(QFrame):
     @staticmethod
     def _extraction_summary(field: str | None, extr: ExtractionResult | None) -> str:
         if not field:
-            return f"<span style='color:{_th().color_text_muted};'>нет поля</span>"
+            return "нет поля"
         if extr is None:
-            return f"<span style='color:{_th().color_status_warning};'>нет данных</span>"
+            return "нет данных"
         data = extr.get_field(field)
         if not data:
-            return f"<span style='color:{_th().color_status_error};'>не найдено</span>"
+            return "не найдено"
         sit = extr.get_situation(field).short_msg()
         value = extr.get_value_raw(field) or "—"
-        return f"{_html_escape(sit)} «{_html_escape(value)[:60]}»"
+        return f"{sit} «{value[:60]}»"
 
     @staticmethod
     def _normalization_summary(field: str | None, extr: ExtractionResult | None) -> str:
         if not field or extr is None:
-            return f"<span style='color:{_th().color_text_muted};'>—</span>"
+            return "—"
         data = extr.get_field(field)
         if not data:
-            return f"<span style='color:{_th().color_text_muted};'>—</span>"
+            return "—"
         normalized = data.get("normalized")
         if normalized is True:
-            return f"OK «{_html_escape(data.get('value_normalized') or '—')[:60]}»"
+            return f"OK «{(data.get('value_normalized') or '—')[:60]}»"
         if normalized is False:
-            return (
-                f"<span style='color:{_th().color_status_error};'>отвергнуто: "
-                f"{_html_escape(data.get('error_normalized') or '—')}</span>"
-            )
-        return f"<span style='color:{_th().color_text_muted};'>не запускалось</span>"
+            return f"отвергнуто: {data.get('error_normalized') or '—'}"
+        return "не запускалось"
 
     @staticmethod
     def _assembly_summary(node: DraftNode) -> str:
         if node.error is not None:
-            return f"<span style='color:{_th().color_status_error};'>{_html_escape(str(node.error))}</span>"
+            return str(node.error)
         if node.is_complete():
             return "OK"
-        return f"<span style='color:{_th().color_status_error};'>значение отсутствует</span>"
+        return "значение отсутствует"
 
     def _emit_edit_finished(self):
         self._on_edit_finished(self._role, self._edit.text())
@@ -1218,7 +1177,6 @@ class DocumentViewGraphTab(QWidget):
 
         self._items: list[_TripleListItem] = []
         self._build_ui()
-        get_theme_manager().theme_changed.connect(self._on_theme_changed)
 
     # ---------- UI ----------
 
@@ -1275,7 +1233,7 @@ class DocumentViewGraphTab(QWidget):
 
         empty = QLabel("Выберите триплет слева для просмотра и редактирования.")
         empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty.setStyleSheet(f"color:{_th().color_text_disabled};")
+        set_severity(empty, "disabled")
         empty.setWordWrap(True)
         self._detail_stack.addWidget(empty)
 
@@ -1294,9 +1252,7 @@ class DocumentViewGraphTab(QWidget):
 
     def _build_error_banner(self) -> QWidget:
         banner = QFrame()
-        banner.setStyleSheet(
-            f"background:{_th().color_status_error}; color:{_th().color_on_error}; padding:6px 10px;"
-        )
+        set_role(banner, "error-banner")
         lay = QHBoxLayout(banner)
         lay.setContentsMargins(8, 4, 8, 4)
         self._error_text = QLabel()
@@ -1306,16 +1262,6 @@ class DocumentViewGraphTab(QWidget):
         details_btn.clicked.connect(self._on_show_build_error)
         lay.addWidget(details_btn)
         return banner
-
-    def _on_theme_changed(self, _theme_id: str):
-        t = _th()
-        self._error_banner.setStyleSheet(t.style_graph_error_banner())
-        empty = self._detail_stack.widget(0)
-        if isinstance(empty, QLabel):
-            empty.setStyleSheet(f"color:{t.color_text_disabled};")
-        self._refresh_list_items()
-        self._detail_panel.apply_shell_styles()
-        self._detail_panel.refresh()
 
     # ---------- public ----------
 
