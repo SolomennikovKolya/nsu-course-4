@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QListWidget, QVBoxLayout, QWidget
 
 from app.context import get_temp_manager
@@ -76,6 +76,9 @@ class TemplateListWidget(QWidget):
 
     def _build_ui(self):
         self._list = QListWidget()
+        # Длинные названия сокращаются многоточием справа, без горизонтального скролла.
+        self._list.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

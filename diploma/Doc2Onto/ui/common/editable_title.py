@@ -119,8 +119,10 @@ class EditableTitleWidget(QWidget):
         view_layout.addWidget(self._label, 1)
 
         self._edit_btn = QToolButton()
-        self._edit_btn.setText("✎")
+        self._edit_btn.setText("✏")
+        self._edit_btn.setFixedWidth(32)
         self._edit_btn.setToolTip("Переименовать")
+        set_role(self._edit_btn, "glyph")
         self._edit_btn.clicked.connect(self.start_edit)
         view_layout.addWidget(self._edit_btn, 0, Qt.AlignmentFlag.AlignTop)
 

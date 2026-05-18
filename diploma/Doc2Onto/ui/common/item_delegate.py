@@ -15,7 +15,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
 )
@@ -38,10 +37,14 @@ class ThemedItemDelegate(QStyledItemDelegate):
         self.initStyleOption(opt, index)
 
         kind = index.data(ITEM_KIND_ROLE)
-        if isinstance(kind, str) and not (opt.state & QStyle.StateFlag.State_Selected):
+        if isinstance(kind, str):
             color_value = get_theme_manager().current.color_for_item_kind(kind)
             if color_value:
-                opt.palette.setColor(QPalette.ColorRole.Text, QColor(color_value))
+                # Применяем kind-цвет и для обычного, и для выделенного состояния, чтобы
+                # текст не «прыгал» в цвет фона выделения.
+                color = QColor(color_value)
+                opt.palette.setColor(QPalette.ColorRole.Text, color)
+                opt.palette.setColor(QPalette.ColorRole.HighlightedText, color)
 
         super().paint(painter, opt, index)
 

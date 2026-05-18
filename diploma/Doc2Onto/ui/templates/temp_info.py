@@ -205,13 +205,14 @@ class TemplateInfoWidget(QWidget):
 
         self.title = EditableTitleWidget(placeholder="Название шаблона")
         self.title.committed.connect(self._on_template_name_committed)
-        description_layout.addWidget(self.title)
+        description_layout.addWidget(self.title, alignment=Qt.AlignmentFlag.AlignTop)
 
         self.description_stack = QStackedWidget()
 
         self.description_view = QTextBrowser()
         self.description_view.setOpenExternalLinks(True)
         self.description_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.description_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.description_edit = QPlainTextEdit()
         self.description_edit.setPlaceholderText("Краткое описание шаблона…")

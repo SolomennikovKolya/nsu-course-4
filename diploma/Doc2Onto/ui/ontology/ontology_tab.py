@@ -440,11 +440,6 @@ class IndividualCardWidget(QWidget):
         self._props_table.cellClicked.connect(self._on_props_cell_clicked)
         layout.addWidget(self._props_table, 1)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep2)
-
         layout.addWidget(QLabel("Входящие ссылки:"))
         self._inbox_table = QTableWidget(0, 2)
         self._inbox_table.setHorizontalHeaderLabels(["Субъект", "Предикат"])
@@ -701,11 +696,6 @@ class ClassCardWidget(QWidget):
         self._subclasses_table.cellClicked.connect(self._on_subclasses_cell_clicked)
         layout.addWidget(self._subclasses_table, 1)
 
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(sep2)
-
         self._individuals_header = QLabel("Индивиды:")
         layout.addWidget(self._individuals_header)
         self._individuals_table = QTableWidget(0, 1)
@@ -767,7 +757,7 @@ class ClassCardWidget(QWidget):
                 directs.append(s)
         directs.sort(key=lambda i: display_name(g, i, types_of(g, i)).lower())
 
-        self._individuals_header.setText(f"Индивиды ({len(directs)}):")
+        self._individuals_header.setText("Индивиды:")
         self._individuals_table.setRowCount(len(directs))
         for r, ind in enumerate(directs):
             item = QTableWidgetItem(display_name(g, ind, types_of(g, ind)))
@@ -815,23 +805,21 @@ class OntologyTab(QWidget):
         self._search_timer.setInterval(180)
         self._search_timer.timeout.connect(self._apply_filter)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-
         self._search = QLineEdit()
         self._search.setPlaceholderText("Поиск по литералам и фрагменту IRI...")
         self._search.textChanged.connect(self._on_search_changed)
-        layout.addWidget(self._search)
-
-        splitter = QSplitter()
-        splitter.setOrientation(Qt.Orientation.Horizontal)
 
         self._tree = QTreeWidget()
         self._tree.setHeaderHidden(True)
         self._tree.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
         self._tree.setItemDelegate(ThemedItemDelegate(self._tree))
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
-        splitter.addWidget(self._tree)
+
+        left_panel = QWidget()
+        left_panel.setMinimumWidth(MIN_LEFT_PANEL_WIDTH)
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.addWidget(self._search)
+        left_layout.addWidget(self._tree)
 
         # Правый стэк — три страницы: пусто / класс / индивид.
         self._stack = QStackedWidget()
@@ -860,11 +848,16 @@ class OntologyTab(QWidget):
 
         events.ontology_changed.connect(self.refresh_graph)
 
+        splitter = QSplitter()
+        splitter.addWidget(left_panel)
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes(SPLITTER_RATIO_SIZES)
-        layout.addWidget(splitter, 1)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(splitter)
 
         self.refresh_graph()
 

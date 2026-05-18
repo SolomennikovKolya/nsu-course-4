@@ -47,6 +47,14 @@ MAIN_WINDOW_H = 800
 MIN_LEFT_PANEL_WIDTH = 300
 SPLITTER_RATIO_SIZES = [400, 900]
 SPACING = 8
+SPACING_SMALL = 4
+SPACING_LARGE = 12
+PADDING_TAB_CONTENT = 8        # внешний отступ страницы внутри QTabWidget
+GLYPH_BUTTON_WIDTH = 32        # ширина компактных glyph-кнопок (✏, ↺, ⚙)
+STRIPE_WIDTH = 4               # вертикальная цветная полоска статуса
+DETAILS_SPLITTER_SIZES = [220, 480]
+DESC_DEBOUNCE_MS = 400         # задержка автосохранения описания шаблона
+SEARCH_DEBOUNCE_MS = 180       # дебаунс поиска по дереву онтологии
 
 # --- логи ---
 LOG_ALIGN_WIDTH = 30

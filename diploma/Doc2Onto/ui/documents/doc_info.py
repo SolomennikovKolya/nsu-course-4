@@ -364,11 +364,15 @@ class DocumentInfoWidget(QWidget):
 
         self._status_widget = StatusBarWidget()
         page_layout.addWidget(self._status_widget)
-        page_layout.addSpacing(8)
 
         self._document_view = DocumentViewWidget()
         self._document_view.setMinimumHeight(240)
         page_layout.addWidget(self._document_view, 1)
+
+        # sep = QFrame()
+        # sep.setFrameShape(QFrame.Shape.HLine)
+        # sep.setFrameShadow(QFrame.Shadow.Sunken)
+        # page_layout.addWidget(sep)
 
         self._action_button = QPushButton()
         self._action_button.clicked.connect(self._on_action_clicked)

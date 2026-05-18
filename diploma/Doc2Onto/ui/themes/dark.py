@@ -98,6 +98,11 @@ class DarkTheme(BaseAppTheme):
     color_link_individual = "#90caf9"
     color_link_class = "#ce93d8"
 
+    color_accent = "#5a8bd6"
+    color_panel_hover = "#444444"
+    color_panel_pressed = "#2a2a2a"
+    color_selection_bg = "rgba(90,140,220,0.30)"
+
     color_info_accent = "#5a8bd6"
     color_on_error = "#ffffff"
     color_delete_button = "#D32F2F"

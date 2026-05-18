@@ -98,6 +98,11 @@ class LightTheme(BaseAppTheme):
     color_link_individual = "#1565c0"
     color_link_class = "#6a1b9a"
 
+    color_accent = "#1976d2"
+    color_panel_hover = "#dcdcdc"
+    color_panel_pressed = "#d6d6d6"
+    color_selection_bg = "rgba(25,118,210,0.18)"
+
     color_info_accent = "#1976d2"
     color_on_error = "#ffffff"
     color_delete_button = "#b71c1c"

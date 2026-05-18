@@ -35,6 +35,11 @@ class BaseAppTheme:
     color_link_individual: str = ""
     color_link_class: str = ""
 
+    color_accent: str = ""          # фокус инпутов, индикатор активной вкладки, hover сплиттера
+    color_panel_hover: str = ""     # hover у кнопок / неактивных вкладок
+    color_panel_pressed: str = ""   # pressed у кнопок
+    color_selection_bg: str = ""    # подсветка выделенной строки в tree/list/table
+
     color_info_accent: str = ""
     color_on_error: str = ""
     color_delete_button: str = ""
@@ -83,64 +88,141 @@ QMainWindow, QWidget {{
     background-color: {self.color_window};
     color: {self.color_text_primary};
 }}
+
+/* --- Вкладки: flat, с accent-индикатором снизу. Ширина не меняется при выделении. --- */
 QTabWidget::pane {{
-    border: 1px solid {self.color_border};
+    border: none;
+    border-top: 1px solid {self.color_border};
     background: {self.color_window};
+}}
+QTabBar {{
+    qproperty-drawBase: 0;
 }}
 QTabBar::tab {{
-    background: {self.color_panel};
-    color: {self.color_text_primary};
-    padding: 6px 14px;
-    border: 1px solid {self.color_border};
-    border-bottom: none;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
+    background: transparent;
+    color: {self.color_text_muted};
+    padding: 9px 18px;
+    border: none;
+    border-bottom: 2px solid transparent;
     margin-right: 2px;
+    min-width: 80px;
+}}
+QTabBar::tab:hover:!selected {{
+    color: {self.color_text_primary};
+    background: {self.color_panel_hover};
 }}
 QTabBar::tab:selected {{
-    background: {self.color_window};
-    font-weight: bold;
+    color: {self.color_text_primary};
+    border-bottom: 2px solid {self.color_accent};
 }}
-QTabBar::tab:!selected {{
-    color: {self.color_text_muted};
-}}
+
+/* --- Списки/деревья/таблицы --- */
 QTreeWidget, QListWidget, QTableWidget {{
     background-color: {self.color_panel_inset};
     color: {self.color_text_primary};
     alternate-background-color: {self.color_panel};
     border: 1px solid {self.color_border};
-    border-radius: 2px;
+    border-radius: 4px;
+    outline: 0;
+}}
+QTreeView::item, QListView::item, QTableView::item {{
+    padding: 4px 6px;
+}}
+QTreeView::item:hover, QListView::item:hover, QTableView::item:hover {{
+    background: {self.color_panel_hover};
+}}
+QTreeView::item:selected, QListView::item:selected, QTableView::item:selected,
+QTreeView::item:selected:active, QListView::item:selected:active, QTableView::item:selected:active {{
+    background: {self.color_selection_bg};
+    color: {self.color_text_primary};
 }}
 QHeaderView::section {{
     background-color: {self.color_panel};
     color: {self.color_text_primary};
-    padding: 4px;
-    border: 1px solid {self.color_border};
+    padding: 5px 8px;
+    border: none;
+    border-right: 1px solid {self.color_border};
+    border-bottom: 1px solid {self.color_border};
 }}
+
+/* --- Поля ввода: фокус выделяется accent-границей --- */
 QLineEdit, QTextEdit, QPlainTextEdit, QComboBox {{
     background-color: {self.color_panel_inset};
     color: {self.color_text_primary};
     border: 1px solid {self.color_border};
-    border-radius: 2px;
-    padding: 4px;
+    border-radius: 4px;
+    padding: 5px 8px;
+    selection-background-color: {self.color_selection_bg};
 }}
-QPushButton {{
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus {{
+    border: 1px solid {self.color_accent};
+}}
+QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled {{
+    color: {self.color_text_disabled};
+    background-color: {self.color_panel};
+}}
+
+/* --- Кнопки: hover/pressed/disabled --- */
+QPushButton, QToolButton {{
     background-color: {self.color_panel};
     color: {self.color_text_primary};
     border: 1px solid {self.color_border};
-    border-radius: 3px;
-    padding: 5px 12px;
+    border-radius: 4px;
+    padding: 6px 14px;
 }}
-QPushButton:disabled {{
+QPushButton:hover, QToolButton:hover {{
+    background-color: {self.color_panel_hover};
+    border-color: {self.color_accent};
+}}
+QPushButton:pressed, QToolButton:pressed {{
+    background-color: {self.color_panel_pressed};
+}}
+QPushButton:disabled, QToolButton:disabled {{
     color: {self.color_text_disabled};
+    background-color: {self.color_panel};
+    border-color: {self.color_border};
 }}
 QPushButton[role="delete"]:hover {{
     background-color: {self.color_delete_button};
+    border-color: {self.color_delete_button};
     color: {self.color_on_error};
 }}
+
+/* --- Глиф-кнопки (✎, ⚙ и т.п.): крупнее и с предсказуемым шрифтом --- */
+QToolButton[role="glyph"], QPushButton[role="glyph"] {{
+    font-family: "Segoe UI Symbol", "DejaVu Sans", sans-serif;
+    font-size: 15px;
+    padding: 4px 8px;
+}}
+
+/* --- Сплиттер: тонкая полоска, на hover — accent --- */
 QSplitter::handle {{
     background: {self.color_border};
 }}
+QSplitter::handle:horizontal {{ width: 1px; }}
+QSplitter::handle:vertical   {{ height: 1px; }}
+QSplitter::handle:hover {{
+    background: {self.color_accent};
+}}
+
+/* --- QGroupBox: видимая рамка + заголовок поверх рамки --- */
+QGroupBox {{
+    border: 1px solid {self.color_border};
+    border-radius: 6px;
+    margin-top: 14px;
+    padding: 10px;
+    padding-top: 14px;
+}}
+QGroupBox::title {{
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 10px;
+    padding: 0 6px;
+    background: {self.color_window};
+    color: {self.color_text_primary};
+}}
+
+/* --- Прочее --- */
 QScrollArea {{
     border: none;
     background: transparent;
@@ -149,7 +231,29 @@ QToolTip {{
     background-color: {self.color_panel_inset};
     color: {self.color_text_primary};
     border: 1px solid {self.color_border};
+    padding: 4px 6px;
 }}
+QScrollBar:vertical {{
+    background: transparent;
+    width: 10px;
+    margin: 2px;
+}}
+QScrollBar:horizontal {{
+    background: transparent;
+    height: 10px;
+    margin: 2px;
+}}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
+    background: {self.color_border};
+    border-radius: 3px;
+    min-height: 24px;
+    min-width: 24px;
+}}
+QScrollBar::handle:hover {{
+    background: {self.color_text_muted};
+}}
+QScrollBar::add-line, QScrollBar::sub-line {{ background: none; border: none; }}
+QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
 /* --- семантические лейблы (выставляются через ui.common.qss.set_role/set_severity) --- */
 QLabel[role="muted"]              {{ color: {self.color_text_muted}; }}

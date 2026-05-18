@@ -384,7 +384,7 @@ class _NodeGeneratorDialog(QDialog):
         # --- Сгруппированные поля формы ---
         form = QFrame()
         form_lay = QVBoxLayout(form)
-        form_lay.setContentsMargins(12, 10, 12, 12)
+        form_lay.setContentsMargins(0, 0, 0, 0)
         form_lay.setSpacing(SPACING)
 
         form_lay.addWidget(QLabel("<b>Концепт онтологии:</b>"))
@@ -979,7 +979,8 @@ class _NodeEditorBlock(QFrame):
 
         # Кнопка сброса ручной правки.
         self._reset_btn = QPushButton("↺")
-        self._reset_btn.setFixedWidth(28)
+        self._reset_btn.setFixedWidth(32)
+        set_role(self._reset_btn, "glyph")
         self._reset_btn.setToolTip(
             "Сбросить ручную правку и вернуть исходное значение, посчитанное стадией сборки графа."
         )
@@ -991,8 +992,9 @@ class _NodeEditorBlock(QFrame):
         # Видимость задаётся в set_state на основе типа триплета и роли:
         # она имеет смысл только для индивидов и литералов; для предикатов
         # (свойств) и классов (object роль в TYPE-триплете) — нет.
-        self._gen_btn = QPushButton("⚙")
-        self._gen_btn.setFixedWidth(28)
+        self._gen_btn = QPushButton("#")
+        self._gen_btn.setFixedWidth(32)
+        set_role(self._gen_btn, "glyph")
         self._gen_btn.setToolTip(
             "Сгенерировать значение через концепт онтологии "
             "(IRI индивида с хешем или типизированный литерал)."
@@ -1212,7 +1214,7 @@ class DocumentViewGraphTab(QWidget):
         supp_lay = QVBoxLayout(supp_box)
         supp_lay.setContentsMargins(4, 4, 4, 4)
         supp_lay.setSpacing(4)
-        supp_lay.addWidget(QLabel("Дополнительные факты (Turtle):"))
+        supp_lay.addWidget(QLabel("Дополнительные факты:"))
         self._supp = QTextEdit()
         self._supp.setFont(QFont("Consolas"))
         self._supp.setPlaceholderText(self._SUPPLEMENTARY_DEFAULT)

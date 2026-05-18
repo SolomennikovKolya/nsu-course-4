@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -149,10 +150,13 @@ class DocumentTreeWidget(QWidget):
         had_focus = restore_focus and self._tree.hasFocus()
         self._tree.clear()
 
+        italic_font = QFont(self._tree.font())
+        italic_font.setItalic(True)
+
         for group in self._cache.group_names():
             folder = QTreeWidgetItem([group])
             folder.setFlags(folder.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            folder.setData(0, ITEM_KIND_ROLE, "subtle")
+            folder.setFont(0, italic_font)
             self._tree.addTopLevelItem(folder)
 
             for doc in self._cache.docs_in_group(group):
