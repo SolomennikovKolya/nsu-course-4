@@ -30,7 +30,7 @@ from typing import List
 
 # Порядок частей ВКР. Имена файлов относительно директории `docs/thesis/`.
 PARTS: List[str] = [
-    # "annotation.md",
+    "annotation.md",
     "introduction.md",
     "chapter_1.md",
     "chapter_2.md",
@@ -38,6 +38,7 @@ PARTS: List[str] = [
     "conclusion.md",
     "references.md",
     "appendices.md",
+    "appendices_doc.md",
 ]
 
 THESIS_DIR = Path(__file__).resolve().parent
