@@ -1,0 +1,93 @@
+@prefix :     <http://doc2onto.org/ontology#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<http://doc2onto.org/ontology> rdf:type owl:Ontology ;
+    rdfs:label "Онтология учебного процесса кафедры"@ru .
+
+# ===== Политики слияния фактов (см. главу 2, раздел 2.8.1) =====
+
+:MergePolicy rdf:type owl:Class ;
+    rdfs:label "Политика слияния фактов"@ru .
+
+:Policy_Set        rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "set"@ru ;
+    rdfs:comment "Полная замена (s, p, *) → (s, p, o_new)." .
+
+:Policy_SetByDate  rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "set-by-date"@ru ;
+    rdfs:comment "Замена только если effective_date нового факта ≥ существующего." .
+
+:Policy_Add        rdf:type owl:NamedIndividual, :MergePolicy ;
+    rdfs:label "add"@ru ;
+    rdfs:comment "Multi-valued: чистый add (дефолт)." .
+
+:mergePolicy rdf:type owl:AnnotationProperty ;
+    rdfs:label "политика слияния"@ru ;
+    rdfs:domain rdf:Property ;
+    rdfs:range  :MergePolicy .
+
+# ===== Классы (фрагмент) =====
+
+:Агент rdf:type owl:Class ;
+    rdfs:label "Агент"@ru .
+
+:Персона rdf:type owl:Class ;
+    rdfs:subClassOf :Агент ;
+    rdfs:label "Персона"@ru ;
+    rdfs:comment """IRI индивида формируется как детерминированный хеш от
+        нормализованного представления ФИО.""" .
+
+:Студент rdf:type owl:Class ;
+    rdfs:subClassOf :Персона ;
+    rdfs:label "Студент"@ru .
+
+:Сотрудник rdf:type owl:Class ;
+    rdfs:subClassOf :Персона ;
+    rdfs:label "Сотрудник"@ru .
+
+:Группа rdf:type owl:Class ;
+    rdfs:label "Учебная группа"@ru .
+
+:ВКР rdf:type owl:Class ;
+    rdfs:label "Выпускная квалификационная работа"@ru ;
+    rdfs:comment "IRI — хеш от IRI студента (одна ВКР на студента)." .
+
+:Практика rdf:type owl:Class ;
+    rdfs:label "Практика"@ru ;
+    rdfs:comment "IRI — хеш от пары (IRI студента, дата начала)." .
+
+# Дизъюнктность: персона и организация не пересекаются
+[] rdf:type owl:AllDisjointClasses ;
+   owl:members ( :Персона :Организация ) .
+
+# ===== Свойства (фрагмент) =====
+
+# Идентифицирующее свойство/связь — полная замена
+:фамилия rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Персона ;
+    rdfs:range  xsd:string ;
+    :mergePolicy :Policy_Set .
+:авторВКР rdf:type owl:ObjectProperty ;
+    rdfs:domain :ВКР ;
+    rdfs:range  :Студент ;
+    :mergePolicy :Policy_Set .
+
+# Изменяющееся во времени состояние — замена по дате
+:обучаетсяВГруппе rdf:type owl:ObjectProperty ;
+    rdfs:domain :Студент ;
+    rdfs:range  :Группа ;
+    :mergePolicy :Policy_SetByDate .
+:темаВКР rdf:type owl:DatatypeProperty ;
+    rdfs:domain :ВКР ;
+    rdfs:range  xsd:string ;
+    :mergePolicy :Policy_SetByDate .
+
+# Множественное свойство — добавление
+:телефон rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Персона ;
+    rdfs:range  xsd:string ;
+    :mergePolicy :Policy_Add .
+

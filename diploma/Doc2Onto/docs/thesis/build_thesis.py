@@ -16,9 +16,9 @@
   5. Сохраняет результат в `docs/thesis/thesis.md`.
 
 Использование:
-  python scripts/build_thesis.py              # сборка с настройками по умолчанию
-  python scripts/build_thesis.py --keep-meta  # сохранить вступительные цитаты
-  python scripts/build_thesis.py --output FILE.md
+  python thesis/build_thesis.py              # сборка с настройками по умолчанию
+  python thesis/build_thesis.py --keep-meta  # сохранить вступительные цитаты
+  python thesis/build_thesis.py --output FILE.md
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from typing import List
 
 # Порядок частей ВКР. Имена файлов относительно директории `docs/thesis/`.
 PARTS: List[str] = [
-    "annotation.md",
+    # "annotation.md",
     "introduction.md",
     "chapter_1.md",
     "chapter_2.md",
@@ -216,7 +216,7 @@ def build(output: Path, *, strip_meta: bool):
     print("  4. Применить стили заголовков и оформления по требованиям ВКР.")
     print()
     print("Альтернативно — конвертация в .docx через pandoc:")
-    print(f"  pandoc {output} -o {output.with_suffix('.docx')}")
+    print(f"  pandoc thesis/thesis.md -o thesis/thesis.docx --reference-doc=artifacts/format_ref.docx")
 
 
 def parse_args() -> argparse.Namespace:
