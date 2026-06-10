@@ -2,7 +2,10 @@
 Структура UDDM:
 ```
 root
- └── block* // block = (text|list|table)
+ └── block*
+
+block = (text|list|table)
+
 text
  └── p+
 list
@@ -138,8 +141,6 @@ def rollback_document(self, document_id: str) -> bool:
 
 Пример кода шаблона:
 ```python
-from typing import List
-
 from core import *
 
 class TemplateCode(BaseTemplateCode):
@@ -148,13 +149,12 @@ class TemplateCode(BaseTemplateCode):
         name = (doc_name or "").lower()
         if all(w in name for w in ["заявление", "практику", "пиикн"]):
             return True
-
         full_text = str(uddm.root).lower()
         return all(w in full_text for w in [
             "заявление", "прошу направить меня", "практику",
         ])
 
-    def fields(self) -> List[Field]:
+    def fields(self) -> list[Field]:
         return [
             Field(
                 "student_name", "ФИО обучающегося",
@@ -163,31 +163,32 @@ class TemplateCode(BaseTemplateCode):
                 norm().concept(PersonConcept),
             ),
             Field(
-                "course_number", "Номер курса обучения",
-                sel().find(ElementType.P, Predicate.contains_text("курса")),
-                ext().regex(r"(\d+)\s*курса", group=1),
-                norm().integer().in_range(1, 4),
+                "group_number", "Номер учебной группы",
+                sel().find(ElementType.P, Predicate.contains_text("Группа")).first(),
+                ext().regex(r"Группа\s+([0-9A-Za-zА-Яа-я\-]+)", group=1),
+                norm().concept(GroupConcept),
             ),
             # << другие поля... >>
         ]
 
     def build(self, b: TemplateGraphBuilder):
         student = b.individual("student_name", PersonConcept, role=ONTO.Студент)
-
         b.add_object_property(student, ONTO.обучаетсяВГруппе,
             b.individual("group_number", GroupConcept))
         b.add_object_property(student, ONTO.обучаетсяНаНаправлении,
             b.direction("direction_code", name_field="direction_name"))
         b.add_object_property(student, ONTO.имеетПрофиль,
             b.individual("profile_name", ProfileConcept))
+        # << другие факты... >>
+```
 
-        b.individual("organization_full_name", OrganizationConcept, role=ONTO.ВнешняяОрганизация)
-
-        supervisor = b.individual("supervisor_name", PersonConcept, role=ONTO.Сотрудник)
-        b.add_object_property_optional(supervisor, ONTO.занимаетДолжность,
-            b.individual("supervisor_position", PositionConcept))
-
-        thesis = b.thesis(student=student)
-        b.add_object_property(thesis, ONTO.руководительВКР, supervisor)
-        b.add_object_property(student, ONTO.имеетВКР, thesis)
+Концепты и идентификация индивидов:
+```
+PersonConcept("Соломенникову Николаю Александровичу")
+                        ↓
+        Соломенников Николай Александрович
+                        ↓
+            ключ = «соломенников|н|а»
+                        ↓
+            IRI = Персона_<sha1(ключ)>
 ```
